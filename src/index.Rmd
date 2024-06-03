@@ -1,0 +1,200 @@
+---
+title: "Cycling Interventions Evaluation"
+subtitle: "R Code"
+author:
+- "Richard Wen richard.wen@utoronto.ca"
+- "Brice Batomen brice.kuimi@utoronto.ca"
+- "Linda Rothman linda.rothman@torontomu.ca"
+- "Andrew Howard andrew.howard@sickkids.ca"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+knit: |
+    (function(input_rmd, ...) {
+    rmarkdown::render(
+        input_rmd,
+        rmarkdown::html_document(
+            toc = TRUE,
+            toc_float = TRUE,
+            highlight = "zenburn",
+            code_folding = "hide",
+            df_print = "paged",
+            self_contained = FALSE
+        ),
+        output_dir = "../docs",
+        output_file = "index", ...)
+    })
+---
+
+```{r include = FALSE, echo = FALSE}
+knitr::opts_chunk$set(
+	warning = FALSE,
+	message = FALSE
+)
+```
+
+# Installation
+
+1.  Install [R](https://www.r-project.org/)
+2.  Install [RTools](https://cran.r-project.org/) if you are on Windows
+3.  Install [RStudio](https://posit.co/download/rstudio-desktop/)
+
+For more details, see [Software and Package Versions](#software-and-package-versions).
+
+# Running This Code
+
+1.  Ensure the installation steps above are completed
+2.  Download a zip of the code and data [here](https://github.com/rrwen/recovr-eval/archive/refs/heads/main.zip) and unzip it
+    - Code Repository: [github.com/rrwen/recovr-eval](https://github.com/rrwen/recovr-eval)
+3.  In RStudio, open the [src/src.Rproj](https://github.com/rrwen/recovr-eval/blob/main/src/src.Rproj) file
+4.  Then, open the [src/index.Rmd](https://github.com/rrwen/recovr-eval/blob/main/src/index.Rmd) file
+5.  In RStudio:
+    - Run all code: Click the `Run` drop down (top right of the code pane) and click `Run All`
+    - Generate HTML version: Click `knit` (top left of code pane) and a file will be generated in `docs/index.html`
+
+# Libraries
+
+Install R packages if needed.
+
+```{r, results = FALSE}
+
+# Required packages
+required_packages <- c(
+	"rmarkdown",
+	"bookdown",
+	"knitr",
+	"tidyverse",
+	"purrr",
+	"glue",
+	"lubridate",
+	"scales",
+	"patchwork",
+	"DiagrammeR",
+	"DiagrammeRsvg",
+	"webshot2",
+	"magick",
+	"rsvg",
+	"sf",
+	"tmap",
+	"ggspatial",
+	"prettymapr",
+	"units",
+	"boot"
+)
+
+# Try to install packages if not installed
+default_options <- options()
+tryCatch(
+	{
+		# Disable interactivity
+		options(install.packages.compile.from.source = "always")
+		
+		# Install package if not installed
+		for (package in required_packages) {
+			is_package_installed <- require(package, character.only = TRUE)
+			if (!is_package_installed) {
+				cat(paste0("Installing package: ", package, "\n"))
+				install.packages(package)
+			} else {
+				cat(paste0("Package already installed: ", package, "\n"))
+			}
+		}
+	},
+	error = function(cond) {
+		stop(cond)
+	},
+	finally = {
+		options(default_options) # reset interactivity
+	}
+)
+```
+
+Load R libraries.
+
+```{r}
+library(boot)
+library(DiagrammeR)
+library(ggplot2)
+library(ggspatial)
+library(glue)
+library(lubridate)
+library(patchwork)
+library(sf)
+library(tidyverse)
+library(tmap)
+```
+
+# Data
+
+Read data from the `data` folder.
+
+```{r}
+ddesc <- read_csv("../data/data.csv")
+ddesc
+```
+
+## Vancouver Bikeways {.tabset}
+
+`r ddesc %>% filter(file == "vancouver-bikeways-2024-06-02.geojson") %>% pull(description)`
+
+* **Download Link**: `r ddesc %>% filter(file == "vancouver-bikeways-2024-06-02.geojson") %>% pull(url)`
+* **Download Date**: `r format(ddesc %>% filter(file == "vancouver-bikeways-2024-06-02.geojson") %>% pull(download_date), '%B %d, %Y')`
+* **Data Updated**: `r format(ddesc %>% filter(file == "vancouver-bikeways-2024-06-02.geojson") %>% pull(update_date), '%B %d, %Y')`
+* **Notes**: `r ddesc %>% filter(file == "vancouver-bikeways-2024-06-02.geojson") %>% pull(notes)`
+
+```{r}
+
+# Read data
+vancbike <- read_sf("../data/vancouver-bikeways-2024-06-02.geojson")
+
+# Get download date
+vancbike_dldate <- ddesc %>% filter(
+	file == "vancouver-bikeways-2024-06-02.geojson"
+) %>% pull(download_date)
+```
+
+### Map
+
+Only the first 1000 records are shown.
+
+```{r}
+tmap_mode("view")
+tm_shape(vancbike %>% head(1000)) +
+    tm_lines(
+    	col = "#336699",
+    	border.col = "white",
+    	popup.vars = TRUE
+    )
+```
+
+### Data
+
+* Columns: `r ncol(vancbike)`
+* Rows: `r nrow(vancbike)`
+
+```{r}
+vancbike %>% as_tibble
+```
+
+### Dictionary
+
+The data contains the following columns:
+
+```{r, cols.print = 3}
+#vancbike_ddict <- read_csv("../data/vancouver-bikeways-2024-06-02-datadict.csv")
+#vancbike_ddict
+```
+
+### Details
+
+```{r}
+print(vancbike)
+```
+
+### Files
+
+The data files are available below:
+
+- [vancouver-bikeways-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/vancouver-bikeways-2024-06-02.geojson)
+- [vancouver-bikeways-2024-06-02-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/vancouver-bikeways-2024-06-02-datadict.csv)
+
+
+# Cleaning

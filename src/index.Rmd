@@ -143,7 +143,7 @@ ddesc
 ```{r}
 
 # Read data
-vancbike <- read_sf("../data/vancouver-bikeways-2024-06-02.geojson")
+vancbike_raw <- read_sf("../data/vancouver-bikeways-2024-06-02.geojson")
 
 # Get download date
 vancbike_dldate <- ddesc %>% filter(
@@ -157,7 +157,7 @@ Only the first 1000 records are shown.
 
 ```{r}
 tmap_mode("view")
-tm_shape(vancbike %>% head(1000)) +
+tm_shape(vancbike_raw %>% head(1000)) +
     tm_lines(
     	col = "#336699",
     	border.col = "white",
@@ -167,11 +167,11 @@ tm_shape(vancbike %>% head(1000)) +
 
 ### Data
 
-* Columns: `r ncol(vancbike)`
-* Rows: `r nrow(vancbike)`
+* Columns: `r ncol(vancbike_raw)`
+* Rows: `r nrow(vancbike_raw)`
 
 ```{r}
-vancbike %>% as_tibble
+vancbike_raw %>% as_tibble
 ```
 
 ### Dictionary
@@ -186,7 +186,7 @@ The data contains the following columns:
 ### Details
 
 ```{r}
-print(vancbike)
+print(vancbike_raw)
 ```
 
 ### Files
@@ -196,5 +196,69 @@ The data files are available below:
 - [vancouver-bikeways-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/vancouver-bikeways-2024-06-02.geojson)
 - [vancouver-bikeways-2024-06-02-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/vancouver-bikeways-2024-06-02-datadict.csv)
 
+## Toronto KSI {.tabset}
+
+`r ddesc %>% filter(file == "toronto-ksi-2024-06-01.geojson") %>% pull(description)`
+
+* **Download Link**: `r ddesc %>% filter(file == "toronto-ksi-2024-06-01.geojson") %>% pull(url)`
+* **Download Date**: `r format(ddesc %>% filter(file == "toronto-ksi-2024-06-01.geojson") %>% pull(download_date), '%B %d, %Y')`
+* **Data Updated**: `r format(ddesc %>% filter(file == "toronto-ksi-2024-06-01.geojson") %>% pull(update_date), '%B %d, %Y')`
+* **Notes**: `r ddesc %>% filter(file == "toronto-ksi-2024-06-01.geojson") %>% pull(notes)`
+
+```{r}
+
+# Read data
+ksi_raw <- read_sf("../data/toronto-ksi-2024-06-01.geojson")
+
+# Get download date
+ksi_dldate <- ddesc %>% filter(
+	file == "toronto-ksi-2024-06-01.geojson"
+) %>% pull(download_date)
+```
+
+### Map
+
+**Note**: Due to the large number of records, only the latest year of `r year(max(ksi_raw$DATE))` is displayed (n = `r ksi_raw %>% filter(year(DATE) == max(year(DATE))) %>% nrow`).
+
+```{r}
+tmap_mode("view")
+tm_shape(ksi_raw %>% filter(year(DATE) == max(year(DATE)))) +
+    tm_dots(
+    	col = "ACCLASS",
+    	clustering = TRUE,
+    	popup.vars = TRUE
+    )
+```
+
+### Data
+
+* Columns: `r ncol(ksi_raw)`
+* Rows: `r nrow(ksi_raw)`
+
+```{r}
+ksi_raw %>% as_tibble()
+```
+
+### Dictionary
+
+The data contains the following columns:
+
+```{r, cols.print = 3}
+ksi_ddict <- read_csv("../data/toronto-ksi-2024-06-01-datadict.csv")
+ksi_ddict
+```
+
+### Details
+
+```{r}
+print(ksi_raw)
+```
+
+### Files
+
+The data files are available below:
+
+- [toronto-ksi-2024-06-01.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-ksi-2024-06-01.geojson)
+- [toronto-ksi-2024-06-01-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-ksi-2024-06-01-datadict.csv)
 
 # Cleaning

@@ -198,21 +198,21 @@ The data files are available below:
 
 ## Calgary Bikeways {.tabset}
 
-`r ddesc %>% filter(file == "calgary-bikeways-2024-06-02.geojson") %>% pull(description)`
+`r ddesc %>% filter(file == "calgary-bikeways-2024-06-05.geojson") %>% pull(description)`
 
-* **Download Link**: `r ddesc %>% filter(file == "calgary-bikeways-2024-06-02.geojson") %>% pull(url)`
-* **Download Date**: `r format(ddesc %>% filter(file == "calgary-bikeways-2024-06-02.geojson") %>% pull(download_date), '%B %d, %Y')`
-* **Data Updated**: `r format(ddesc %>% filter(file == "calgary-bikeways-2024-06-02.geojson") %>% pull(update_date), '%B %d, %Y')`
-* **Notes**: `r ddesc %>% filter(file == "calgary-bikeways-2024-06-02.geojson") %>% pull(notes)`
+* **Download Link**: `r ddesc %>% filter(file == "calgary-bikeways-2024-06-05.geojson") %>% pull(url)`
+* **Download Date**: `r format(ddesc %>% filter(file == "calgary-bikeways-2024-06-05.geojson") %>% pull(download_date), '%B %d, %Y')`
+* **Data Updated**: `r format(ddesc %>% filter(file == "calgary-bikeways-2024-06-05.geojson") %>% pull(update_date), '%B %d, %Y')`
+* **Notes**: `r ddesc %>% filter(file == "calgary-bikeways-2024-06-05.geojson") %>% pull(notes)`
 
 ```{r}
 
 # Read data
-calgbike_raw <- read_sf("../data/calgary-bikeways-2024-06-02.geojson")
+calgbike_raw <- read_sf("../data/calgary-bikeways-2024-06-05.geojson")
 
 # Get download date
 calgbike_dldate <- ddesc %>% filter(
-	file == "calgary-bikeways-2024-06-02.geojson"
+	file == "calgary-bikeways-2024-06-05.geojson"
 ) %>% pull(download_date)
 ```
 
@@ -244,7 +244,7 @@ calgbike_raw %>% as_tibble
 The data contains the following columns:
 
 ```{r, cols.print = 3}
-#calgbike_ddict <- read_csv("../data/calgary-bikeways-2024-06-02-datadict.csv")
+#calgbike_ddict <- read_csv("../data/calgary-bikeways-2024-06-05-datadict.csv")
 #calgbike_ddict
 ```
 
@@ -258,8 +258,8 @@ print(calgbike_raw)
 
 The data files are available below:
 
-- [calgary-bikeways-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/calgary-bikeways-2024-06-02.geojson)
-- [calgary-bikeways-2024-06-02-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/calgary-bikeways-2024-06-02-datadict.csv)
+- [calgary-bikeways-2024-06-05.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/calgary-bikeways-2024-06-05.geojson)
+- [calgary-bikeways-2024-06-05-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/calgary-bikeways-2024-06-05-datadict.csv)
 
 ## Toronto Bikeways {.tabset}
 
@@ -594,8 +594,4 @@ parsed[["Calgary"]]
 ```{r results = "asis"}
 cat(msg[["Toronto"]])
 parsed[["Toronto"]]
-```
-
-```{r}
-vanc
 ```

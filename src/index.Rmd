@@ -328,21 +328,21 @@ The data files are available below:
 
 ## Verified Dates {.tabset}
 
-`r ddesc %>% filter(file == "verify-dates-2024-06-05.csv") %>% pull(description)`
+`r ddesc %>% filter(file == "verify-dates-2024-06-07.csv") %>% pull(description)`
 
-* **Download Link**: `r ddesc %>% filter(file == "verify-dates-2024-06-05.csv") %>% pull(url)`
-* **Download Date**: `r format(ddesc %>% filter(file == "verify-dates-2024-06-05.csv") %>% pull(download_date), '%B %d, %Y')`
-* **Data Updated**: `r format(ddesc %>% filter(file == "verify-dates-2024-06-05.csv") %>% pull(update_date), '%B %d, %Y')`
-* **Notes**: `r ddesc %>% filter(file == "verify-dates-2024-06-05.csv") %>% pull(notes)`
+* **Download Link**: `r ddesc %>% filter(file == "verify-dates-2024-06-07.csv") %>% pull(url)`
+* **Download Date**: `r format(ddesc %>% filter(file == "verify-dates-2024-06-07.csv") %>% pull(download_date), '%B %d, %Y')`
+* **Data Updated**: `r format(ddesc %>% filter(file == "verify-dates-2024-06-07.csv") %>% pull(update_date), '%B %d, %Y')`
+* **Notes**: `r ddesc %>% filter(file == "verify-dates-2024-06-07.csv") %>% pull(notes)`
 
 ```{r}
 
 # Read data
-vdates_raw <- read_sf("../data/verify-dates-2024-06-05.csv")
+vdates_raw <- read_csv("../data/verify-dates-2024-06-07.csv")
 
 # Get download date
 vdates_dldate <- ddesc %>% filter(
-	file == "verify-dates-2024-06-05.csv"
+	file == "verify-dates-2024-06-07.csv"
 ) %>% pull(download_date)
 ```
 
@@ -352,7 +352,7 @@ vdates_dldate <- ddesc %>% filter(
 * Rows: `r nrow(vdates_raw)`
 
 ```{r}
-vdates_raw %>% as_tibble
+vdates_raw
 ```
 
 ### Dictionary
@@ -360,7 +360,7 @@ vdates_raw %>% as_tibble
 The data contains the following columns:
 
 ```{r, cols.print = 3}
-vdates_ddict <- read_csv("../data/verify-dates-2024-06-05-datadict.csv")
+vdates_ddict <- read_csv("../data/verify-dates-2024-06-07-datadict.csv")
 vdates_ddict
 ```
 
@@ -368,8 +368,8 @@ vdates_ddict
 
 The data files are available below:
 
-- [verify-dates-2024-06-05.csv](https://github.com/rrwen/recovr-eval/blob/main/data/verify-dates-2024-06-05.csv)
-- [verify-dates-2024-06-05-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/verify-dates-2024-06-05-datadict.csv)
+- [verify-dates-2024-06-07.csv](https://github.com/rrwen/recovr-eval/blob/main/data/verify-dates-2024-06-07.csv)
+- [verify-dates-2024-06-07-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/verify-dates-2024-06-07-datadict.csv)
 
 ## Toronto KSI {.tabset}
 
@@ -543,6 +543,51 @@ vbike_nrow <- vbike %>%
 vbike_nrow
 ```
 
+## Filter Post-2018 Bikeways
+
+Filter for bikeways that were installed or upgraded after 2018.
+
+```{r}
+
+# Filter ver install/upgrades 2019 or later only
+vbike <- vbike %>%
+	filter(
+		verify_install_year > 2018 |
+		verify_upgrade1_year > 2018 |
+		verify_upgrade2_year > 2018
+	)
+
+# Count verified bikeways
+vbike_nrow <- vbike %>%
+	as_tibble %>%
+	group_by(city) %>%
+	summarize( # total verified segments per city
+		segments = n()
+	) %>%
+	ungroup %>%
+	add_row( # total verified segment counts
+		city = "all",
+		segments = sum(.$segments)
+	) %>%
+	mutate(
+		city = str_to_title(city)
+	) %>%
+	rename(`Verified Post-2018` = segments) %>%
+	rename_with(
+		~str_to_title(.)
+	) %>%
+	left_join(vbike_nrow, by = "City") %>%
+	mutate(
+		`Verified Post-2018 %` = `Verified Post-2018` / `Total Verified` * 100
+	) %>%
+	relocate(
+		"Verified Post-2018",
+		"Verified Post-2018 %",
+		.after = "City"
+	)
+vbike_nrow
+```
+
 ## Filter Verified with Dates
 
 Filter for bikeways with verified install/upgrade dates only.
@@ -550,7 +595,7 @@ Filter for bikeways with verified install/upgrade dates only.
 ```{r}
 
 # Filter ver install/upgrades only
-vbike <- bike %>%
+vbike <- vbike %>%
 	filter(
 		!is.na(verify_install_date) |
 		!is.na(verify_upgrade2_date) |
@@ -558,7 +603,7 @@ vbike <- bike %>%
 	)
 
 # Count verified bikeways with dates
-vbike_nrow_vdates <- vbike %>%
+vbike_nrow <- vbike %>%
 	as_tibble %>%
 	group_by(city) %>%
 	summarize( # total verified per city
@@ -572,20 +617,20 @@ vbike_nrow_vdates <- vbike %>%
 	mutate(
 		city = str_to_title(city)
 	) %>%
-	rename(`Total Dated` = segments) %>%
+	rename(`Verified Dated` = segments) %>%
 	rename_with(
 		~str_to_title(.)
 	) %>%
 	left_join(vbike_nrow, by = "City") %>%
 	mutate(
-		`Total Dated %` = `Total Dated` / `Total Verified` * 100
+		`Verified Dated %` = `Verified Dated` / `Verified Post-2018` * 100
 	) %>%
 	relocate(
-		"Total Dated",
-		"Total Dated %",
+		"Verified Dated",
+		"Verified Dated %",
 		.after = "City"
 	)
-vbike_nrow_vdates
+vbike_nrow
 ```
 
 ## Pivot Long and Remove Undated
@@ -612,10 +657,11 @@ vbike_long <- vbike %>%
 	filter(!is.na(verify_date_raw))
 
 # Count dated installs and upgrades
-vbike_long_nrow <- vbike_long %>%
+vbike_nrow <- vbike_long %>%
 	as_tibble %>%
 	group_by(city, verify_event_type) %>%
 	summarize(segments = n()) %>%
+	ungroup %>%
 	pivot_wider(
 		names_from = verify_event_type,
 		values_from = segments
@@ -632,13 +678,13 @@ vbike_long_nrow <- vbike_long %>%
 		~str_to_title(.)
 	) %>%
 	left_join(
-		vbike_nrow_vdates,
+		vbike_nrow,
 		by = "City"
 	) %>%
 	mutate(
-		`Dated Installs %` = `Dated Installs` / `Total Dated` * 100,
-		`Dated Upgrades % (1st)` = `Dated Upgrades (1st)` / `Total Dated` * 100,
-		`Dated Upgrades % (2nd)` = `Dated Upgrades (2nd)` / `Total Dated` * 100
+		`Dated Installs %` = `Dated Installs` / `Verified Dated` * 100,
+		`Dated Upgrades % (1st)` = `Dated Upgrades (1st)` / `Verified Dated` * 100,
+		`Dated Upgrades % (2nd)` = `Dated Upgrades (2nd)` / `Verified Dated` * 100
 	) %>%
 	relocate(
 		"Dated Installs",
@@ -649,7 +695,7 @@ vbike_long_nrow <- vbike_long %>%
 		"Dated Upgrades % (2nd)",
 		.after = "City"
 	)
-vbike_long_nrow
+vbike_nrow
 ```
 
 ## Clean Verified Dates
@@ -669,10 +715,11 @@ vbike_long <- vbike_long %>%
 	)
 
 # Count clean dated installs and upgrades
-vbike_long_nrow_clean <- vbike_long %>%
+vbike_nrow <- vbike_long %>%
 	as_tibble %>%
 	group_by(city, verify_event_type) %>%
 	summarize(segments = n()) %>%
+	ungroup %>%
 	pivot_wider(
 		names_from = verify_event_type,
 		values_from = segments
@@ -689,7 +736,7 @@ vbike_long_nrow_clean <- vbike_long %>%
 		~str_to_title(.)
 	) %>%
 	left_join(
-		vbike_long_nrow,
+		vbike_nrow,
 		by = "City"
 	) %>%
 	mutate(
@@ -706,23 +753,25 @@ vbike_long_nrow_clean <- vbike_long %>%
 		"Clean Dated Upgrades % (2nd)",
 		.after = "City"
 	)
-vbike_long_nrow_clean
+vbike_nrow
 ```
 
-## Filter 2019 or Later Bikeways
+## Determine Unit of Time
 
-Filter for bikeways that were installed or upgraded 2019 or later.
-
-```
-# Filter ver install/upgrades 2019 or later only
-vbike <- bike %>%
-	filter(
-		verify_install_year 
-	)
-```
-
-## Determine Temporal Scale
+Determine the unit of time based on the amount of data available per time unit.
 
 ```{r}
-
+vbike_long <- vbike_long %>%
+	mutate(
+		verify_date_quarter = case_when(
+			month(verify_date) %in% 1:3 ~ "Q1",
+			month(verify_date_start) %in% 1:3 | month(verify_date_end) %in% 1:3 ~ "Q1",
+			month(verify_date) %in% 4:6 ~ "Q2",
+			month(verify_date_start) %in% 4:6 | month(verify_date_end) %in% 4:6 ~ "Q2",
+			month(verify_date) %in% 7:9 ~ "Q3",
+			month(verify_date_start) %in% 7:9 | month(verify_date_end) %in% 7:9 ~ "Q3",
+			month(verify_date) %in% 10:12 ~ "Q4",
+			month(verify_date_start) %in% 10:12 | month(verify_date_end) %in% 10:12 ~ "Q4",
+		)
+	)
 ```

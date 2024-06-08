@@ -1,0 +1,9 @@
+column,description,data_type
+verify_date_raw,"Manually entered unstructured dates for cycling infrastructure data, verified with Google Street View, Google Earth, and web search",text
+verify_date_raw_count,Number of records with the verify_date_raw,numeric
+verify_date_type,"Type of date interpreted from verify_date_raw, one of day, week, month, year, quarter, semester, range, pre_year, pre_month, pre_day, post_year, post_month, post_day, or empty if verify_date_raw could not be translated into any of the categories. Quarters are 3 months each (Jan-Mar, Apr-June, Jul-Sept, Oct-Dec), while semesters are 4 months each for Fall (Sept-Dec), and Winter (Jan-Apr), and 2 months each for Spring (May-Jun) and Summer (Jul-Aug).",text
+verify_date,"Date infrastructure was installed or upgraded, manually cleaned from verify_date_raw if it represented a day",date
+verify_date_start,"Approximate start date that infrastructure was installed or upgraded, manually cleaned from verify_date_raw if it represented a week, month, quarter, semester, or range",date
+verify_date_end,"Approximate end date that infrastructure was installed or upgraded, manually cleaned from verify_date_raw if it represented a week, month, quarter, semester, or range",date
+verify_date_prepost,"Approximate pre or post year, month, or day that infrastructure was installed or upgraded, manually cleaned from verify_date_raw if it represented pre_year, pre_month, pre_day, post_year, post_month, or post_day",text
+verify_date_notes,"Notes on converting verify_date_raw to verify_date_type, verify_date, verify_date_start, verify_date_end, and verify_date_prepost",text

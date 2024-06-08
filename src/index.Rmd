@@ -326,6 +326,50 @@ The data files are available below:
 - [toronto-bikeways-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-bikeways-2024-06-02.geojson)
 - [toronto-bikeways-2024-06-02-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-bikeways-2024-06-02-datadict.csv)
 
+## Verified Dates {.tabset}
+
+`r ddesc %>% filter(file == "verify-dates-2024-06-05.csv") %>% pull(description)`
+
+* **Download Link**: `r ddesc %>% filter(file == "verify-dates-2024-06-05.csv") %>% pull(url)`
+* **Download Date**: `r format(ddesc %>% filter(file == "verify-dates-2024-06-05.csv") %>% pull(download_date), '%B %d, %Y')`
+* **Data Updated**: `r format(ddesc %>% filter(file == "verify-dates-2024-06-05.csv") %>% pull(update_date), '%B %d, %Y')`
+* **Notes**: `r ddesc %>% filter(file == "verify-dates-2024-06-05.csv") %>% pull(notes)`
+
+```{r}
+
+# Read data
+vdates_raw <- read_sf("../data/verify-dates-2024-06-05.csv")
+
+# Get download date
+vdates_dldate <- ddesc %>% filter(
+	file == "verify-dates-2024-06-05.csv"
+) %>% pull(download_date)
+```
+
+### Data
+
+* Columns: `r ncol(vdates_raw)`
+* Rows: `r nrow(vdates_raw)`
+
+```{r}
+vdates_raw %>% as_tibble
+```
+
+### Dictionary
+
+The data contains the following columns:
+
+```{r, cols.print = 3}
+vdates_ddict <- read_csv("../data/verify-dates-2024-06-05-datadict.csv")
+vdates_ddict
+```
+
+### Files
+
+The data files are available below:
+
+- [verify-dates-2024-06-05.csv](https://github.com/rrwen/recovr-eval/blob/main/data/verify-dates-2024-06-05.csv)
+- [verify-dates-2024-06-05-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/verify-dates-2024-06-05-datadict.csv)
 
 ## Toronto KSI {.tabset}
 
@@ -394,204 +438,291 @@ The data files are available below:
 
 # Cleaning
 
+## Combine Bikeways
+
+Combine bikeway data across all cities.
+
+```{r}
+
+# List of city bikeway data
+bike_list <- list(
+	vancouver = vancbike_raw,
+	calgary = calgbike_raw %>%
+		mutate(no_verify_install_type = NA),
+	toronto = toronbike_raw %>%
+		mutate(no_verify_install_type = NA)
+)
+
+# Get common columns across all city bikeways
+bike_cols <- bike_list %>%
+	map(colnames) %>%
+	reduce(intersect) %>%
+	c("no_verify_install_type") # include vanc lsbs
+
+# Combine bikeway data across cities
+bike <- names(bike_list) %>%
+	map(function(city) {
+		bike_list[[city]] %>%
+			select(
+				all_of(bike_cols)
+			) %>%
+			mutate(
+				city = factor(city, levels = names(bike_list)),
+				.before = 1
+			)
+	}) %>%
+	reduce(add_row)
+
+# Display total records per city
+bike_nrow <- bike %>%
+	as_tibble %>%
+	group_by(city) %>%
+	summarize( # total segments per city
+		segments = n()
+	) %>%
+	ungroup %>%
+	add_row( # total segment counts
+		city = "all",
+		segments = sum(.$segments)
+	) %>%
+	mutate(
+		city = str_to_title(city)
+	) %>%
+	rename(
+		`Total Segments` = segments
+	) %>%
+	rename_with(
+		~str_to_title(.)
+	)
+bike_nrow
+```
+
+## Filter Verified Bikeways
+
+Filter for bikeways with verified installations and upgrades.
+
+```{r}
+
+# Filter verified bikeways
+vbike <- bike %>%
+	filter(
+		(!is.na(verify_install_year) |
+		!is.na(verify_upgrade1_year) |
+		!is.na(verify_upgrade2_year)) &
+		is.na(no_verify_install_type)
+	)
+
+# Count verified bikeways
+vbike_nrow <- vbike %>%
+	as_tibble %>%
+	group_by(city) %>%
+	summarize( # total verified segments per city
+		segments = n()
+	) %>%
+	ungroup %>%
+	add_row( # total verified segment counts
+		city = "all",
+		segments = sum(.$segments)
+	) %>%
+	mutate(
+		city = str_to_title(city)
+	) %>%
+	rename(`Total Verified` = segments) %>%
+	rename_with(
+		~str_to_title(.)
+	) %>%
+	left_join(bike_nrow, by = "City") %>%
+	mutate(
+		`Total Verified %` = `Total Verified` / `Total Segments` * 100
+	) %>%
+	relocate(
+		"Total Verified",
+		"Total Verified %",
+		.after = "City"
+	)
+vbike_nrow
+```
+
+## Filter Verified with Dates
+
+Filter for bikeways with verified install/upgrade dates only.
+
+```{r}
+
+# Filter ver install/upgrades only
+vbike <- bike %>%
+	filter(
+		!is.na(verify_install_date) |
+		!is.na(verify_upgrade2_date) |
+		!is.na(verify_upgrade2_date)
+	)
+
+# Count verified bikeways with dates
+vbike_nrow_vdates <- vbike %>%
+	as_tibble %>%
+	group_by(city) %>%
+	summarize( # total verified per city
+		segments = n()
+	) %>%
+	ungroup %>%
+	add_row( # total segment counts
+		city = "all",
+		segments = sum(.$segments)
+	) %>%
+	mutate(
+		city = str_to_title(city)
+	) %>%
+	rename(`Total Dated` = segments) %>%
+	rename_with(
+		~str_to_title(.)
+	) %>%
+	left_join(vbike_nrow, by = "City") %>%
+	mutate(
+		`Total Dated %` = `Total Dated` / `Total Verified` * 100
+	) %>%
+	relocate(
+		"Total Dated",
+		"Total Dated %",
+		.after = "City"
+	)
+vbike_nrow_vdates
+```
+
+## Pivot Long and Remove Undated
+
+Long format where each record represents an installed (`install`), first upgrade (`upgrade1`), or second upgrade (`upgrade2`) verified bikeway segment.
+
+Also remove any segments without dates.
+
+```{r}
+
+# Pivot to longer format
+vbike_long <- vbike %>%
+	pivot_longer(
+		cols = ends_with("_date"),
+		names_to = "verify_event_type",
+		values_to = "verify_date_raw"
+	) %>%
+	mutate( # convert events to install, upgrade1, upgrade2
+		verify_event_type = str_replace_all(
+			verify_event_type,
+			c("verify_" = "", "_date" = "")
+		)
+	) %>%
+	filter(!is.na(verify_date_raw))
+
+# Count dated installs and upgrades
+vbike_long_nrow <- vbike_long %>%
+	as_tibble %>%
+	group_by(city, verify_event_type) %>%
+	summarize(segments = n()) %>%
+	pivot_wider(
+		names_from = verify_event_type,
+		values_from = segments
+	) %>%
+	mutate(
+		city = str_to_title(city)
+	) %>%
+	rename(
+		`Dated Installs` = install,
+		`Dated Upgrades (1st)` = upgrade1,
+		`Dated Upgrades (2nd)` = upgrade2
+	) %>%
+	rename_with(
+		~str_to_title(.)
+	) %>%
+	left_join(
+		vbike_nrow_vdates,
+		by = "City"
+	) %>%
+	mutate(
+		`Dated Installs %` = `Dated Installs` / `Total Dated` * 100,
+		`Dated Upgrades % (1st)` = `Dated Upgrades (1st)` / `Total Dated` * 100,
+		`Dated Upgrades % (2nd)` = `Dated Upgrades (2nd)` / `Total Dated` * 100
+	) %>%
+	relocate(
+		"Dated Installs",
+		"Dated Installs %",
+		"Dated Upgrades (1st)",
+		"Dated Upgrades % (1st)",
+		"Dated Upgrades (2nd)",
+		"Dated Upgrades % (2nd)",
+		.after = "City"
+	)
+vbike_long_nrow
+```
+
+## Clean Verified Dates
+
+Clean manually entered ambiguous verified install/upgrade dates that had various time units (e.g. days, months, quarters, semesters, etc).
+
+```{r}
+
+# Clean verified dates using join
+vbike_long <- vbike_long %>%
+	left_join( # join cleaned dates to raw dates
+		vdates_raw,
+		by = "verify_date_raw"
+	) %>%
+	filter( # remove with no clean dates
+		!is.na(verify_date_type)
+	)
+
+# Count clean dated installs and upgrades
+vbike_long_nrow_clean <- vbike_long %>%
+	as_tibble %>%
+	group_by(city, verify_event_type) %>%
+	summarize(segments = n()) %>%
+	pivot_wider(
+		names_from = verify_event_type,
+		values_from = segments
+	) %>%
+	mutate(
+		city = str_to_title(city)
+	) %>%
+	rename(
+		`Clean Dated Installs` = install,
+		`Clean Dated Upgrades (1st)` = upgrade1,
+		`Clean Dated Upgrades (2nd)` = upgrade2
+	) %>%
+	rename_with(
+		~str_to_title(.)
+	) %>%
+	left_join(
+		vbike_long_nrow,
+		by = "City"
+	) %>%
+	mutate(
+		`Clean Dated Installs %` = `Clean Dated Installs` / `Dated Installs` * 100,
+		`Clean Dated Upgrades % (1st)` = `Clean Dated Upgrades (1st)` / `Dated Upgrades (1st)` * 100,
+		`Clean Dated Upgrades % (2nd)` = `Clean Dated Upgrades (2nd)` / `Dated Upgrades (2nd)` * 100
+	) %>%
+	relocate(
+		"Clean Dated Installs",
+		"Clean Dated Installs %",
+		"Clean Dated Upgrades (1st)",
+		"Clean Dated Upgrades % (1st)",
+		"Clean Dated Upgrades (2nd)",
+		"Clean Dated Upgrades % (2nd)",
+		.after = "City"
+	)
+vbike_long_nrow_clean
+```
+
+## Filter 2019 or Later Bikeways
+
+Filter for bikeways that were installed or upgraded 2019 or later.
+
+```
+# Filter ver install/upgrades 2019 or later only
+vbike <- bike %>%
+	filter(
+		verify_install_year 
+	)
+```
+
 ## Determine Temporal Scale
 
 ```{r}
 
-parsed <- list()
-msg <- list()
-bikeways <-  list(
-	Vancouver = vancbike_raw,
-	Calgary = calgbike_raw,
-	Toronto = toronbike_raw
-)
-
-for (city in names(bikeways)) {
-	
-	# Filter for verified bikeways only
-	df <- bikeways[[city]] %>%
-		filter(
-			!is.na(verify_install_year) |
-			!is.na(verify_upgrade1_year) |
-			!is.na(verify_upgrade2_year)
-		)
-	
-	# Filter out non verified
-	if (city == "Vancouver") {
-		df <- df %>%
-			filter(is.na(no_verify_install_type))
-	}
-	
-	# Try to parse install dates
-	df <- df %>%
-		as_tibble %>%
-		mutate(
-			clean_date = str_to_lower(
-				str_replace_all(
-					verify_install_date,
-					"[^[:alnum:]]",
-					" "
-				)
-			),
-			parsed_date = ymd(clean_date) %>%
-				coalesce(ydm(clean_date)) %>%
-				coalesce(mdy(clean_date)) %>%
-				coalesce(myd(clean_date)) %>%
-				coalesce(dmy(clean_date)) %>%
-				coalesce(dym(clean_date)),
-			parsed_month = if_else(
-				!str_starts(str_trim(clean_date), "pre") & is.na(parsed_date),
-				yq(clean_date) %>%
-				coalesce(ym(clean_date)) %>%
-				coalesce(my(clean_date)),
-				NA
-			)
-		) %>%
-		rename(
-			clean_install_date = clean_date,
-			parsed_install_date = parsed_date,
-			parsed_install_month = parsed_month
-		)
-	
-	# Try to parse upgrade 1 dates
-	df <- df %>%
-		as_tibble %>%
-		mutate(
-			clean_date = str_to_lower(
-				str_replace_all(
-					verify_upgrade1_date,
-					"[^[:alnum:]]",
-					" "
-				)
-			),
-			parsed_date = ymd(clean_date) %>%
-				coalesce(ydm(clean_date)) %>%
-				coalesce(mdy(clean_date)) %>%
-				coalesce(myd(clean_date)) %>%
-				coalesce(dmy(clean_date)) %>%
-				coalesce(dym(clean_date)),
-			parsed_month = if_else(
-				!str_starts(str_trim(clean_date), "pre") & is.na(parsed_date),
-				yq(clean_date) %>%
-				coalesce(ym(clean_date)) %>%
-				coalesce(my(clean_date)),
-				NA
-			)
-		) %>%
-		rename(
-			clean_upgrade1_date = clean_date,
-			parsed_upgrade1_date = parsed_date,
-			parsed_upgrade1_month = parsed_month
-		)
-	
-	# Try to parse upgrade 1 dates
-	df <- df %>%
-		as_tibble %>%
-		mutate(
-			clean_date = str_to_lower(
-				str_replace_all(
-					verify_upgrade2_date,
-					"[^[:alnum:]]",
-					" "
-				)
-			),
-			parsed_date = ymd(clean_date) %>%
-				coalesce(ydm(clean_date)) %>%
-				coalesce(mdy(clean_date)) %>%
-				coalesce(myd(clean_date)) %>%
-				coalesce(dmy(clean_date)) %>%
-				coalesce(dym(clean_date)),
-			parsed_month = if_else(
-				!str_starts(str_trim(clean_date), "pre") & is.na(parsed_date),
-				yq(clean_date) %>%
-				coalesce(ym(clean_date)) %>%
-				coalesce(my(clean_date)),
-				NA
-			)
-		) %>%
-		rename(
-			clean_upgrade2_date = clean_date,
-			parsed_upgrade2_date = parsed_date,
-			parsed_upgrade2_month = parsed_month
-		)
-	
-	# Num of records with install or upgrade dates
-	n_idates <- df %>% filter(!is.na(verify_install_date)) %>% nrow
-	n_u1dates <- df %>% filter(!is.na(verify_upgrade1_date)) %>% nrow
-	n_u2dates <- df %>% filter(!is.na(verify_upgrade2_date)) %>% nrow
-	
-	# Num of records with parsed dates and months
-	n_pidates <- df %>% filter(!is.na(parsed_install_date)) %>% nrow
-	n_pimonths <- df %>% filter(!is.na(parsed_install_month)) %>% nrow
-	n_pu1dates <- df %>% filter(!is.na(parsed_upgrade1_date)) %>% nrow
-	n_pu1months <- df %>% filter(!is.na(parsed_upgrade1_month)) %>% nrow
-	n_pu2dates <- df %>% filter(!is.na(parsed_upgrade2_date)) %>% nrow
-	n_pu2months <- df %>% filter(!is.na(parsed_upgrade2_month)) %>% nrow
-	
-	# Perc of records with install or upgrade dates
-	perc_idates <- round(n_idates / nrow(df) * 100, 2)
-	perc_u1dates <- round(n_u1dates / nrow(df) * 100, 2)
-	perc_u2dates <- round(n_u2dates / nrow(df) * 100, 2)
-	
-	# Perc of records with parsed dates and months
-	perc_pidates <- round(n_pidates / nrow(df) * 100, 2)
-	perc_pimonths <- round(n_pimonths / nrow(df) * 100, 2)
-	perc_pu1dates <- round(n_pu1dates / nrow(df) * 100, 2)
-	perc_pu1months <- round(n_pu1months / nrow(df) * 100, 2)
-	perc_pu2dates <- round(n_pu2dates / nrow(df) * 100, 2)
-	perc_pu2months <- round(n_pu2months / nrow(df) * 100, 2)
-	
-	# Add to list
-	msg[[city]] <- glue(
-		"\n\n**Verified {city} Bikeways (n = {df %>% nrow}, 100%)**\n",
-		"\n* Install Dates: {n_idates} ({perc_idates}%)",
-		"\n\t* Parsable Dates: {n_pidates} ({perc_pidates}%)",
-		"\n \t* Parsable Months: {n_pimonths} ({perc_pimonths}%)",
-		"\n* Upgrade 1 Dates: {n_u1dates} ({perc_u1dates}%)",
-		"\n\t* Parsable Dates: {n_pu1dates} ({perc_pu1dates}%)",
-		"\n\t* Parsable Months: {n_pu1months} ({perc_pu1months}%)",
-		"\n* Upgrade 2 Dates: {n_u2dates} ({perc_u2dates}%)",
-		"\n\t* Parsable Dates: {n_pu2dates} ({perc_pu2dates}%)",
-		"\n\t* Parsable Months: {n_pu2months} ({perc_pu2months}%)\n\n"
-	)
-	
-	df <- df %>% filter(
-		!is.na(verify_install_date) |
-		!is.na(verify_upgrade1_date) |
-		!is.na(verify_upgrade2_date)
-	)
-	parsed[[city]] <- data.frame(
-		orig_date = c(df$verify_install_date, df$verify_upgrade1_date, df$verify_upgrade2_date),
-		clean_date = c(df$clean_install_date, df$clean_upgrade1_date, df$clean_upgrade2_date),
-		parsed_date = c(df$parsed_install_date, df$parsed_upgrade1_date, df$parsed_upgrade2_date),
-		parsed_month = c(df$parsed_install_month, df$parsed_upgrade1_month, df$parsed_upgrade2_month)
-	)
-	
-	parsed[[city]] <- parsed[[city]] %>%
-		group_by(orig_date) %>%
-		count() %>%
-		ungroup %>%
-		left_join(
-			 parsed[[city]] %>%
-				distinct(orig_date, .keep_all = T),
-			 by = "orig_date"
-		) %>%
-		arrange(desc(n)) %>%
-		filter(!is.na(orig_date))
-}
-```
-
-```{r results = "asis"}
-cat(msg[["Vancouver"]])
-parsed[["Vancouver"]]
-```
-
-```{r results = "asis"}
-cat(msg[["Calgary"]])
-parsed[["Calgary"]]
-```
-
-```{r results = "asis"}
-cat(msg[["Toronto"]])
-parsed[["Toronto"]]
 ```

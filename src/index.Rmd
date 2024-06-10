@@ -962,29 +962,29 @@ clean_nrow
 unit_plot_data <- clean_nrow %>%
     select(
         "City",
-        "Monthly Installs",
-        "Monthly Upgrades (1st)",
-        "Monthly Upgrades (2nd)",
-        "Quarterly Installs",
-        "Quarterly Upgrades (1st)",
-        "Quarterly Upgrades (2nd)",
-        "Triyearly Installs",
-        "Triyearly Upgrades (1st)",
+        "Monthly Installs % of Verified Post-2018",
+        "Monthly Upgrades % of Verified Post-2018 (1st)",
+        "Monthly Upgrades % of Verified Post-2018 (2nd)",
+        "Quarterly Installs % of Verified Post-2018",
+        "Quarterly Upgrades % of Verified Post-2018 (1st)",
+        "Quarterly Upgrades % of Verified Post-2018 (2nd)",
+        "Triyearly Installs % of Verified Post-2018",
+        "Triyearly Upgrades % of Verified Post-2018 (1st)",
         "Triyearly Upgrades (2nd)",
-        "Biyearly Installs",
-        "Biyearly Upgrades (1st)",
-        "Biyearly Upgrades (2nd)"
+        "Biyearly Installs % of Verified Post-2018",
+        "Biyearly Upgrades % of Verified Post-2018 (1st)",
+        "Biyearly Upgrades % of Verified Post-2018 (2nd)"
     ) %>%
     pivot_longer(
         cols = -City,
         names_to = "Column",
-        values_to = "Segments"
+        values_to = "% of Verified Post-2018 Segments"
     ) %>%
     mutate(
         Type = case_when(
             str_detect(Column, "Installs") ~ "Installs",
-            str_detect(Column, "Upgrades \\(1st\\)") ~ "Upgrades (1st)",
-            str_detect(Column, "Upgrades \\(2nd\\)") ~ "Upgrades (2nd)"
+            str_detect(Column, "\\(1st\\)") ~ "Upgrades (1st)",
+            str_detect(Column, "\\(2nd\\)") ~ "Upgrades (2nd)"
         ),
         `Unit of Time` = case_when(
         	str_starts(Column, "Monthly") ~ "Monthly",
@@ -1007,7 +1007,7 @@ ggplot(
 	unit_plot_data,
 	aes(
 		x = City,
-		y = Segments,
+		y = `% of Verified Post-2018 Segments`,
 		group = `Unit of Time`,
 		fill = `Unit of Time`
 	)

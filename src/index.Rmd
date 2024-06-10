@@ -438,7 +438,7 @@ The data files are available below:
 
 # Cleaning
 
-## Combine Bikeways
+## Combine Bikeways {.tabset}
 
 Combine bikeway data across all cities.
 
@@ -474,17 +474,13 @@ bike <- names(bike_list) %>%
 	reduce(add_row)
 
 # Display total records per city
-bike_nrow <- bike %>%
+clean_nrow <- bike %>%
 	as_tibble %>%
 	group_by(city) %>%
 	summarize( # total segments per city
 		segments = n()
 	) %>%
 	ungroup %>%
-	add_row( # total segment counts
-		city = "all",
-		segments = sum(.$segments)
-	) %>%
 	mutate(
 		city = str_to_title(city)
 	) %>%
@@ -494,10 +490,21 @@ bike_nrow <- bike %>%
 	rename_with(
 		~str_to_title(.)
 	)
-bike_nrow
+clean_nrow
 ```
 
-## Filter Verified Bikeways
+Bikeway types include:
+
+```{r, results = "asis"}
+
+# Get all bikeway types
+bike_types <- unique(bike$install_type)
+
+# Display non-verified bikeways
+cat(paste0("\n* ", bike_types, collapse = ""))
+```
+
+## Filter Verified Bikeways {.tabset}
 
 Filter for bikeways with verified installations and upgrades.
 
@@ -513,7 +520,7 @@ vbike <- bike %>%
 	)
 
 # Count verified bikeways
-vbike_nrow <- vbike %>%
+clean_nrow <- vbike %>%
 	as_tibble %>%
 	group_by(city) %>%
 	summarize( # total verified segments per city
@@ -531,7 +538,7 @@ vbike_nrow <- vbike %>%
 	rename_with(
 		~str_to_title(.)
 	) %>%
-	left_join(bike_nrow, by = "City") %>%
+	left_join(clean_nrow, by = "City") %>%
 	mutate(
 		`Total Verified %` = `Total Verified` / `Total Segments` * 100
 	) %>%
@@ -539,8 +546,23 @@ vbike_nrow <- vbike %>%
 		"Total Verified",
 		"Total Verified %",
 		.after = "City"
+	) %>%
+	rename_with(
+		~gsub("%", "% of Total Segments", .),
+		starts_with("Total Verified")
 	)
-vbike_nrow
+clean_nrow
+```
+
+Verified bikeway types include:
+
+```{r, results = "asis"}
+
+# Get all bikeway types
+vbike_types <- unique(vbike$install_type)
+
+# Display verified bikeways
+cat(paste0("\n* ", vbike_types, collapse = ""))
 ```
 
 ## Filter Post-2018 Bikeways
@@ -558,7 +580,7 @@ vbike <- vbike %>%
 	)
 
 # Count verified bikeways
-vbike_nrow <- vbike %>%
+clean_nrow <- vbike %>%
 	as_tibble %>%
 	group_by(city) %>%
 	summarize( # total verified segments per city
@@ -576,7 +598,7 @@ vbike_nrow <- vbike %>%
 	rename_with(
 		~str_to_title(.)
 	) %>%
-	left_join(vbike_nrow, by = "City") %>%
+	left_join(clean_nrow, by = "City") %>%
 	mutate(
 		`Verified Post-2018 %` = `Verified Post-2018` / `Total Verified` * 100
 	) %>%
@@ -584,8 +606,12 @@ vbike_nrow <- vbike %>%
 		"Verified Post-2018",
 		"Verified Post-2018 %",
 		.after = "City"
+	) %>%
+	rename_with(
+		~gsub("%", "% of Total Verified", .),
+		starts_with("Verified Post-2018")
 	)
-vbike_nrow
+clean_nrow
 ```
 
 ## Filter Verified with Dates
@@ -603,7 +629,7 @@ vbike <- vbike %>%
 	)
 
 # Count verified bikeways with dates
-vbike_nrow <- vbike %>%
+clean_nrow <- vbike %>%
 	as_tibble %>%
 	group_by(city) %>%
 	summarize( # total verified per city
@@ -621,7 +647,7 @@ vbike_nrow <- vbike %>%
 	rename_with(
 		~str_to_title(.)
 	) %>%
-	left_join(vbike_nrow, by = "City") %>%
+	left_join(clean_nrow, by = "City") %>%
 	mutate(
 		`Verified Dated %` = `Verified Dated` / `Verified Post-2018` * 100
 	) %>%
@@ -629,20 +655,24 @@ vbike_nrow <- vbike %>%
 		"Verified Dated",
 		"Verified Dated %",
 		.after = "City"
+	) %>%
+	rename_with(
+		~gsub("%", "% of Verified Post-2018", .),
+		starts_with("Verified Dated")
 	)
-vbike_nrow
+clean_nrow
 ```
 
 ## Pivot Long and Remove Undated
 
-Long format where each record represents an installed (`install`), first upgrade (`upgrade1`), or second upgrade (`upgrade2`) verified bikeway segment.
+Pivot to long format, where each record represents an installed (`install`), first upgrade (`upgrade1`), or second upgrade (`upgrade2`) verified bikeway segment.
 
 Also remove any segments without dates.
 
 ```{r}
 
 # Pivot to longer format
-vbike_long <- vbike %>%
+lbike <- vbike %>%
 	pivot_longer(
 		cols = ends_with("_date"),
 		names_to = "verify_event_type",
@@ -657,7 +687,7 @@ vbike_long <- vbike %>%
 	filter(!is.na(verify_date_raw))
 
 # Count dated installs and upgrades
-vbike_nrow <- vbike_long %>%
+clean_nrow <- lbike %>%
 	as_tibble %>%
 	group_by(city, verify_event_type) %>%
 	summarize(segments = n()) %>%
@@ -678,13 +708,13 @@ vbike_nrow <- vbike_long %>%
 		~str_to_title(.)
 	) %>%
 	left_join(
-		vbike_nrow,
+		clean_nrow,
 		by = "City"
 	) %>%
 	mutate(
-		`Dated Installs %` = `Dated Installs` / `Verified Dated` * 100,
-		`Dated Upgrades % (1st)` = `Dated Upgrades (1st)` / `Verified Dated` * 100,
-		`Dated Upgrades % (2nd)` = `Dated Upgrades (2nd)` / `Verified Dated` * 100
+		`Dated Installs %` = `Dated Installs` / `Verified Post-2018` * 100,
+		`Dated Upgrades % (1st)` = `Dated Upgrades (1st)` / `Verified Post-2018` * 100,
+		`Dated Upgrades % (2nd)` = `Dated Upgrades (2nd)` / `Verified Post-2018` * 100
 	) %>%
 	relocate(
 		"Dated Installs",
@@ -694,8 +724,12 @@ vbike_nrow <- vbike_long %>%
 		"Dated Upgrades (2nd)",
 		"Dated Upgrades % (2nd)",
 		.after = "City"
+	) %>%
+	rename_with(
+		~gsub("%", "% of Verified Post-2018", .),
+		starts_with(c("Dated Installs", "Dated Upgrades"))
 	)
-vbike_nrow
+clean_nrow
 ```
 
 ## Clean Verified Dates
@@ -705,7 +739,7 @@ Clean manually entered ambiguous verified install/upgrade dates that had various
 ```{r}
 
 # Clean verified dates using join
-vbike_long <- vbike_long %>%
+lbike <- lbike %>%
 	left_join( # join cleaned dates to raw dates
 		vdates_raw,
 		by = "verify_date_raw"
@@ -715,7 +749,7 @@ vbike_long <- vbike_long %>%
 	)
 
 # Count clean dated installs and upgrades
-vbike_nrow <- vbike_long %>%
+clean_nrow <- lbike %>%
 	as_tibble %>%
 	group_by(city, verify_event_type) %>%
 	summarize(segments = n()) %>%
@@ -736,13 +770,13 @@ vbike_nrow <- vbike_long %>%
 		~str_to_title(.)
 	) %>%
 	left_join(
-		vbike_nrow,
+		clean_nrow,
 		by = "City"
 	) %>%
 	mutate(
-		`Clean Dated Installs %` = `Clean Dated Installs` / `Dated Installs` * 100,
-		`Clean Dated Upgrades % (1st)` = `Clean Dated Upgrades (1st)` / `Dated Upgrades (1st)` * 100,
-		`Clean Dated Upgrades % (2nd)` = `Clean Dated Upgrades (2nd)` / `Dated Upgrades (2nd)` * 100
+		`Clean Dated Installs %` = `Clean Dated Installs` / `Verified Post-2018` * 100,
+		`Clean Dated Upgrades % (1st)` = `Clean Dated Upgrades (1st)` / `Verified Post-2018` * 100,
+		`Clean Dated Upgrades % (2nd)` = `Clean Dated Upgrades (2nd)` / `Verified Post-2018` * 100
 	) %>%
 	relocate(
 		"Clean Dated Installs",
@@ -752,8 +786,12 @@ vbike_nrow <- vbike_long %>%
 		"Clean Dated Upgrades (2nd)",
 		"Clean Dated Upgrades % (2nd)",
 		.after = "City"
+	) %>%
+	rename_with(
+		~gsub("%", "% of Verified Post-2018", .),
+		starts_with("Clean Dated")
 	)
-vbike_nrow
+clean_nrow
 ```
 
 ## Determine Unit of Time
@@ -763,7 +801,9 @@ Determine the unit of time based on the amount of data available per time unit.
 Use a unit of time other than year.
 
 ```{r}
-vbike_long <- vbike_long %>%
+
+# Classify as month, quarter, biyear, triyear
+lbike <- lbike %>%
 	mutate(
 		verify_date_month = case_when(
 			verify_date_type %in% c("day", "month") ~ month(verify_date, label = T, abbr = F)
@@ -794,7 +834,7 @@ vbike_long <- vbike_long %>%
 				year(verify_date_start) == year(verify_date_end)
 			) ~ "Q4"
 		),
-		verify_date_triyearly = case_when( # classify Fall, Winter, Spring/Summer
+		verify_date_triyear = case_when( # classify Fall, Winter, Spring/Summer
 			month(verify_date) %in% 1:4 |
 			(
 				month(verify_date_start) %in% 1:4 &
@@ -814,7 +854,7 @@ vbike_long <- vbike_long %>%
 				year(verify_date_start) == year(verify_date_end)
 			) ~ "Fall"
 		),
-		verify_date_biyearly = case_when( # classify 1st Half, 2nd Half
+		verify_date_biyear = case_when( # classify 1st Half, 2nd Half
 			month(verify_date) %in% 1:6 |
 			(
 				month(verify_date_start) %in% 1:6 &
@@ -829,4 +869,163 @@ vbike_long <- vbike_long %>%
 			) ~ "2nd Half"
 		)
 	)
+
+# Count records per time units
+clean_nrow <- lbike %>%
+    as_tibble %>%
+    group_by(city, verify_event_type) %>%
+    summarize(
+        `month` = sum(!is.na(verify_date_month), na.rm = T),
+        `quarter` = sum(!is.na(verify_date_quarter), na.rm = T),
+        `triyear` = sum(!is.na(verify_date_triyear), na.rm = T),
+        `biyear` = sum(!is.na(verify_date_biyear), na.rm = T),
+    ) %>%
+	ungroup %>%
+    pivot_wider(
+        names_from = verify_event_type,
+        values_from = -c(city, verify_event_type),
+        names_sep = "_"
+    ) %>%
+	mutate(
+		city = str_to_title(city)
+	) %>%
+	rename(
+		`Monthly Installs` = month_install,
+		`Monthly Upgrades (1st)` = month_upgrade1,
+		`Monthly Upgrades (2nd)` = month_upgrade2,
+		`Quarterly Installs` = quarter_install,
+		`Quarterly Upgrades (1st)` = quarter_upgrade1,
+		`Quarterly Upgrades (2nd)` = quarter_upgrade2,
+		`Triyearly Installs` = triyear_install,
+		`Triyearly Upgrades (1st)` = triyear_upgrade1,
+		`Triyearly Upgrades (2nd)` = triyear_upgrade2,
+		`Biyearly Installs` = biyear_install,
+		`Biyearly Upgrades (1st)` = biyear_upgrade1,
+		`Biyearly Upgrades (2nd)` = biyear_upgrade2
+	) %>%
+	rename_with(
+		~str_to_title(.)
+	) %>%
+	left_join(
+		clean_nrow,
+		by = "City"
+	) %>%
+	mutate(
+		`Monthly Installs %` = `Monthly Installs` / `Verified Post-2018` * 100,
+		`Monthly Upgrades % (1st)` = `Monthly Upgrades (1st)` / `Verified Post-2018` * 100,
+		`Monthly Upgrades % (2nd)` = `Monthly Upgrades (2nd)` / `Verified Post-2018` * 100,
+		`Quarterly Installs %` = `Quarterly Installs` / `Verified Post-2018` * 100,
+		`Quarterly Upgrades % (1st)` = `Quarterly Upgrades (1st)` / `Verified Post-2018` * 100,
+		`Quarterly Upgrades % (2nd)` = `Quarterly Upgrades (2nd)` / `Verified Post-2018` * 100,
+		`Triyearly Installs %` = `Triyearly Installs` / `Verified Post-2018` * 100,
+		`Triyearly Upgrades % (1st)` = `Triyearly Upgrades (1st)` / `Verified Post-2018` * 100,
+		`Triyearly Upgrades % (2nd)` = `Triyearly Upgrades (2nd)` / `Verified Post-2018` * 100,
+		`Biyearly Installs %` = `Biyearly Installs` / `Verified Post-2018` * 100,
+		`Biyearly Upgrades % (1st)` = `Biyearly Upgrades (1st)` / `Verified Post-2018` * 100,
+		`Biyearly Upgrades % (2nd)` = `Biyearly Upgrades (2nd)` / `Verified Post-2018` * 100,
+	) %>%
+	relocate(
+		"Monthly Installs",
+		"Monthly Installs %",
+		"Monthly Upgrades (1st)",
+		"Monthly Upgrades % (1st)",
+		"Monthly Upgrades (2nd)",
+		"Monthly Upgrades % (2nd)",
+		"Quarterly Installs",
+		"Quarterly Installs %",
+		"Quarterly Upgrades (1st)",
+		"Quarterly Upgrades % (1st)",
+		"Quarterly Upgrades (2nd)",
+		"Quarterly Upgrades % (2nd)",
+		"Triyearly Installs",
+		"Triyearly Installs %",
+		"Triyearly Upgrades (1st)",
+		"Triyearly Upgrades % (1st)",
+		"Triyearly Upgrades (2nd)",
+		"Triyearly Upgrades % (2nd)",
+		"Biyearly Installs",
+		"Biyearly Installs %",
+		"Biyearly Upgrades (1st)",
+		"Biyearly Upgrades % (1st)",
+		"Biyearly Upgrades (2nd)",
+		"Biyearly Upgrades % (2nd)",
+		.after = "City"
+	) %>%
+	rename_with(
+		~gsub("%", "% of Verified Post-2018", .),
+		starts_with(c("Monthly", "Quarterly", "Triyearly", "Biyearly"))
+	)
+clean_nrow
+```
+
+```{r fig.height = 8, fig.width = 6}
+unit_plot_data <- clean_nrow %>%
+    select(
+        "City",
+        "Monthly Installs",
+        "Monthly Upgrades (1st)",
+        "Monthly Upgrades (2nd)",
+        "Quarterly Installs",
+        "Quarterly Upgrades (1st)",
+        "Quarterly Upgrades (2nd)",
+        "Triyearly Installs",
+        "Triyearly Upgrades (1st)",
+        "Triyearly Upgrades (2nd)",
+        "Biyearly Installs",
+        "Biyearly Upgrades (1st)",
+        "Biyearly Upgrades (2nd)"
+    ) %>%
+    pivot_longer(
+        cols = -City,
+        names_to = "Column",
+        values_to = "Segments"
+    ) %>%
+    mutate(
+        Type = case_when(
+            str_detect(Column, "Installs") ~ "Installs",
+            str_detect(Column, "Upgrades \\(1st\\)") ~ "Upgrades (1st)",
+            str_detect(Column, "Upgrades \\(2nd\\)") ~ "Upgrades (2nd)"
+        ),
+        `Unit of Time` = case_when(
+        	str_starts(Column, "Monthly") ~ "Monthly",
+        	str_starts(Column, "Quarterly") ~ "Quarterly",
+        	str_starts(Column, "Triyearly") ~ "Triyearly",
+        	str_starts(Column, "Biyearly") ~ "Biyearly"
+        ),
+        `Unit of Time` = factor(
+        	`Unit of Time`,
+        	levels = rev(c(
+        		"Monthly",
+        		"Quarterly",
+        		"Triyearly",
+        		"Biyearly"
+        	))
+        )
+    )
+
+ggplot(
+	unit_plot_data,
+	aes(
+		x = City,
+		y = Segments,
+		group = `Unit of Time`,
+		fill = `Unit of Time`
+	)
+) +
+	geom_bar(
+		stat = "identity",
+		position = "dodge"
+	) +
+	facet_wrap(
+		~Type,
+		ncol = 1
+	) +
+	scale_fill_discrete(
+		guide = guide_legend(reverse = TRUE)
+	) +
+	theme_minimal() +
+	theme(
+		legend.position = "top"
+	) +
+	coord_flip()
 ```

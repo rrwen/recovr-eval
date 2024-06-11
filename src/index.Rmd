@@ -507,7 +507,7 @@ for (event in c("install", "upgrade1", "upgrade2")) {
 Add the following filter columns:
 
 * `_is_verify`: if a bikeway had a verified installation or upgrade
-* `_is_verify_post2018`: if a bikeway had a verified installation or upgrade after 2018
+* `_is_verify_post2012`: if a bikeway had a verified installation or upgrade after 2018
 * `_is_verify_dated`: if a bikeway had a verified installation or upgrade with dates
 * `_is_verify_cdated`: if a bikeway had a verified installation or upgrade with cleaned dates
 
@@ -536,11 +536,11 @@ bike_raw <- bike_raw %>%
 			 !is.na(verify_upgrade1_year) |
 			 !is.na(verify_upgrade2_year)) &
 			is.na(no_verify_install_type),
-		`_is_verify_post2018` = 
+		`_is_verify_post2012` = 
 			`_is_verify` &
-			verify_install_year > 2018 |
-			verify_upgrade1_year > 2018 |
-			verify_upgrade2_year > 2018,
+			verify_install_year > 2012 |
+			verify_upgrade1_year > 2012 |
+			verify_upgrade2_year > 2012,
 		`is_verify_dated` =
 			`_is_verify` &
 			!is.na(verify_install_date) |
@@ -653,10 +653,10 @@ for (event in c("install", "upgrade1", "upgrade2")) {
 
 Determine the temporal resolution (unit of time) finer than yearly based on the amount of data available per time unit (sorted from the highest resolution time unit to the lowest resolution time unit):
 
-* **Month**: refers to verified post-2018 installs and upgrades occurring approximately in a month (1/12) of a year
-* **Quarter**: refers to verified post-2018 installs and upgrades occurring approximately in a quarter (1/4) of a year
-* **Third**: refers to verified post-2018 installs and upgrades occurring approximately in a third (1/3) of a year
-* **Half**: refers to verified post-2018 installs and upgrades occurring approximately in a half (1/2) of a year
+* **Month**: refers to verified post-2012 installs and upgrades occurring approximately in a month (1/12) of a year
+* **Quarter**: refers to verified post-2012 installs and upgrades occurring approximately in a quarter (1/4) of a year
+* **Third**: refers to verified post-2012 installs and upgrades occurring approximately in a third (1/3) of a year
+* **Half**: refers to verified post-2012 installs and upgrades occurring approximately in a half (1/2) of a year
 
 As there seems to be a large improvement in the percentage of records across cities from quarters to thirds of a year, and diminishing improvements when lowering the resolution to halves of a year, thirds of a year was chosen as the unit of time.
 
@@ -665,7 +665,7 @@ As there seems to be a large improvement in the percentage of records across cit
 # Prepare plot data
 unit_data <- bike_raw %>%
     as_tibble %>%
-    filter(`_is_verify_post2018`) %>%
+    filter(`_is_verify_post2012`) %>%
     select(
         city,
         install_verify_date_month,
@@ -701,7 +701,7 @@ unit_data <- bike_raw %>%
     left_join( # left join totals for perc
         bike_raw %>%
             as_tibble %>%
-            filter(`_is_verify_post2018`) %>%
+            filter(`_is_verify_post2012`) %>%
             select(
                 city,
                 verify_install_year,
@@ -779,7 +779,7 @@ unit_plot <- unit_data %>%
 	) +
 	labs(
 		title = glue(
-			"% of Verified Post-2018 Installs & Upgrades by Unit of Time\n",
+			"% of Verified Post-2012 Installs & Upgrades by Unit of Time\n",
 			"(n={sum(unit_data$total %>% unique, na.rm = T)})"
 		),
 		x = NULL,

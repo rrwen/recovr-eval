@@ -76,8 +76,7 @@ required_packages <- c(
 	"tmap",
 	"ggspatial",
 	"prettymapr",
-	"units",
-	"boot"
+	"units"
 )
 
 # Try to install packages if not installed
@@ -110,7 +109,6 @@ tryCatch(
 Load R libraries.
 
 ```{r}
-library(boot)
 library(DiagrammeR)
 library(ggplot2)
 library(ggspatial)
@@ -653,75 +651,97 @@ for (event in c("install", "upgrade1", "upgrade2")) {
 
 ## Determine Unit of Time
 
-Determine the temporal resolution (unit of time) finer than yearly based on the amount of data available per time unit.
+Determine the temporal resolution (unit of time) finer than yearly based on the amount of data available per time unit (sorted from the highest resolution time unit to the lowest resolution time unit):
+
+* **Month**: refers to verified post-2018 installs and upgrades occurring approximately in a month (1/12) of a year
+* **Quarter**: refers to verified post-2018 installs and upgrades occurring approximately in a quarter (1/4) of a year
+* **Third**: refers to verified post-2018 installs and upgrades occurring approximately in a third (1/3) of a year
+* **Half**: refers to verified post-2018 installs and upgrades occurring approximately in a half (1/2) of a year
+
+As there seems to be a large improvement in the percentage of records across cities from quarters to thirds of a year, and diminishing improvements when lowering the resolution to halves of a year, thirds of a year was chosen as the unit of time.
 
 ```{r}
 
 # Prepare plot data
 unit_data <- bike_raw %>%
-	as_tibble %>%
-	filter(`_is_verify_post2018`) %>%
-	select(
-		city,
-		install_verify_date_month,
-		install_verify_date_quarter,
-		install_verify_date_third,
-		install_verify_date_half,
-		upgrade1_verify_date_month,
-		upgrade1_verify_date_quarter,
-		upgrade1_verify_date_third,
-		upgrade1_verify_date_half,
-		upgrade2_verify_date_month,
-		upgrade2_verify_date_quarter,
-		upgrade2_verify_date_third,
-		upgrade2_verify_date_half
-	) %>%
-	pivot_longer(
-		cols = -city,
-		names_to = "column",
-		values_to = "value"
-	) %>%
-	mutate(
-		type = case_when(
-			str_detect(column, "month") & !is.na(value) ~ "Month",
-			str_detect(column, "quarter") & !is.na(value) ~ "Quarter",
-			str_detect(column, "third") & !is.na(value) ~ "Third",
-			str_detect(column, "half") & !is.na(value) ~ "Half"
-		)
-	) %>%
-	group_by(city, type) %>%
-	count %>%
-	filter(!is.na(type)) %>%
+    as_tibble %>%
+    filter(`_is_verify_post2018`) %>%
+    select(
+        city,
+        install_verify_date_month,
+        install_verify_date_quarter,
+        install_verify_date_third,
+        install_verify_date_half,
+        upgrade1_verify_date_month,
+        upgrade1_verify_date_quarter,
+        upgrade1_verify_date_third,
+        upgrade1_verify_date_half,
+        upgrade2_verify_date_month,
+        upgrade2_verify_date_quarter,
+        upgrade2_verify_date_third,
+        upgrade2_verify_date_half
+    ) %>%
+    pivot_longer(
+        cols = -city,
+        names_to = "column",
+        values_to = "value"
+    ) %>%
+    mutate(
+        type = case_when(
+            str_detect(column, "month") & !is.na(value) ~ "Month",
+            str_detect(column, "quarter") & !is.na(value) ~ "Quarter",
+            str_detect(column, "third") & !is.na(value) ~ "Third",
+            str_detect(column, "half") & !is.na(value) ~ "Half"
+        )
+    ) %>%
+    group_by(city, type) %>%
+    count %>%
+    filter(!is.na(type)) %>%
+    ungroup %>%
+    left_join( # left join totals for perc
+        bike_raw %>%
+            as_tibble %>%
+            filter(`_is_verify_post2018`) %>%
+            select(
+                city,
+                verify_install_year,
+                verify_upgrade1_year,
+                verify_upgrade2_year
+            ) %>%
+            pivot_longer(
+                cols = -city,
+                names_to = "column",
+                values_to = "value"
+            ) %>%
+            filter(!is.na(value)) %>%
+            group_by(city) %>%
+            count %>%
+            ungroup %>%
+            rename(total = n),
+        by = "city"
+    ) %>%
+    mutate(
+        perc = n / total * 100,
+        perc_label = glue("{round(perc, 2)}%\n(n={n})"),
+        type = factor(type, levels = c("Month", "Quarter", "Third", "Half")),
+        city = factor(str_to_title(city), levels = c("Vancouver", "Calgary", "Toronto")),
+    ) %>%
+    group_by(type) %>%
+    arrange(desc(perc)) %>% # adjust overlapping labels
+    mutate(
+        perc_label_y = case_when(
+            lag(perc) - perc < 1 ~ perc - 1.95,
+            lead(perc) - perc > -1 ~ perc + 1.95,
+            .default = perc
+        )
+    ) %>%
 	ungroup %>%
-	left_join( # left join totals for perc
-		bike_raw %>%
-			as_tibble %>%
-			filter(`_is_verify_post2018`) %>%
-			select(
-				city,
-				verify_install_year,
-				verify_upgrade1_year,
-				verify_upgrade2_year
-			) %>%
-			pivot_longer(
-				cols = -city,
-				names_to = "column",
-				values_to = "value"
-			) %>%
-			filter(!is.na(value)) %>%
-			group_by(city) %>%
-			count %>%
-			ungroup %>%
-			rename(total = n),
-		by = "city"
+	group_by(city) %>%
+	mutate( # add city labels at end of lines
+		city_label = if_else(type == "Half", glue("{city}\n(n={total})"), NA)
 	) %>%
-	mutate(
-		perc = n / total * 100,
-		label = glue("{round(perc, 2)}%"),
-		type = factor(type, levels = c("Month", "Quarter", "Third", "Half")),
-		city = factor(str_to_title(city), levels = c("Vancouver", "Calgary", "Toronto"))
-	) %>%
-	arrange(city, type)
+	ungroup %>%
+    arrange(city, type)
 
 # Plot line
 unit_plot <- unit_data %>%
@@ -730,25 +750,55 @@ unit_plot <- unit_data %>%
 		y = perc,
 		group = city,
 		color = city,
-		label = label
+		label = perc_label
 	)) +
 	geom_line(
-		alpha = 0.5,
+		alpha = 0.8,
 		linewidth = 1.5
 	) +
 	geom_label(
+		aes(y = perc_label_y),
 		size = 2.5,
-		position = position_dodge(width = 0.4),
-		show.legend = F
+		show.legend = F,
+		label.padding = unit(0.5, "lines")
 	) +
-	scale_x_discrete(limits = levels(unit_data$type)) +
+	geom_text(
+		aes(
+			label = city_label,
+			y = perc_label_y
+		),
+		size = 3,
+		show.legend = F,
+		hjust = 0,
+		nudge_x = 0.2
+	) +
+	scale_y_continuous(labels = function(x) paste0(x, "%")) +
+	scale_x_discrete(
+		limits = levels(unit_data$type),
+		position = "top"
+	) +
 	labs(
+		title = glue(
+			"% of Verified Post-2018 Installs & Upgrades by Unit of Time\n",
+			"(n={sum(unit_data$total %>% unique, na.rm = T)})"
+		),
 		x = NULL,
-		y = "% of Verified Post-2018 Installs and Upgrades",
+		y = NULL,
 		color = "City",
 		label = NULL,
 		group = NULL
-	)+
-	theme_minimal()
+	) +
+	theme_minimal() +
+	theme(
+		legend.position = "none",
+		plot.title = element_text(hjust = 0.5)
+	)
 unit_plot
+
+# Select time unit
+time_unit = "third"
 ```
+
+## Join KSI
+
+

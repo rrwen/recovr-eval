@@ -539,14 +539,17 @@ bike_raw <- bike_raw %>%
 			 !is.na(verify_upgrade2_year)) &
 			is.na(no_verify_install_type),
 		`_is_verify_post2018` = 
+			`_is_verify` &
 			verify_install_year > 2018 |
 			verify_upgrade1_year > 2018 |
 			verify_upgrade2_year > 2018,
 		`is_verify_dated` =
+			`_is_verify` &
 			!is.na(verify_install_date) |
 			!is.na(verify_upgrade2_date) |
 			!is.na(verify_upgrade2_date),
-		`is_verify_cdated` = 
+		`is_verify_cdated` =
+			`_is_verify` &
 			!is.na(install_verify_date_type) |
 			!is.na(upgrade1_verify_date_type) |
 			!is.na(upgrade2_verify_date_type)

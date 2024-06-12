@@ -469,6 +469,10 @@ bike_raw <- names(bike_list) %>%
 			)
 	}) %>%
 	reduce(add_row)
+
+# Display combined bikeway data
+bike_raw %>% as_tibble
+
 ```
 
 ## Join Clean Dates
@@ -477,7 +481,9 @@ Join ambiguous verified install/upgrade dates (e.g. Jan 1/2022, 2022/02, Fall 20
 
 Each of `verify_install_date`, `verify_upgrade1_date` and `verify_upgrade2_date` will have a set of cleaned structured date columns:
 
-`r paste0("\n * ", colnames(vdates_raw))`
+`r paste0("\n * install_", colnames(vdates_raw) %>% .[. != "verify_date_raw"], collapse = "")`
+`r paste0("\n * upgrade1_", colnames(vdates_raw) %>% .[. != "verify_date_raw"], collapse = "")`
+`r paste0("\n * upgrade2_", colnames(vdates_raw) %>% .[. != "verify_date_raw"], collapse = "")`
 
 ```{r}
 
@@ -499,6 +505,15 @@ for (event in c("install", "upgrade1", "upgrade2")) {
 			by = set_names(clean_col, date_col)
 		)
 }
+
+# Display clean dates cols
+bike_raw %>%
+	as_tibble %>%
+	select(starts_with(c(
+		"install_verify_",
+		"upgrade1_verify_",
+		"upgrade2_verify_"
+	)))
 
 ```
 
@@ -808,9 +823,91 @@ unit_plot <- unit_data %>%
 unit_plot
 
 # Select time unit
-time_unit = "third"
+tunit = "third"
+```
+
+## Apply Filters
+
+Only keep verified segments with post-2011 installs and upgrades that have dates with the chosen unit of time (`r tunit`).
+
+```{r}
+
+# Get time unit col
+tunit_icol <- glue("install_verify_date_{tunit}")
+tunit_u1col <- glue("upgrade1_verify_date_{tunit}")
+tunit_u2col <- glue("upgrade2_verify_date_{tunit}")
+
+# Apply filters
+bike <- bike_raw %>%
+	as_tibble %>%
+	filter(
+		`_is_verify_post2011` & (
+			!is.na(.data[[tunit_icol]]) |
+			!is.na(.data[[tunit_u1col]]) |
+			!is.na(.data[[tunit_u2col]])
+		 )
+	)
+
+# Display filtered data
+bike %>%
+	as_tibble %>%
+	select(
+		city,
+		`_is_verify_post2011`,
+		`_is_verify_cdated`,
+		verify_install_year,
+		verify_upgrade1_year,
+		verify_upgrade2_year,
+		install_verify_date_type,
+		upgrade1_verify_date_type,
+		upgrade2_verify_date_type
+	)
+
+```
+
+## Pivot Long Format
+
+Pivot the data into long format, where each record represents an install or upgrade with a date range in a `r tunit` of the year.
+
+```{r}
+
+# Pivot install and upgrade time unit cols to long format
+bike <- bike %>%
+	pivot_longer(
+		cols = all_of(paste0(
+			c("install", "upgrade1", "upgrade2"),
+			"_verify_date_",
+			tunit
+		)),
+		names_to = "_type",
+		values_to = "_time_group"
+	) %>%
+	filter(!is.na(`_time_group`)) # date range in time unit only
+
+# Alter type and add time unit
+bike <- bike %>%
+	mutate(
+		`_type` = case_when(
+			str_starts(`_type`, "install") ~ "install",
+			str_starts(`_type`, "upgrade1") ~ "upgrade1",
+			str_starts(`_type`, "upgrade2") ~ "upgrade2"
+		),
+		`_time_unit` = tunit
+	)
+
+# Display long format
+bike %>%
+	as_tibble %>%
+		select(
+		city,
+		`_type`,
+		`_time_group`,
+		`_time_unit`
+	) 
 ```
 
 ## Join KSI
 
-
+```{r}
+year_min <- bike$
+```

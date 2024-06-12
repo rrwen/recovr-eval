@@ -511,7 +511,7 @@ Add the following filter columns:
 * `_is_verify_dated`: if a bikeway had a verified installation or upgrade with dates
 * `_is_verify_cdated`: if a bikeway had a verified installation or upgrade with cleaned dates
 
-Then add the following finest time unit columns for installs/upgrades:
+Then add the following time unit columns for installs/upgrades:
 
 * `install_verify_date_month`: which month (1, 2, 3 ... 12) a bikeway had verified installation
 * `install_verify_date_quarter`: which quarter (1, 2, 3, 4) of the year a bikeway had verified installation
@@ -525,6 +525,8 @@ Then add the following finest time unit columns for installs/upgrades:
 * `upgrade2_verify_date_quarter`: which quarter (1, 2, 3, 4) of the year a bikeway had verified 2nd upgrade
 * `upgrade2_verify_date_third`: which third (1, 2, 3) of the year a bikeway had verified 2nd upgrade
 * `upgrade2_verify_date_half`: which half (1, 2) of the year a bikeway had verified 2nd upgrade
+
+**Note**: Date ranges that fall between months, quarters, thirds, or halves of the year were excluded from being classified as any of the time units (e.g. March 31 to April 15 will be excluded as it does not fall within either the 1st or 2nd quarter of the year).
 
 ```{r}
 
@@ -663,10 +665,10 @@ bike_raw %>%
 
 Determine the temporal resolution (unit of time) finer than yearly based on the amount of data available per time unit (sorted from the highest resolution time unit to the lowest resolution time unit):
 
-* **Month**: refers to verified post-2011 installs and upgrades occurring approximately in a month (1/12) of a year
+* **Month** (high): refers to verified post-2011 installs and upgrades occurring approximately in a month (1/12) of a year
 * **Quarter**: refers to verified post-2011 installs and upgrades occurring approximately in a quarter (1/4) of a year
 * **Third**: refers to verified post-2011 installs and upgrades occurring approximately in a third (1/3) of a year
-* **Half**: refers to verified post-2011 installs and upgrades occurring approximately in a half (1/2) of a year
+* **Half** (low): refers to verified post-2011 installs and upgrades occurring approximately in a half (1/2) of a year
 
 As there seems to be a large improvement in the percentage of records across cities from quarters to thirds of a year, and diminishing improvements when lowering the resolution to halves of a year, thirds of a year was chosen as the unit of time.
 

@@ -556,10 +556,13 @@ bike %>%
 
 Add the following time unit columns for installs/upgrades:
 
-* `_time_month`: which month (1, 2, 3 ... 12) a bikeway had verified installation/upgrade
-* `_time_quarter`: which quarter (1, 2, 3, 4) of the year a bikeway had verified installation/upgrade
-* `_time_third`: which third (1, 2, 3) of the year a bikeway had verified installation/upgrade
-* `_time_half`: which half (1, 2) of the year a bikeway had verified installation/upgrade
+* `_time_month`: which month (1, 2, 3 ... 12) a bikeway had a verified installation/upgrade
+* `_time_quarter`: which quarter (1, 2, 3, 4) of the year a bikeway had a verified installation/upgrade
+* `_time_third`: which third (1, 2, 3) of the year a bikeway had a verified installation/upgrade
+* `_time_half`: which half (1, 2) of the year a bikeway had a verified installation/upgrade
+* `_time_semester`: which semester (1, 2) of the year a bikeway had a verified installation/upgrade, where:
+	* `1`: represents November to April of next year
+	* `2`: represents May to October of next year
 
 **Note**: Date ranges that fall between months, quarters, thirds, or halves of the year were excluded from being classified as any of the time units (e.g. March 31 to April 15 will be excluded as it does not fall within either the 1st or 2nd quarter of the year).
 
@@ -639,14 +642,42 @@ bike <- bike %>%
 				month(verify_date_end) %in% 7:12 &
 				year(verify_date_start) == year(verify_date_end)
 			) ~ 2
-		)
+		),
 		
+		# Semester (custom range)
+		`_time_semester` = case_when(
+			month(verify_date) %in% c(11:12, 1:4) |
+			(
+				month(verify_date_start) %in% c(11:12, 1:4) &
+				( # Nov to Dec of this year
+					month(verify_date_end) %in% 11:12 &
+					year(verify_date_end) == year(verify_date_start)
+				) |
+				( # Jan to Apr of this or next year
+					month(verify_date_end) %in% 1:4 &
+					year(verify_date_end) == year(verify_date_start) |
+					year(verify_date_end) == (year(verify_date_start) + 1)
+				)
+			) ~ 2, # Nov to Apr of next year
+			month(verify_date) %in% 5:10 |
+			(
+				month(verify_date_start) %in% 5:10 &
+				month(verify_date_end) %in% 5:10 &
+				year(verify_date_start) == year(verify_date_end)
+			) ~ 1 # May to Oct
+		)
 	)
 
 # Display time unit cols
 bike %>%
 	as_tibble %>%
-	select(verify_date_type, verify_date, starts_with("_")) %>%
+	select(
+		verify_date_type,
+		verify_date,
+		verify_date_start,
+		verify_date_end,
+		starts_with("_")
+	) %>%
 	arrange(`_pivot_value`)
 
 ```
@@ -683,36 +714,22 @@ Determine the temporal resolution (unit of time) finer than yearly based on the 
 * **Quarter**: refers to verified post-2011 installs and upgrades occurring approximately in a quarter (1/4) of a year
 * **Third**: refers to verified post-2011 installs and upgrades occurring approximately in a third (1/3) of a year
 * **Half** (low): refers to verified post-2011 installs and upgrades occurring approximately in a half (1/2) of a year
+* **Semester** (low): refers to verified post-2011 installs and upgrades occurring approximately in a half (1/2) of a year with the first half (1) being November (same year) to April (next year) and the second half being May to October (next year)
 
 As there seems to be a large improvement in the percentage of records across cities from quarters to thirds of a year, and diminishing improvements when lowering the resolution to halves of a year, thirds of a year was chosen as the unit of time.
 
 ```{r}
 
-# Calculate proportions with month, quarter, third, and half
-bike %>%
-	as_tibble %>%
-	group_by(city) %>%
-	summarize(
-		Month = sum(!is.na(`_time_month`)),
-		Quarter = sum(!is.na(`_time_quarter`)),
-		Third = sum(!is.na(`_time_third`)),
-		Half = sum(!is.na(`_time_half`))
-	) %>%
-	pivot_longer(
-		cols = -city,
-		names_to = "type",
-		values_to = "n"
-	)
-
 # Prepare plot data
 unit_data <- bike %>%
 	as_tibble %>%
 	group_by(city) %>%
-	summarize(
+	summarize( # calc installs/upgrades for each time unit
 		Month = sum(!is.na(`_time_month`)),
 		Quarter = sum(!is.na(`_time_quarter`)),
 		Third = sum(!is.na(`_time_third`)),
-		Half = sum(!is.na(`_time_half`))
+		Half = sum(!is.na(`_time_half`)),
+		Semester = sum(!is.na(`_time_semester`))
 	) %>%
 	pivot_longer(
 		cols = -city,
@@ -730,8 +747,8 @@ unit_data <- bike %>%
 		by = "city"
 	) %>%
 	ungroup %>%
-    mutate(
-        type = factor(type, levels = c("Month", "Quarter", "Third", "Half")),
+    mutate( # calc percentages and add labels
+        type = factor(type, levels = c("Month", "Quarter", "Third", "Half", "Semester")),
         city = factor(str_to_title(city), levels = c("Vancouver", "Calgary", "Toronto")),
         perc = n / total * 100,
         perc_label = glue(
@@ -741,17 +758,17 @@ unit_data <- bike %>%
     ) %>%
     group_by(type) %>% # adjust overlapping labels
     arrange(desc(perc)) %>% 
-    mutate(
+    mutate( # detect overlap labels and shift down and up
         perc_label_y = case_when(
-            lag(perc) - perc < 2 ~ perc - 1.4,
-            lead(perc) - perc > -2 ~ perc + 1.4,
+            lag(perc) - perc < 2 ~ perc - 1.75,
+            lead(perc) - perc > -2 ~ perc + 1.75,
             .default = perc
         )
     ) %>%
 	group_by(city) %>%
 	mutate( # add city labels at end of lines
 		city_label = if_else(
-			type == "Half",
+			type == "Semester",
 			glue(
 				"{city}\n",
 				"(n={format(total, big.mark = ',', scientific = F)})"
@@ -781,7 +798,7 @@ unit_plot <- unit_data %>%
 	) +
 	geom_label(
 		aes(y = perc_label_y),
-		size = 2.5,
+		size = 2,
 		show.legend = F,
 		label.padding = unit(0.5, "lines")
 	) +
@@ -790,7 +807,7 @@ unit_plot <- unit_data %>%
 			label = city_label,
 			y = perc_label_y
 		),
-		size = 3,
+		size = 2.25,
 		show.legend = F,
 		hjust = 0,
 		nudge_x = 0.25

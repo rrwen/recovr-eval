@@ -326,21 +326,21 @@ The data files are available below:
 
 ## Verified Dates {.tabset}
 
-`r ddesc %>% filter(file == "verify-dates-2024-06-07.csv") %>% pull(description)`
+`r ddesc %>% filter(file == "verify-dates-2024-06-12.csv") %>% pull(description)`
 
-* **Download Link**: `r ddesc %>% filter(file == "verify-dates-2024-06-07.csv") %>% pull(url)`
-* **Download Date**: `r format(ddesc %>% filter(file == "verify-dates-2024-06-07.csv") %>% pull(download_date), '%B %d, %Y')`
-* **Data Updated**: `r format(ddesc %>% filter(file == "verify-dates-2024-06-07.csv") %>% pull(update_date), '%B %d, %Y')`
-* **Notes**: `r ddesc %>% filter(file == "verify-dates-2024-06-07.csv") %>% pull(notes)`
+* **Download Link**: `r ddesc %>% filter(file == "verify-dates-2024-06-12.csv") %>% pull(url)`
+* **Download Date**: `r format(ddesc %>% filter(file == "verify-dates-2024-06-12.csv") %>% pull(download_date), '%B %d, %Y')`
+* **Data Updated**: `r format(ddesc %>% filter(file == "verify-dates-2024-06-12.csv") %>% pull(update_date), '%B %d, %Y')`
+* **Notes**: `r ddesc %>% filter(file == "verify-dates-2024-06-12.csv") %>% pull(notes)`
 
 ```{r}
 
 # Read data
-vdates_raw <- read_csv("../data/verify-dates-2024-06-07.csv")
+vdates_raw <- read_csv("../data/verify-dates-2024-06-12.csv")
 
 # Get download date
 vdates_dldate <- ddesc %>% filter(
-	file == "verify-dates-2024-06-07.csv"
+	file == "verify-dates-2024-06-12.csv"
 ) %>% pull(download_date)
 ```
 
@@ -358,7 +358,7 @@ vdates_raw
 The data contains the following columns:
 
 ```{r, cols.print = 3}
-vdates_ddict <- read_csv("../data/verify-dates-2024-06-07-datadict.csv")
+vdates_ddict <- read_csv("../data/verify-dates-2024-06-12-datadict.csv")
 vdates_ddict
 ```
 
@@ -366,8 +366,8 @@ vdates_ddict
 
 The data files are available below:
 
-- [verify-dates-2024-06-07.csv](https://github.com/rrwen/recovr-eval/blob/main/data/verify-dates-2024-06-07.csv)
-- [verify-dates-2024-06-07-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/verify-dates-2024-06-07-datadict.csv)
+- [verify-dates-2024-06-12.csv](https://github.com/rrwen/recovr-eval/blob/main/data/verify-dates-2024-06-12.csv)
+- [verify-dates-2024-06-12-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/verify-dates-2024-06-12-datadict.csv)
 
 ## Toronto KSI {.tabset}
 
@@ -475,205 +475,204 @@ bike_raw %>% as_tibble
 
 ```
 
-## Join Clean Dates
+## Pivot Long Format
+
+Pivot to long format, where each record represents an installationa or upgrade.
+
+Also adds the following columns:
+
+* `_pivot_type`: one of `install`, `upgrade1`, or `upgrade2`
+* `_pivot_year`: the year of the install or upgrade from `verify_install_year`, `verify_upgrade1_year`, or `verify_upgrade2_year`
+
+```{r}
+
+# Pivot to long format on installs and upgrades
+bike <- bike_raw %>%
+    pivot_longer(
+        cols = c(
+            verify_install_date,
+            verify_upgrade1_date,
+            verify_upgrade2_date
+        ),
+        names_to = "_pivot_column",
+        values_to = "_pivot_value"
+    ) %>%
+	mutate(
+		`_pivot_type` = case_when(
+			str_starts(`_pivot_column`, "verify_install") ~ "install",
+			str_starts(`_pivot_column`, "verify_upgrade1") ~ "upgrade1",
+			str_starts(`_pivot_column`, "verify_upgrade2") ~ "upgrade2"
+		),
+		`_pivot_year` = case_when(
+			`_pivot_type` == "install" ~ verify_install_year,
+			`_pivot_type` == "upgrade1" ~ verify_upgrade1_year,
+			`_pivot_type` == "upgrade2" ~ verify_upgrade2_year
+		)
+	)
+
+# Display pivot columns
+bike %>%
+	as_tibble %>%
+	select(
+		`_pivot_type`,
+		`_pivot_year`,
+		`_pivot_column`,
+		`_pivot_value`,
+		everything()
+	) %>%
+	arrange(`_pivot_year`)
+
+```
+
+## Add Clean Dates
 
 Join ambiguous verified install/upgrade dates (e.g. Jan 1/2022, 2022/02, Fall 2020) to manually cleaned dates with structured time units (e.g. days, months, quarters, semesters, ranges) and date formats (e.g. 2022-01-01, 2022-02-01).
 
-Each of `verify_install_date`, `verify_upgrade1_date` and `verify_upgrade2_date` will have a set of cleaned structured date columns:
+The following cleaned structured date columns will be added:
 
-`r paste0("\n * install_", colnames(vdates_raw) %>% .[. != "verify_date_raw"], collapse = "")`
-`r paste0("\n * upgrade1_", colnames(vdates_raw) %>% .[. != "verify_date_raw"], collapse = "")`
-`r paste0("\n * upgrade2_", colnames(vdates_raw) %>% .[. != "verify_date_raw"], collapse = "")`
+`r paste0("\n * ", colnames(vdates_raw) %>% .[. != "verify_date_raw"], collapse = "")`
 
 ```{r}
 
 # Join clean dates to include structured date formats
-for (event in c("install", "upgrade1", "upgrade2")) {
-	
-	# Date col names
-	date_col <- glue("verify_{event}_date")
-	clean_col <- glue("{event}_verify_date_raw")
-	
-	# Join clean dates
-	bike_raw <- bike_raw %>%
-		left_join( # join to installs
-			vdates_raw %>%
-				rename_with(
-					~ paste0(event, "_", .x),
-					everything()
-				),
-			by = set_names(clean_col, date_col)
-		)
-}
+bike <- bike %>%
+	left_join(
+		vdates_raw,
+		by = join_by(`_pivot_value` == verify_date_raw)
+	)
 
 # Display clean dates cols
-bike_raw %>%
+bike %>%
 	as_tibble %>%
-	select(starts_with(c(
-		"install_verify_",
-		"upgrade1_verify_",
-		"upgrade2_verify_"
-	)))
+	select(all_of(
+		colnames(vdates_raw) %>%
+			.[. != "verify_date_raw"]
+	)) %>%
+	arrange(verify_date_type)
 
 ```
 
-## Add Columns
+## Add Time Units
 
-Add the following filter columns:
+Add the following time unit columns for installs/upgrades:
 
-* `_is_verify`: if a bikeway had a verified installation or upgrade
-* `_is_verify_post2011`: if a bikeway had a verified installation or upgrade after 2011
-* `_is_verify_dated`: if a bikeway had a verified installation or upgrade with dates
-* `_is_verify_cdated`: if a bikeway had a verified installation or upgrade with cleaned dates
-
-Then add the following time unit columns for installs/upgrades:
-
-* `install_verify_date_month`: which month (1, 2, 3 ... 12) a bikeway had verified installation
-* `install_verify_date_quarter`: which quarter (1, 2, 3, 4) of the year a bikeway had verified installation
-* `install_verify_date_third`: which third (1, 2, 3) of the year a bikeway had verified installation
-* `install_verify_date_half`: which half (1, 2) of the year a bikeway had verified installation
-* `upgrade1_verify_date_month`: which month (1, 2, 3 ... 12) a bikeway had verified 1st upgrade
-* `upgrade1_verify_date_quarter`: which quarter (1, 2, 3, 4) of the year a bikeway had verified 1st upgrade
-* `upgrade1_verify_date_third`: which third (1, 2, 3) of the year a bikeway had verified 1st upgrade
-* `upgrade1_verify_date_half`: which half (1, 2) of the year a bikeway had verified 1st upgrade
-* `upgrade2_verify_date_month`: which month (1, 2, 3 ... 12) a bikeway had verified 2nd upgrade
-* `upgrade2_verify_date_quarter`: which quarter (1, 2, 3, 4) of the year a bikeway had verified 2nd upgrade
-* `upgrade2_verify_date_third`: which third (1, 2, 3) of the year a bikeway had verified 2nd upgrade
-* `upgrade2_verify_date_half`: which half (1, 2) of the year a bikeway had verified 2nd upgrade
+* `_time_month`: which month (1, 2, 3 ... 12) a bikeway had verified installation/upgrade
+* `_time_quarter`: which quarter (1, 2, 3, 4) of the year a bikeway had verified installation/upgrade
+* `_time_third`: which third (1, 2, 3) of the year a bikeway had verified installation/upgrade
+* `_time_half`: which half (1, 2) of the year a bikeway had verified installation/upgrade
 
 **Note**: Date ranges that fall between months, quarters, thirds, or halves of the year were excluded from being classified as any of the time units (e.g. March 31 to April 15 will be excluded as it does not fall within either the 1st or 2nd quarter of the year).
 
 ```{r}
 
-# Add filter columns
-bike_raw <- bike_raw %>%
+# Add time unit columns via mutate
+bike <- bike %>%
 	mutate(
-		`_is_verify` =
-			(!is.na(verify_install_year) |
-			 !is.na(verify_upgrade1_year) |
-			 !is.na(verify_upgrade2_year)) &
-			is.na(no_verify_install_type),
-		`_is_verify_post2011` = 
-			`_is_verify` &
-			verify_install_year > 2011 |
-			verify_upgrade1_year > 2011 |
-			verify_upgrade2_year > 2011,
-		`_is_verify_dated` =
-			`_is_verify` &
-			!is.na(verify_install_date) |
-			!is.na(verify_upgrade2_date) |
-			!is.na(verify_upgrade2_date),
-		`_is_verify_cdated` =
-			`_is_verify` &
-			!is.na(install_verify_date_type) |
-			!is.na(upgrade1_verify_date_type) |
-			!is.na(upgrade2_verify_date_type)
+		
+		# Months (monthly)
+		`_time_month` = case_when(
+			verify_date_type %in% c("day", "month") ~ month(verify_date, label = T, abbr = F)
+		),
+		`_time_month` = as.numeric(`_time_month`),
+		
+		# Quarters (quarterly)
+		`_time_quarter` = case_when(
+			month(verify_date) %in% 1:3 |
+			(
+				month(verify_date_start) %in% 1:3 &
+				month(verify_date_end) %in% 1:3 &
+				year(verify_date_start) == year(verify_date_end)
+			) ~ 1,
+			month(verify_date) %in% 4:6 |
+			(
+				month(verify_date_start) %in% 4:6 &
+				month(verify_date_end) %in% 4:6 &
+				year(verify_date_start) == year(verify_date_end)
+			) ~ 2,
+			month(verify_date) %in% 7:9 |
+			(
+				month(verify_date_start) %in% 7:9 &
+				month(verify_date_end) %in% 7:9 &
+				year(verify_date_start) == year(verify_date_end)
+			) ~ 3,
+			month(verify_date) %in% 10:12 |
+			(
+				month(verify_date_start) %in% 10:12 &
+				month(verify_date_end) %in% 10:12 &
+				year(verify_date_start) == year(verify_date_end)
+			) ~ 4
+		),
+		
+		# Thirds (triyearly)
+		`_time_third` = case_when(
+			month(verify_date) %in% 1:4 |
+			(
+				month(verify_date_start) %in% 1:4 &
+				month(verify_date_end) %in% 1:4 &
+				year(verify_date_start) == year(verify_date_end)
+			) ~ 1, # Fall
+			month(verify_date) %in% 5:8 |
+			(
+				month(verify_date_start) %in% 5:8 &
+				month(verify_date_end) %in% 5:8 &
+				year(verify_date_start) == year(verify_date_end)
+			) ~ 2, # Winter
+			month(verify_date) %in% 9:12 |
+			(
+				month(verify_date_start) %in% 9:12 &
+				month(verify_date_end) %in% 9:12 &
+				year(verify_date_start) == year(verify_date_end)
+			) ~ 3 # Spring/Summer
+		),
+		
+		# Halves (biyearly)
+		`_time_half` = case_when(
+			month(verify_date) %in% 1:6 |
+			(
+				month(verify_date_start) %in% 1:6 &
+				month(verify_date_end) %in% 1:6 &
+				year(verify_date_start) == year(verify_date_end)
+			) ~ 1,
+			month(verify_date) %in% 7:12 |
+			(
+				month(verify_date_start) %in% 7:12 &
+				month(verify_date_end) %in% 7:12 &
+				year(verify_date_start) == year(verify_date_end)
+			) ~ 2
+		)
+		
 	)
 
-# Add time unit columns for month, quarter, third, half
-for (event in c("install", "upgrade1", "upgrade2")) {
-	
-	# Date col name
-	date_col <- glue("{event}_verify_date")
-	start_col <- glue("{event}_verify_date_start")
-	end_col <- glue("{event}_verify_date_end")
-	type_col <- glue("{event}_verify_date_type")
-	
-	# Time unit col name
-	month_col <- glue("{event}_verify_date_month")
-	quarter_col <- glue("{event}_verify_date_quarter")
-	third_col <- glue("{event}_verify_date_third")
-	half_col <- glue("{event}_verify_date_half")
-	
-	# Add time unit columns via mutate
-	bike_raw <- bike_raw %>%
-		mutate(
-			
-			# Months (monthly)
-			!!month_col := case_when(
-				.data[[type_col]] %in% c("day", "month") ~ month(.data[[date_col]], label = T, abbr = F)
-			),
-			!!month_col := as.numeric(.data[[month_col]]),
-			
-			# Quarters (quarterly)
-			!!quarter_col := case_when(
-				month(.data[[date_col]]) %in% 1:3 |
-				(
-					month(.data[[start_col]]) %in% 1:3 &
-					month(.data[[end_col]]) %in% 1:3 &
-					year(.data[[start_col]]) == year(.data[[end_col]])
-				) ~ 1,
-				month(.data[[date_col]]) %in% 4:6 |
-				(
-					month(.data[[start_col]]) %in% 4:6 &
-					month(.data[[end_col]]) %in% 4:6 &
-					year(.data[[start_col]]) == year(.data[[end_col]])
-				) ~ 2,
-				month(.data[[date_col]]) %in% 1:3 |
-				(
-					month(.data[[start_col]]) %in% 7:9 &
-					month(.data[[end_col]]) %in% 7:9 &
-					year(.data[[start_col]]) == year(.data[[end_col]])
-				) ~ 3,
-				month(.data[[date_col]]) %in% 10:12 |
-				(
-					month(.data[[start_col]]) %in% 10:12 &
-					month(.data[[end_col]]) %in% 10:12 &
-					year(.data[[start_col]]) == year(.data[[end_col]])
-				) ~ 4
-			),
-			
-			# Thirds (triyearly)
-			!!third_col := case_when(
-				month(.data[[date_col]]) %in% 1:4 |
-				(
-					month(.data[[start_col]]) %in% 1:4 &
-					month(.data[[end_col]]) %in% 1:4 &
-					year(.data[[start_col]]) == year(.data[[end_col]])
-				) ~ 1, # Fall
-				month(.data[[date_col]]) %in% 5:8 |
-				(
-					month(.data[[start_col]]) %in% 5:8 &
-					month(.data[[end_col]]) %in% 5:8 &
-					year(.data[[start_col]]) == year(.data[[end_col]])
-				) ~ 2, # Winter
-				month(.data[[date_col]]) %in% 9:12 |
-				(
-					month(.data[[start_col]]) %in% 9:12 &
-					month(.data[[end_col]]) %in% 9:12 &
-					year(.data[[start_col]]) == year(.data[[end_col]])
-				) ~ 3 # Spring/Summer
-			),
-			
-			# Halves (biyearly)
-			!!half_col := case_when(
-				month(.data[[date_col]]) %in% 1:6 |
-				(
-					month(.data[[start_col]]) %in% 1:6 &
-					month(.data[[end_col]]) %in% 1:6 &
-					year(.data[[start_col]]) == year(.data[[end_col]])
-				) ~ 1,
-				month(.data[[date_col]]) %in% 7:12 |
-				(
-					month(.data[[start_col]]) %in% 7:12 &
-					month(.data[[end_col]]) %in% 7:12 &
-					year(.data[[start_col]]) == year(.data[[end_col]])
-				) ~ 2
-			)
-			
-		)
-}
+# Display time unit cols
+bike %>%
+	as_tibble %>%
+	select(verify_date_type, verify_date, starts_with("_")) %>%
+	arrange(`_pivot_value`)
 
-# Display columns
-bike_raw %>%
+```
+
+## Filter Verified Post-2011
+
+Filter for bikeways with a verified installation or upgrade after 2011.
+
+```{r}
+
+# Add filter columns
+bike <- bike %>%
+	filter(`_pivot_year` > 2011)
+
+# Display filtered rows
+bike %>%
 	as_tibble %>%
 	select(
-		starts_with("_") |
-		ends_with("_month") |
-		ends_with("_quarter") |
-		ends_with("_third") |
-		ends_with("_half")
-	)
+		`_pivot_year`,
+		`_pivot_type`,
+		verify_install_year,
+		verify_upgrade1_year,
+		verify_upgrade2_year
+	) %>%
+	arrange(`_pivot_year`)
+
 ```
 
 ## Determine Unit of Time
@@ -689,86 +688,83 @@ As there seems to be a large improvement in the percentage of records across cit
 
 ```{r}
 
+# Calculate proportions with month, quarter, third, and half
+bike %>%
+	as_tibble %>%
+	group_by(city) %>%
+	summarize(
+		Month = sum(!is.na(`_time_month`)),
+		Quarter = sum(!is.na(`_time_quarter`)),
+		Third = sum(!is.na(`_time_third`)),
+		Half = sum(!is.na(`_time_half`))
+	) %>%
+	pivot_longer(
+		cols = -city,
+		names_to = "type",
+		values_to = "n"
+	)
+
 # Prepare plot data
-unit_data <- bike_raw %>%
-    as_tibble %>%
-    filter(`_is_verify_post2011`) %>%
-    select(
-        city,
-        install_verify_date_month,
-        install_verify_date_quarter,
-        install_verify_date_third,
-        install_verify_date_half,
-        upgrade1_verify_date_month,
-        upgrade1_verify_date_quarter,
-        upgrade1_verify_date_third,
-        upgrade1_verify_date_half,
-        upgrade2_verify_date_month,
-        upgrade2_verify_date_quarter,
-        upgrade2_verify_date_third,
-        upgrade2_verify_date_half
-    ) %>%
-    pivot_longer(
-        cols = -city,
-        names_to = "column",
-        values_to = "value"
-    ) %>%
+unit_data <- bike %>%
+	as_tibble %>%
+	group_by(city) %>%
+	summarize(
+		Month = sum(!is.na(`_time_month`)),
+		Quarter = sum(!is.na(`_time_quarter`)),
+		Third = sum(!is.na(`_time_third`)),
+		Half = sum(!is.na(`_time_half`))
+	) %>%
+	pivot_longer(
+		cols = -city,
+		names_to = "type",
+		values_to = "n"
+	) %>%
+	mutate( # zero as NA
+		n = if_else(n == 0, NA, n)
+	) %>%
+	left_join( # Add city totals
+		bike %>%
+			as_tibble %>%
+			group_by(city) %>%
+			count(name = "total"),
+		by = "city"
+	) %>%
+	ungroup %>%
     mutate(
-        type = case_when(
-            str_detect(column, "month") & !is.na(value) ~ "Month",
-            str_detect(column, "quarter") & !is.na(value) ~ "Quarter",
-            str_detect(column, "third") & !is.na(value) ~ "Third",
-            str_detect(column, "half") & !is.na(value) ~ "Half"
-        )
-    ) %>%
-    group_by(city, type) %>%
-    count %>%
-    filter(!is.na(type)) %>%
-    ungroup %>%
-    left_join( # left join totals for perc
-        bike_raw %>%
-            as_tibble %>%
-            filter(`_is_verify_post2011`) %>%
-            select(
-                city,
-                verify_install_year,
-                verify_upgrade1_year,
-                verify_upgrade2_year
-            ) %>%
-            pivot_longer(
-                cols = -city,
-                names_to = "column",
-                values_to = "value"
-            ) %>%
-            filter(!is.na(value)) %>%
-            group_by(city) %>%
-            count %>%
-            ungroup %>%
-            rename(total = n),
-        by = "city"
-    ) %>%
-    mutate(
-        perc = n / total * 100,
-        perc_label = glue("{round(perc, 2)}%\n(n={n})"),
         type = factor(type, levels = c("Month", "Quarter", "Third", "Half")),
         city = factor(str_to_title(city), levels = c("Vancouver", "Calgary", "Toronto")),
+        perc = n / total * 100,
+        perc_label = glue(
+        	"{str_sub(city, end = 1)}: {round(perc, 2)}%\n",
+        	"(n={format(n, big.mark = ',', scientific = F)})"
+        )
     ) %>%
-    group_by(type) %>%
-    arrange(desc(perc)) %>% # adjust overlapping labels
+    group_by(type) %>% # adjust overlapping labels
+    arrange(desc(perc)) %>% 
     mutate(
         perc_label_y = case_when(
-            lag(perc) - perc < 1 ~ perc - 1.95,
-            lead(perc) - perc > -1 ~ perc + 1.95,
+            lag(perc) - perc < 2 ~ perc - 1.5,
+            lead(perc) - perc > -2 ~ perc + 1.5,
             .default = perc
         )
     ) %>%
-	ungroup %>%
 	group_by(city) %>%
 	mutate( # add city labels at end of lines
-		city_label = if_else(type == "Half", glue("{city}\n(n={total})"), NA)
+		city_label = if_else(
+			type == "Half",
+			glue(
+				"{city}\n",
+				"(n={format(total, big.mark = ',', scientific = F)})"
+			),
+			NA
+		)
 	) %>%
 	ungroup %>%
     arrange(city, type)
+
+# Get total
+unit_total <- sum(unit_data$total %>% unique, na.rm = T)
+unit_total_label <- format(unit_total, big.mark = ",", scientific = F)
 
 # Plot line
 unit_plot <- unit_data %>%
@@ -797,7 +793,7 @@ unit_plot <- unit_data %>%
 		size = 3,
 		show.legend = F,
 		hjust = 0,
-		nudge_x = 0.2
+		nudge_x = 0.25
 	) +
 	scale_y_continuous(labels = function(x) paste0(x, "%")) +
 	scale_x_discrete(
@@ -807,7 +803,7 @@ unit_plot <- unit_data %>%
 	labs(
 		title = glue(
 			"% of Verified Post-2011 Installs & Upgrades by Unit of Time\n",
-			"(n={sum(unit_data$total %>% unique, na.rm = T)})"
+			"(n={unit_total_label})"
 		),
 		x = NULL,
 		y = NULL,
@@ -826,88 +822,17 @@ unit_plot
 tunit = "third"
 ```
 
-## Apply Filters
-
-Only keep verified segments with post-2011 installs and upgrades that have dates with the chosen unit of time (`r tunit`).
-
-```{r}
-
-# Get time unit col
-tunit_icol <- glue("install_verify_date_{tunit}")
-tunit_u1col <- glue("upgrade1_verify_date_{tunit}")
-tunit_u2col <- glue("upgrade2_verify_date_{tunit}")
-
-# Apply filters
-bike <- bike_raw %>%
-	as_tibble %>%
-	filter(
-		`_is_verify_post2011` & (
-			!is.na(.data[[tunit_icol]]) |
-			!is.na(.data[[tunit_u1col]]) |
-			!is.na(.data[[tunit_u2col]])
-		 )
-	)
-
-# Display filtered data
-bike %>%
-	as_tibble %>%
-	select(
-		city,
-		`_is_verify_post2011`,
-		`_is_verify_cdated`,
-		verify_install_year,
-		verify_upgrade1_year,
-		verify_upgrade2_year,
-		install_verify_date_type,
-		upgrade1_verify_date_type,
-		upgrade2_verify_date_type
-	)
-
-```
-
-## Pivot Long Format
-
-Pivot the data into long format, where each record represents an install or upgrade with a date range in a `r tunit` of the year.
-
-```{r}
-
-# Pivot install and upgrade time unit cols to long format
-bike <- bike %>%
-	pivot_longer(
-		cols = all_of(paste0(
-			c("install", "upgrade1", "upgrade2"),
-			"_verify_date_",
-			tunit
-		)),
-		names_to = "_type",
-		values_to = "_time_group"
-	) %>%
-	filter(!is.na(`_time_group`)) # date range in time unit only
-
-# Alter type and add time unit
-bike <- bike %>%
-	mutate(
-		`_type` = case_when(
-			str_starts(`_type`, "install") ~ "install",
-			str_starts(`_type`, "upgrade1") ~ "upgrade1",
-			str_starts(`_type`, "upgrade2") ~ "upgrade2"
-		),
-		`_time_unit` = tunit
-	)
-
-# Display long format
-bike %>%
-	as_tibble %>%
-		select(
-		city,
-		`_type`,
-		`_time_group`,
-		`_time_unit`
-	) 
-```
-
 ## Join KSI
 
 ```{r}
-year_min <- bike$
+
+# Get minimum year
+year_min <- bike %>%
+	pull(`_pivot_year`) %>%
+	min(., na.rm = T)
+
+# Get maximum year
+year_max <- bike %>%
+	pull(`_pivot_year`) %>%
+	max(., na.rm = T)
 ```

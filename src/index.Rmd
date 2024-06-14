@@ -743,8 +743,8 @@ unit_data <- bike %>%
     arrange(desc(perc)) %>% 
     mutate(
         perc_label_y = case_when(
-            lag(perc) - perc < 2 ~ perc - 1.5,
-            lead(perc) - perc > -2 ~ perc + 1.5,
+            lag(perc) - perc < 2 ~ perc - 1.4,
+            lead(perc) - perc > -2 ~ perc + 1.4,
             .default = perc
         )
     ) %>%

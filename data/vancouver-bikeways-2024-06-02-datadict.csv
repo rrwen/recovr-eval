@@ -13,12 +13,12 @@ verify_install_comment,"Comment on verification of cycling infrastructure instal
 verify_upgrade1_year,"Verified year of the first cycling infrastructure upgrade based on Google StreetView, Google Earth, and web search",numeric
 verify_upgrade1_date,"Verified unstructured and approximate date of the first cycling infrastructure upgrade based on Google StreetView, Google Earth, and web search",text
 verify_upgrade1_type,"Verified type of the first cycling infrastructure upgrade based on Google StreetView, Google Earth, and web search",text
-verify_upgrade1_comment,"Comment on verification of the first cycling infrastructure upgrade  based on Google Streetview, Google Earth, and web search",text
+verify_upgrade1_comment,"Comment on verification of the first cycling infrastructure upgrade based on Google Streetview, Google Earth, and web search",text
 verify_upgrade2_year,"Verified year of the second cycling infrastructure upgrade based on Google StreetView, Google Earth, and web search",numeric
 verify_upgrade2_date,"Verified unstructured and approximate date of the second cycling infrastructure upgrade based on Google StreetView, Google Earth, and web search",text
 verify_upgrade2_type,"Verified type of the second cycling infrastructure upgrade based on Google StreetView, Google Earth, and web search",text
-verify_upgrade2_comment,"Comment on verification of the second cycling infrastructure upgrade  based on Google Streetview, Google Earth, and web search",text
-verify_misclass,"The misclassified infrastructure type from the original data from the City of Toronto during verification using Google StreetView, Google Earth, and web search",text
+verify_upgrade2_comment,"Comment on verification of the second cycling infrastructure upgrade based on Google Streetview, Google Earth, and web search",text
+verify_misclass,"The misclassified infrastructure type from the original data from the City of Toronto based on verification using Google StreetView, Google Earth, and web search",text
 no_verify_install_type,Included cycling infrastructure type for analysis that was not verified,text
 geometry_len_km,Length of the road segment,numeric
 geometry,Line geometry,geometry

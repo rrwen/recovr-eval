@@ -177,8 +177,8 @@ vancbike_raw %>% as_tibble
 The data contains the following columns:
 
 ```{r, cols.print = 3}
-#vancbike_ddict <- read_csv("../data/vancouver-bikeways-2024-06-02-datadict.csv")
-#vancbike_ddict
+vancbike_ddict <- read_csv("../data/vancouver-bikeways-2024-06-02-datadict.csv")
+vancbike_ddict
 ```
 
 ### Details
@@ -242,8 +242,8 @@ calgbike_raw %>% as_tibble
 The data contains the following columns:
 
 ```{r, cols.print = 3}
-#calgbike_ddict <- read_csv("../data/calgary-bikeways-2024-06-05-datadict.csv")
-#calgbike_ddict
+calgbike_ddict <- read_csv("../data/calgary-bikeways-2024-06-05-datadict.csv")
+calgbike_ddict
 ```
 
 ### Details
@@ -307,8 +307,8 @@ toronbike_raw %>% as_tibble
 The data contains the following columns:
 
 ```{r, cols.print = 3}
-#toronbike_ddict <- read_csv("../data/toronto-bikeways-2024-06-02-datadict.csv")
-#toronbike_ddict
+toronbike_ddict <- read_csv("../data/toronto-bikeways-2024-06-02-datadict.csv")
+toronbike_ddict
 ```
 
 ### Details
@@ -760,8 +760,8 @@ unit_data <- bike %>%
     arrange(desc(perc)) %>% 
     mutate( # detect overlap labels and shift down and up
         perc_label_y = case_when(
-            lag(perc) - perc < 2 ~ perc - 1.75,
-            lead(perc) - perc > -2 ~ perc + 1.75,
+            lag(perc) - perc < 2 ~ perc - 1.5,
+            lead(perc) - perc > -2 ~ perc + 1.5,
             .default = perc
         )
     ) %>%

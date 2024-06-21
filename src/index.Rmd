@@ -381,7 +381,7 @@ The data files are available below:
 ```{r}
 
 # Read data
-ksi_raw <- read_sf(
+toronksi_raw <- read_sf(
 	"../data/toronto-ksi-2024-06-13.csv",
 	options = c(
 		"X_POSSIBLE_NAMES=LONGITUDE",
@@ -391,18 +391,18 @@ ksi_raw <- read_sf(
 )
 
 # Get download date
-ksi_dldate <- ddesc %>% filter(
+toronksi_dldate <- ddesc %>% filter(
 	file == "toronto-ksi-2024-06-13.csv"
 ) %>% pull(download_date)
 ```
 
 ### Map
 
-**Note**: Due to the large number of records, only the latest year of `r year(max(ksi_raw$DATE))` is displayed (n = `r ksi_raw %>% filter(year(DATE) == max(year(DATE))) %>% nrow`).
+**Note**: Due to the large number of records, only the latest year of `r year(max(toronksi_raw$DATE))` is displayed (n = `r toronksi_raw %>% filter(year(DATE) == max(year(DATE))) %>% nrow`).
 
 ```{r}
 tmap_mode("view")
-tm_shape(ksi_raw %>% filter(year(DATE) == max(year(DATE)))) +
+tm_shape(toronksi_raw %>% filter(year(DATE) == max(year(DATE)))) +
     tm_dots(
     	col = "ACCLASS",
     	clustering = TRUE,
@@ -412,11 +412,11 @@ tm_shape(ksi_raw %>% filter(year(DATE) == max(year(DATE)))) +
 
 ### Data
 
-* Columns: `r ncol(ksi_raw)`
-* Rows: `r nrow(ksi_raw)`
+* Columns: `r ncol(toronksi_raw)`
+* Rows: `r nrow(toronksi_raw)`
 
 ```{r}
-ksi_raw %>% as_tibble()
+toronksi_raw %>% as_tibble()
 ```
 
 ### Dictionary
@@ -431,7 +431,7 @@ ksi_ddict
 ### Details
 
 ```{r}
-print(ksi_raw)
+print(toronksi_raw)
 ```
 
 ### Files
@@ -480,6 +480,21 @@ bike_raw <- names(bike_list) %>%
 # Display combined bikeway data
 bike_raw %>% as_tibble
 
+```
+
+## Combine KSI
+
+Combine KSI data across cities and standardize columns.
+
+**Note**: Only Toronto KSI is included for now.
+
+```{r}
+ksi <- toronksi_raw %>%
+	mutate(
+		ksi_city = "toronto",
+		ksi_id = INDEX,
+		ksi_date = DATE
+	)
 ```
 
 ## Pivot Long Format
@@ -732,9 +747,9 @@ add_time_units <- function(
 bike <- bike %>% add_time_units
 
 # Add time unit columns using func for ksi
-ksi <- ksi_raw %>%
+ksi <- ksi %>%
 	mutate( # add cols to standardize func params
-		verify_date = DATE,
+		verify_date = ksi_date,
 		verify_date_start = NA,
 		verify_date_end = NA,
 		verify_date_type = "day"
@@ -775,10 +790,10 @@ bike %>%
 ksi %>%
 	as_tibble %>%
 	select(
-		DATE,
+		ksi_date,
 		starts_with("_")
 	) %>%
-	arrange(year(DATE))
+	arrange(year(ksi_date))
 
 ```
 
@@ -794,7 +809,7 @@ bike <- bike %>%
 
 # Filter ksi for post2011
 ksi <- ksi %>%
-	filter(year(DATE) > 2011)
+	filter(year(ksi_date) > 2011)
 
 ```
 
@@ -823,8 +838,8 @@ bike %>%
 # Display filtered rows
 ksi %>%
 	as_tibble %>%
-	select(DATE) %>%
-	arrange(year(DATE))
+	select(ksi_date) %>%
+	arrange(year(ksi_date))
 
 ```
 
@@ -969,12 +984,20 @@ Add a column `_time_group` that stores the spatiotemporal grouping for both the 
 
 # Assign spatiotemp group for bikeways
 bike <- bike %>% mutate(
-	`_time_group` = glue("Third {`_time_third`} {`_pivot_year`}")
+	`_time_group` = if_else(
+		!is.na(`_time_third`),
+		glue("Third {`_time_third`} {`_pivot_year`}"),
+		NA
+	)
 )
 
 # Assign spatiotemp group for ksi
 ksi <- ksi %>% mutate(
-	`_time_group` = glue("Third {`_time_third`} {year(DATE)}")
+	`_time_group` = if_else(
+		!is.na(`_time_third`),
+		glue("Third {`_time_third`} {year(ksi_date)}"),
+		NA
+	)
 )
 
 ```
@@ -1004,10 +1027,10 @@ ksi %>%
 	as_tibble %>%
 	select(
 		`_time_third`,
-		DATE,
+		ksi_date,
 		`_time_group`
 	) %>%
-	arrange(year(DATE))
+	arrange(year(ksi_date))
 
 ```
 
@@ -1025,13 +1048,20 @@ Each KSI point is joined to a bikeway if they are:
 ```{r}
 
 # Set cache file for spatiotemp join
-bike_nid_file <- glue("../data/cache/bike-nid-{ksi_dldate}.csv")
+bike_nid_date <- max(c(
+	vancbike_dldate,
+	calgbike_dldate,
+	toronbike_dldate,
+	toronksi_dldate
+))
+bike_nid_file <- glue("../data/cache/bike-nid-{bike_nid_date}.csv")
 
 # Spatial join ksi by spatiotemp group
 if (!file.exists(bike_nid_file)) {
 	
 	# Run spatial join if no up to date cache
 	bike_nid <- bike %>%
+		filter(!is.na(`_time_group`)) %>%
 		arrange(`_time_group`) %>%
 		group_by(`_time_group`) %>%
 		group_map(~ {
@@ -1041,15 +1071,15 @@ if (!file.exists(bike_nid_file)) {
 				filter(`_time_group` == .y$`_time_group`)
 			
 			# Buffer 25 meters
-			bike_buff <- .x %>% buffer(25)
+			bike_buff <- .x %>% st_buffer(25)
 			
 			# Spatial join
-			.x %>%
-				st_join(bike_temp) %>%
+			ksi_temp %>%
+				st_join(bike_buff) %>%
 				select(
 					city,
 					id,
-					INDEX_
+					ksi_id
 				) %>%
 				as_tibble %>%
 				select(-geometry)
@@ -1066,4 +1096,11 @@ if (!file.exists(bike_nid_file)) {
 	bike_nid <- read_csv(bike_nid_file)
 
 }
+
+# Display ksi count per bikeway
+bike_nid %>%
+	filter(!is.na(id)) %>%
+	group_by(id) %>%
+	summarize(ksi_count = n()) %>%
+	arrange(ksi_count)
 ```

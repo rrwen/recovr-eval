@@ -734,7 +734,7 @@ bike <- bike %>% add_time_units
 # Add time unit columns using func for ksi
 ksi <- ksi_raw %>%
 	mutate( # add cols to standardize func params
-		verify_date = format(DATE, "%Y-%m-%d"),
+		verify_date = DATE,
 		verify_date_start = NA,
 		verify_date_end = NA,
 		verify_date_type = "day"

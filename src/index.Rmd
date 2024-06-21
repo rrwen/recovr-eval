@@ -371,21 +371,28 @@ The data files are available below:
 
 ## Toronto KSI {.tabset}
 
-`r ddesc %>% filter(file == "toronto-ksi-2024-06-01.geojson") %>% pull(description)`
+`r ddesc %>% filter(file == "toronto-ksi-2024-06-13.csv") %>% pull(description)`
 
-* **Download Link**: `r ddesc %>% filter(file == "toronto-ksi-2024-06-01.geojson") %>% pull(url)`
-* **Download Date**: `r format(ddesc %>% filter(file == "toronto-ksi-2024-06-01.geojson") %>% pull(download_date), '%B %d, %Y')`
-* **Data Updated**: `r format(ddesc %>% filter(file == "toronto-ksi-2024-06-01.geojson") %>% pull(update_date), '%B %d, %Y')`
-* **Notes**: `r ddesc %>% filter(file == "toronto-ksi-2024-06-01.geojson") %>% pull(notes)`
+* **Download Link**: `r ddesc %>% filter(file == "toronto-ksi-2024-06-13.csv") %>% pull(url)`
+* **Download Date**: `r format(ddesc %>% filter(file == "toronto-ksi-2024-06-13.csv") %>% pull(download_date), '%B %d, %Y')`
+* **Data Updated**: `r format(ddesc %>% filter(file == "toronto-ksi-2024-06-13.csv") %>% pull(update_date), '%B %d, %Y')`
+* **Notes**: `r ddesc %>% filter(file == "toronto-ksi-2024-06-13.csv") %>% pull(notes)`
 
 ```{r}
 
 # Read data
-ksi_raw <- read_sf("../data/toronto-ksi-2024-06-01.geojson")
+ksi_raw <- read_sf(
+	"../data/toronto-ksi-2024-06-13.csv",
+	options = c(
+		"X_POSSIBLE_NAMES=LONGITUDE",
+		"Y_POSSIBLE_NAMES=LATITUDE"
+	),
+	crs = 4326
+)
 
 # Get download date
 ksi_dldate <- ddesc %>% filter(
-	file == "toronto-ksi-2024-06-01.geojson"
+	file == "toronto-ksi-2024-06-13.csv"
 ) %>% pull(download_date)
 ```
 
@@ -417,7 +424,7 @@ ksi_raw %>% as_tibble()
 The data contains the following columns:
 
 ```{r, cols.print = 3}
-ksi_ddict <- read_csv("../data/toronto-ksi-2024-06-01-datadict.csv")
+ksi_ddict <- read_csv("../data/toronto-ksi-2024-06-13-datadict.csv")
 ksi_ddict
 ```
 
@@ -431,8 +438,8 @@ print(ksi_raw)
 
 The data files are available below:
 
-- [toronto-ksi-2024-06-01.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-ksi-2024-06-01.geojson)
-- [toronto-ksi-2024-06-01-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-ksi-2024-06-01-datadict.csv)
+- [toronto-ksi-2024-06-13.csv](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-ksi-2024-06-13.csv)
+- [toronto-ksi-2024-06-13-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-ksi-2024-06-13-datadict.csv)
 
 # Cleaning
 
@@ -477,7 +484,7 @@ bike_raw %>% as_tibble
 
 ## Pivot Long Format
 
-Pivot to long format, where each record represents an installationa or upgrade.
+Pivot bikeways data to long format, where each record represents an installation or upgrade.
 
 Also adds the following columns:
 
@@ -528,7 +535,7 @@ bike %>%
 
 Join ambiguous verified install/upgrade dates (e.g. Jan 1/2022, 2022/02, Fall 2020) to manually cleaned dates with structured time units (e.g. days, months, quarters, semesters, ranges) and date formats (e.g. 2022-01-01, 2022-02-01).
 
-The following cleaned structured date columns will be added:
+The following cleaned structured date columns will be added to bikeways:
 
 `r paste0("\n * ", colnames(vdates_raw) %>% .[. != "verify_date_raw"], collapse = "")`
 
@@ -552,9 +559,9 @@ bike %>%
 
 ```
 
-## Add Time Units
+## Add Time Units {.tabset}
 
-Add the following time unit columns for installs/upgrades:
+Add the following time unit columns for installs/upgrades in bikeways and ksi:
 
 * `_time_month`: which month (1, 2, 3 ... 12) a bikeway had a verified installation/upgrade
 * `_time_quarter`: which quarter (1, 2, 3, 4) of the year a bikeway had a verified installation/upgrade
@@ -568,107 +575,185 @@ Add the following time unit columns for installs/upgrades:
 
 ```{r}
 
-# Add time unit columns via mutate
-bike <- bike %>%
-	mutate(
-		
-		# Months (monthly)
-		`_time_month` = case_when(
-			verify_date_type %in% c("day", "month") ~ month(verify_date, label = T, abbr = F)
-		),
-		`_time_month` = as.numeric(`_time_month`),
-		
-		# Quarters (quarterly)
-		`_time_quarter` = case_when(
-			month(verify_date) %in% 1:3 |
-			(
-				month(verify_date_start) %in% 1:3 &
-				month(verify_date_end) %in% 1:3 &
-				year(verify_date_start) == year(verify_date_end)
-			) ~ 1,
-			month(verify_date) %in% 4:6 |
-			(
-				month(verify_date_start) %in% 4:6 &
-				month(verify_date_end) %in% 4:6 &
-				year(verify_date_start) == year(verify_date_end)
-			) ~ 2,
-			month(verify_date) %in% 7:9 |
-			(
-				month(verify_date_start) %in% 7:9 &
-				month(verify_date_end) %in% 7:9 &
-				year(verify_date_start) == year(verify_date_end)
-			) ~ 3,
-			month(verify_date) %in% 10:12 |
-			(
-				month(verify_date_start) %in% 10:12 &
-				month(verify_date_end) %in% 10:12 &
-				year(verify_date_start) == year(verify_date_end)
-			) ~ 4
-		),
-		
-		# Thirds (triyearly)
-		`_time_third` = case_when(
-			month(verify_date) %in% 1:4 |
-			(
-				month(verify_date_start) %in% 1:4 &
-				month(verify_date_end) %in% 1:4 &
-				year(verify_date_start) == year(verify_date_end)
-			) ~ 1, # Fall
-			month(verify_date) %in% 5:8 |
-			(
-				month(verify_date_start) %in% 5:8 &
-				month(verify_date_end) %in% 5:8 &
-				year(verify_date_start) == year(verify_date_end)
-			) ~ 2, # Winter
-			month(verify_date) %in% 9:12 |
-			(
-				month(verify_date_start) %in% 9:12 &
-				month(verify_date_end) %in% 9:12 &
-				year(verify_date_start) == year(verify_date_end)
-			) ~ 3 # Spring/Summer
-		),
-		
-		# Halves (biyearly)
-		`_time_half` = case_when(
-			month(verify_date) %in% 1:6 |
-			(
-				month(verify_date_start) %in% 1:6 &
-				month(verify_date_end) %in% 1:6 &
-				year(verify_date_start) == year(verify_date_end)
-			) ~ 1,
-			month(verify_date) %in% 7:12 |
-			(
-				month(verify_date_start) %in% 7:12 &
-				month(verify_date_end) %in% 7:12 &
-				year(verify_date_start) == year(verify_date_end)
-			) ~ 2
-		),
-		
-		# Semester (custom range)
-		`_time_semester` = case_when(
-			month(verify_date) %in% c(11:12, 1:4) |
-			(
-				month(verify_date_start) %in% c(11:12, 1:4) &
-				( # Nov to Dec of this year
-					month(verify_date_end) %in% 11:12 &
-					year(verify_date_end) == year(verify_date_start)
-				) |
-				( # Jan to Apr of this or next year
-					month(verify_date_end) %in% 1:4 &
-					year(verify_date_end) == year(verify_date_start) |
-					year(verify_date_end) == (year(verify_date_start) + 1)
-				)
-			) ~ 2, # Nov to Apr of next year
-			month(verify_date) %in% 5:10 |
-			(
-				month(verify_date_start) %in% 5:10 &
-				month(verify_date_end) %in% 5:10 &
-				year(verify_date_start) == year(verify_date_end)
-			) ~ 1 # May to Oct
+#' Add Time Units to Data Frame
+#'
+#' This function takes a data frame and adds new columns representing various time units such as month, quarter, third, half, and semester. These columns are derived from a date column or if the time unit is more than day, then additiona start and end date columns
+#'
+#' @param df A data frame that contains the columns `verify_date`, `verify_date_type`, `verify_date_start`, and `verify_date_end`.
+#' @param date_col Name of the date column to use
+#' @param start_col Name of the start date column to use
+#' @param end_col Name of the end date column to use
+#' @param type_col Name of the date type column to use (e.g. month, day, year, etc)
+#'
+#' @return A data frame with additional columns:
+#' \describe{
+#'   \item{`_time_month`}{Numeric representation of the month (1-12).}
+#'   \item{`_time_quarter`}{Quarter of the year (1-4).}
+#'   \item{`_time_third`}{Third of the year (1-3).}
+#'   \item{`_time_half`}{Half of the year (1-2).}
+#'   \item{`_time_semester`}{Custom semester (1 for May-Oct, 2 for Nov-Apr).}
+#' }
+#'
+#' @examples
+#' \dontrun{
+#' df <- data.frame(
+#'   verify_date = as.Date(c("2021-01-15", "2021-06-20", "2021-09-10")),
+#'   verify_date_type = c("day", "month", "day"),
+#'   verify_date_start = as.Date(c("2021-01-01", "2021-06-01", "2021-09-01")),
+#'   verify_date_end = as.Date(c("2021-01-31", "2021-06-30", "2021-09-30"))
+#' )
+#' result <- add_time_units(df)
+#' print(result)
+#' }
+#'
+#' @import dplyr
+#' @importFrom lubridate month year
+#' @export
+add_time_units <- function(
+	df,
+	date_col = "verify_date",
+	start_col = "verify_date_start",
+	end_col = "verify_date_end",
+	type_col = "verify_date_type"
+) {
+	df %>%
+		rename( # rename req cols
+			`_date` := !!sym(date_col),
+			`_start` := !!sym(start_col),
+			`_end` := !!sym(end_col),
+			`_type` := !!sym(type_col)
+		) %>%
+		mutate( # add time units
+			
+			# Months (monthly)
+			`_time_month` = case_when(
+				`_type` %in% c("day", "month") ~ month(`_date`, label = T, abbr = F)
+			),
+			`_time_month` = as.numeric(`_time_month`),
+			
+			# Quarters (quarterly)
+			`_time_quarter` = case_when(
+				month(`_date`) %in% 1:3 |
+				(
+					month(`_start`) %in% 1:3 &
+					month(`_end`) %in% 1:3 &
+					year(`_start`) == year(`_end`)
+				) ~ 1,
+				month(`_date`) %in% 4:6 |
+				(
+					month(`_start`) %in% 4:6 &
+					month(`_end`) %in% 4:6 &
+					year(`_start`) == year(`_end`)
+				) ~ 2,
+				month(`_date`) %in% 7:9 |
+				(
+					month(`_start`) %in% 7:9 &
+					month(`_end`) %in% 7:9 &
+					year(`_start`) == year(`_end`)
+				) ~ 3,
+				month(`_date`) %in% 10:12 |
+				(
+					month(`_start`) %in% 10:12 &
+					month(`_end`) %in% 10:12 &
+					year(`_start`) == year(`_end`)
+				) ~ 4
+			),
+			
+			# Thirds (triyearly)
+			`_time_third` = case_when(
+				month(`_date`) %in% 1:4 |
+				(
+					month(`_start`) %in% 1:4 &
+					month(`_end`) %in% 1:4 &
+					year(`_start`) == year(`_end`)
+				) ~ 1, # Fall
+				month(`_date`) %in% 5:8 |
+				(
+					month(`_start`) %in% 5:8 &
+					month(`_end`) %in% 5:8 &
+					year(`_start`) == year(`_end`)
+				) ~ 2, # Winter
+				month(`_date`) %in% 9:12 |
+				(
+					month(`_start`) %in% 9:12 &
+					month(`_end`) %in% 9:12 &
+					year(`_start`) == year(`_end`)
+				) ~ 3 # Spring/Summer
+			),
+			
+			# Halves (biyearly)
+			`_time_half` = case_when(
+				month(`_date`) %in% 1:6 |
+				(
+					month(`_start`) %in% 1:6 &
+					month(`_end`) %in% 1:6 &
+					year(`_start`) == year(`_end`)
+				) ~ 1,
+				month(`_date`) %in% 7:12 |
+				(
+					month(`_start`) %in% 7:12 &
+					month(`_end`) %in% 7:12 &
+					year(`_start`) == year(`_end`)
+				) ~ 2
+			),
+			
+			# Semester (custom range)
+			`_time_semester` = case_when(
+				month(`_date`) %in% c(11:12, 1:4) |
+				(
+					month(`_start`) %in% c(11:12, 1:4) &
+					( # Nov to Dec of this year
+						month(`_end`) %in% 11:12 &
+						year(`_end`) == year(`_start`)
+					) |
+					( # Jan to Apr of this or next year
+						month(`_end`) %in% 1:4 &
+						year(`_end`) == year(`_start`) |
+						year(`_end`) == (year(`_start`) + 1)
+					)
+				) ~ 2, # Nov to Apr of next year
+				month(`_date`) %in% 5:10 |
+				(
+					month(`_start`) %in% 5:10 &
+					month(`_end`) %in% 5:10 &
+					year(`_start`) == year(`_end`)
+				) ~ 1 # May to Oct
+			)
+		) %>%
+		rename( # rename back to orig
+			!!date_col := `_date`,
+			!!start_col := `_start`,
+			!!end_col := `_end`,
+			!!type_col := `_type`
 		)
+}
+
+# Add time unit columns using func for bikeways
+bike <- bike %>% add_time_units
+
+# Add time unit columns using func for ksi
+ksi <- ksi_raw %>%
+	mutate( # add cols to standardize func params
+		verify_date = format(DATE, "%Y-%m-%d"),
+		verify_date_start = NA,
+		verify_date_end = NA,
+		verify_date_type = "day"
+	) %>%
+	add_time_units %>%
+	select( # remove no longer needed cols
+		-verify_date,
+		-verify_date_start,
+		-verify_date_end,
+		-verify_date_type
 	)
 
-# Display time unit cols
+```
+
+### Bikeways
+
+```{r}
+
+# Display time unit cols for bikeways
 bike %>%
 	as_tibble %>%
 	select(
@@ -682,15 +767,40 @@ bike %>%
 
 ```
 
-## Filter Verified Post-2011
-
-Filter for bikeways with a verified installation or upgrade after 2011.
+### KSI
 
 ```{r}
 
-# Add filter columns
+# Display time unit cols for ksi
+ksi %>%
+	as_tibble %>%
+	select(
+		DATE,
+		starts_with("_")
+	) %>%
+	arrange(year(DATE))
+
+```
+
+## Filter Verified Post-2011 {.tabset}
+
+Filter for bikeways and KSI with a verified installation or upgrade after 2011.
+
+```{r}
+
+# Filter bikeways for post2011
 bike <- bike %>%
 	filter(`_pivot_year` > 2011)
+
+# Filter ksi for post2011
+ksi <- ksi %>%
+	filter(year(DATE) > 2011)
+
+```
+
+### Bikeways
+
+```{r}
 
 # Display filtered rows
 bike %>%
@@ -706,9 +816,21 @@ bike %>%
 
 ```
 
+### KSI
+
+```{r}
+
+# Display filtered rows
+ksi %>%
+	as_tibble %>%
+	select(DATE) %>%
+	arrange(year(DATE))
+
+```
+
 ## Determine Unit of Time
 
-Determine the temporal resolution (unit of time) finer than yearly based on the amount of data available per time unit (sorted from the highest resolution time unit to the lowest resolution time unit):
+For bikeways, determine the temporal resolution (unit of time) finer than yearly based on the amount of data available per time unit (sorted from the highest resolution time unit to the lowest resolution time unit):
 
 * **Month** (high): refers to verified post-2011 installs and upgrades occurring approximately in a month (1/12) of a year
 * **Quarter**: refers to verified post-2011 installs and upgrades occurring approximately in a quarter (1/4) of a year
@@ -839,17 +961,109 @@ unit_plot
 tunit = "third"
 ```
 
-## Join KSI
+## Add Spatiotemporal Groups {.tabset}
+
+Add a column `_time_group` that stores the spatiotemporal grouping for both the ksi and bikeways.
 
 ```{r}
 
-# Get minimum year
-year_min <- bike %>%
-	pull(`_pivot_year`) %>%
-	min(., na.rm = T)
+# Assign spatiotemp group for bikeways
+bike <- bike %>% mutate(
+	`_time_group` = glue("Third {`_time_third`} {`_pivot_year`}")
+)
 
-# Get maximum year
-year_max <- bike %>%
-	pull(`_pivot_year`) %>%
-	max(., na.rm = T)
+# Assign spatiotemp group for ksi
+ksi <- ksi %>% mutate(
+	`_time_group` = glue("Third {`_time_third`} {year(DATE)}")
+)
+
+```
+
+### Bikeways
+
+```{r}
+
+# Display spatiotemp groups for bikeways
+bike %>%
+	as_tibble %>%
+	select(
+		`_time_third`,
+		`_pivot_year`,
+		`_time_group`
+	) %>%
+	arrange(`_pivot_year`)
+
+```
+
+### KSI
+
+```{r}
+
+# Display spatiotemp groups for ksi
+ksi %>%
+	as_tibble %>%
+	select(
+		`_time_third`,
+		DATE,
+		`_time_group`
+	) %>%
+	arrange(year(DATE))
+
+```
+
+## Join Bikeways and KSI
+
+Spatiotemporally join KSI to nearest bikeways based on the spatiotemporal groups.
+
+Each KSI point is joined to a bikeway if they are:
+
+* **Spatially Related**: is the nearest point within 25 meters of the bikeway
+* **Temporally Related**: has the same year and spatiotemporal group
+
+**Note**: if there is overlapping of bikeways, the same KSI can be assigned to multiple bikeways.
+
+```{r}
+
+# Set cache file for spatiotemp join
+bike_nid_file <- glue("../data/cache/bike-nid-{ksi_dldate}.csv")
+
+# Spatial join ksi by spatiotemp group
+if (!file.exists(bike_nid_file)) {
+	
+	# Run spatial join if no up to date cache
+	bike_nid <- bike %>%
+		arrange(`_time_group`) %>%
+		group_by(`_time_group`) %>%
+		group_map(~ {
+			
+			# Temporal filter by group
+			ksi_temp <- ksi %>%
+				filter(`_time_group` == .y$`_time_group`)
+			
+			# Buffer 25 meters
+			bike_buff <- .x %>% buffer(25)
+			
+			# Spatial join
+			.x %>%
+				st_join(bike_temp) %>%
+				select(
+					city,
+					id,
+					INDEX_
+				) %>%
+				as_tibble %>%
+				select(-geometry)
+			
+		}, .keep = T) %>%
+		reduce(bind_rows)
+	
+	# Cache spatiotemp join
+	bike_nid %>% write_csv(bike_nid_file)
+
+} else {
+	
+	# Read spatiotemp join from cache
+	bike_nid <- read_csv(bike_nid_file)
+
+}
 ```

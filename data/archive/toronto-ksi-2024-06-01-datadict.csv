@@ -1,0 +1,54 @@
+﻿column,description,data_type
+INDEX_ ,Unique Identifier,text
+ACCNUM ,Accident Number,text
+DATE ,Date Collision Occurred (time is displayed in UTC format when downloaded as a CSV),datetime
+TIME ,Time Collision Occurred,text
+STREET1 ,Street Collision Occurred,text
+STREET2 ,Street Collision Occurred,text
+OFFSET ,Distance and direction of the Collision,text
+ROAD_CLASS ,Road Classification,text
+DISTRICT ,City District,text
+LATITUDE ,Latitude,numeric
+LONGITUDE ,Longitude,numeric
+ACCLOC ,Collision Location,text
+TRAFFCTL ,Traffic Control Type,text
+VISIBILITY ,Environment Condition,text
+LIGHT ,Light Condition,text
+RDSFCOND ,Road Surface Condition,text
+ACCLASS ,Classification of Accident,text
+IMPACTYPE ,Initial Impact Type,text
+INVTYPE ,Involvement Type,text
+INVAGE ,Age of Involved Party,text
+INJURY ,Severity of Injury,text
+FATAL_NO ,Sequential Number,numeric
+INITDIR ,Initial Direction of Travel,text
+VEHTYPE ,Type of Vehicle ,text
+MANOEUVER,Vehicle Manoeuver,text
+DRIVACT,Apparent Driver Action,text
+DRIVCOND,Driver Condition,text
+PEDTYPE ,Pedestrian Crash Type - detail,text
+PEDACT,Pedestrian Action ,text
+PEDCOND,Condition of Pedestrian,text
+CYCLISTYPE,Cyclist Crash Type - detail,text
+CYCACT,Cyclist Action,text
+CYCCOND,Cyclist Condition,text
+PEDESTRIAN,Pedestrian Involved In Collision,text
+CYCLIST,Cyclists Involved in Collision,text
+AUTOMOBILE,Driver Involved in Collision,text
+MOTORCYCLE,Motorcyclist Involved in Collision,text
+TRUCK,Truck Driver Involved in Collision,text
+TRSN_CITY_VEH,Transit or City Vehicle Involved in Collision,text
+EMERG_VEH,Emergency Vehicle Involved in Collision,text
+PASSENGER,Passenger Involved in Collision ,text
+SPEEDING,Speeding Related Collision,text
+AG_DRIV,Aggressive and Distracted Driving Collision,text
+REDLIGHT,Red Light Related Collision,text
+ALCOHOL,Alcohol Related Collision,text
+DISABILITY,Medical or Physical Disability Related Collision,text
+HOOD_158,Unique ID for City of Toronto Neighbourhood (new),text
+NEIGHBOURHOOD_158,City of Toronto Neighbourhood name (new),text
+HOOD_140,Unique ID for City of Toronto Neighbourhood (old),text
+NEIGHBOURHOOD_140,City of Toronto Neighbourhood name (old),text
+DIVISION,Toronto Police Service Division,text
+OBJECTID,Unique Identifier (auto generated) ,numeric
+geometry,Point geometry,geometry

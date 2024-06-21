@@ -503,8 +503,9 @@ Pivot bikeways data to long format, where each record represents an installation
 
 Also adds the following columns:
 
-* `_pivot_type`: one of `install`, `upgrade1`, or `upgrade2`
+* `_pivot_event`: one of `install`, `upgrade1`, or `upgrade2`
 * `_pivot_year`: the year of the install or upgrade from `verify_install_year`, `verify_upgrade1_year`, or `verify_upgrade2_year`
+* `_pivot_infra`: one of `LSB`, `PL`, `BUF`, or `PBL` 
 
 ```{r}
 
@@ -520,23 +521,28 @@ bike <- bike_raw %>%
         values_to = "_pivot_value"
     ) %>%
 	mutate(
-		`_pivot_type` = case_when(
+		`_pivot_event` = case_when(
 			str_starts(`_pivot_column`, "verify_install") ~ "install",
 			str_starts(`_pivot_column`, "verify_upgrade1") ~ "upgrade1",
 			str_starts(`_pivot_column`, "verify_upgrade2") ~ "upgrade2"
 		),
 		`_pivot_year` = case_when(
-			`_pivot_type` == "install" ~ verify_install_year,
-			`_pivot_type` == "upgrade1" ~ verify_upgrade1_year,
-			`_pivot_type` == "upgrade2" ~ verify_upgrade2_year
-		)
+			`_pivot_event` == "install" ~ verify_install_year,
+			`_pivot_event` == "upgrade1" ~ verify_upgrade1_year,
+			`_pivot_event` == "upgrade2" ~ verify_upgrade2_year
+		),
+		`_pivot_type` = case_when(
+			str_starts(`_pivot_column`, "verify_install") ~ verify_install_type,
+			str_starts(`_pivot_column`, "verify_upgrade1") ~ verify_upgrade1_type,
+			str_starts(`_pivot_column`, "verify_upgrade2") ~ verify_upgrade2_type
+		),
 	)
 
 # Display pivot columns
 bike %>%
 	as_tibble %>%
 	select(
-		`_pivot_type`,
+		`_pivot_event`,
 		`_pivot_year`,
 		`_pivot_column`,
 		`_pivot_value`,
@@ -576,15 +582,17 @@ bike %>%
 
 ## Add Time Units {.tabset}
 
-Add the following time unit columns for installs/upgrades in bikeways and ksi:
+Add the following time unit columns for installs/upgrades in bikeways and for each ksi record:
 
-* `_time_month`: which month (1, 2, 3 ... 12) a bikeway had a verified installation/upgrade
-* `_time_quarter`: which quarter (1, 2, 3, 4) of the year a bikeway had a verified installation/upgrade
-* `_time_third`: which third (1, 2, 3) of the year a bikeway had a verified installation/upgrade
-* `_time_half`: which half (1, 2) of the year a bikeway had a verified installation/upgrade
-* `_time_semester`: which semester (1, 2) of the year a bikeway had a verified installation/upgrade, where:
+* `_time_month`: which month (1, 2, 3 ... 12) a bikeway had a verified installation/upgrade or ksi record
+* `_time_quarter`: which quarter (1, 2, 3, 4) of the year a bikeway had a verified installation/upgrade or ksi record
+* `_time_third`: which third (1, 2, 3) of the year a bikeway had a verified installation/upgrade or ksi record
+* `_time_half`: which half (1, 2) of the year a bikeway had a verified installation/upgrade or ksi record
+* `_time_semester`: which semester (1, 2) of the year a bikeway had a verified installation/upgrade or ksi record, where:
 	* `1`: represents November to April of next year
 	* `2`: represents May to October of next year
+* `_time_year`: standardized year column that bikeway had verified installation/upgrade or ksi record
+* `_time_..._group`: grouped columns of the above defining the time units in textual format
 
 **Note**: Date ranges that fall between months, quarters, thirds, or halves of the year were excluded from being classified as any of the time units (e.g. March 31 to April 15 will be excluded as it does not fall within either the 1st or 2nd quarter of the year).
 
@@ -629,14 +637,16 @@ add_time_units <- function(
 	date_col = "verify_date",
 	start_col = "verify_date_start",
 	end_col = "verify_date_end",
-	type_col = "verify_date_type"
+	type_col = "verify_date_type",
+	year_col = "_pivot_year"
 ) {
 	df %>%
 		rename( # rename req cols
 			`_date` := !!sym(date_col),
 			`_start` := !!sym(start_col),
 			`_end` := !!sym(end_col),
-			`_type` := !!sym(type_col)
+			`_type` := !!sym(type_col),
+			`_year` := !!sym(year_col)
 		) %>%
 		mutate( # add time units
 			
@@ -733,13 +743,63 @@ add_time_units <- function(
 					month(`_end`) %in% 5:10 &
 					year(`_start`) == year(`_end`)
 				) ~ 1 # May to Oct
+			),
+			
+			# Year
+			`_time_year` = `_year`
+			
+		) %>%
+		mutate( # add time groups that include the year
+			
+			# Month group
+			`_time_month_group` = if_else(
+				!is.na(`_time_month`),
+				glue("Month {`_time_month`} {`_year`}"),
+				NA
+			),
+			
+			# Quarter group
+			`_time_quarter_group` = if_else(
+				!is.na(`_time_quarter`),
+				glue("Quarter {`_time_quarter`} {`_year`}"),
+				NA
+			),
+			
+			# Third group
+			`_time_third_group` = if_else(
+				!is.na(`_time_third`),
+				glue("Third {`_time_third`} {`_year`}"),
+				NA
+			),
+			
+			# Half group
+			`_time_half_group` = if_else(
+				!is.na(`_time_half`),
+				glue("Half {`_time_half`} {`_year`}"),
+				NA
+			),
+			
+			# Semester group
+			`_time_semester_group` = if_else(
+				!is.na(`_time_semester`),
+				glue("Semester {`_time_semester`} {`_year`}"),
+				NA
+			),
+			
+			# Year group
+			`_time_year_group` = if_else(
+				!is.na(`_time_year`),
+				glue("Year {`_year`}"),
+				NA
 			)
+			
 		) %>%
 		rename( # rename back to orig
 			!!date_col := `_date`,
 			!!start_col := `_start`,
 			!!end_col := `_end`,
-			!!type_col := `_type`
+			!!type_col := `_type`,
+			!!year_col := `_year`
 		)
 }
 
@@ -752,14 +812,16 @@ ksi <- ksi %>%
 		verify_date = ksi_date,
 		verify_date_start = NA,
 		verify_date_end = NA,
-		verify_date_type = "day"
+		verify_date_type = "day",
+		`_pivot_year` = year(ksi_date)
 	) %>%
 	add_time_units %>%
 	select( # remove no longer needed cols
 		-verify_date,
 		-verify_date_start,
 		-verify_date_end,
-		-verify_date_type
+		-verify_date_type,
+		-`_pivot_year`
 	)
 
 ```
@@ -822,7 +884,7 @@ bike %>%
 	as_tibble %>%
 	select(
 		`_pivot_year`,
-		`_pivot_type`,
+		`_pivot_event`,
 		verify_install_year,
 		verify_upgrade1_year,
 		verify_upgrade2_year
@@ -974,65 +1036,7 @@ unit_plot
 tunit = "third"
 ```
 
-## Add Spatiotemporal Groups {.tabset}
-
-Add a column `_time_group` that stores the spatiotemporal grouping for both the ksi and bikeways.
-
-```{r}
-
-# Assign spatiotemp group for bikeways
-bike <- bike %>% mutate(
-	`_time_group` = if_else(
-		!is.na(`_time_semester`),
-		glue("Semester {`_time_semester`} {`_pivot_year`}"),
-		NA
-	)
-)
-
-# Assign spatiotemp group for ksi
-ksi <- ksi %>% mutate(
-	`_time_group` = if_else(
-		!is.na(`_time_semester`),
-		glue("Semester {`_time_semester`} {year(ksi_date)}"),
-		NA
-	)
-)
-
-```
-
-### Bikeways
-
-```{r}
-
-# Display spatiotemp groups for bikeways
-bike %>%
-	as_tibble %>%
-	select(
-		`_time_third`,
-		`_pivot_year`,
-		`_time_group`
-	) %>%
-	arrange(`_pivot_year`)
-
-```
-
-### KSI
-
-```{r}
-
-# Display spatiotemp groups for ksi
-ksi %>%
-	as_tibble %>%
-	select(
-		`_time_third`,
-		ksi_date,
-		`_time_group`
-	) %>%
-	arrange(year(ksi_date))
-
-```
-
-## Join Bikeways and KSI
+## Join Bikeways and KSI {.tabset}
 
 Spatiotemporally join KSI to nearest bikeways based on the spatiotemporal groups.
 
@@ -1045,60 +1049,185 @@ Each KSI point is joined to a bikeway if they are:
 
 ```{r}
 
-# Set cache file for spatiotemp join
-bike_nid_date <- max(c(
-	vancbike_dldate,
-	calgbike_dldate,
-	toronbike_dldate,
-	toronksi_dldate
-))
-bike_nid_file <- glue("../data/cache/bike-nid-{bike_nid_date}.csv")
-
-# Spatial join ksi by spatiotemp group
-if (!file.exists(bike_nid_file)) {
+# Spatiotemp join for each time unit
+stjid_counts <- list()
+for (tunit in c("month", "quarter", "third", "half", "semester", "year")) {
 	
-	# Run spatial join if no up to date cache
-	bike_nid <- bike %>%
-		filter(!is.na(`_time_group`)) %>%
-		arrange(`_time_group`) %>%
-		group_by(`_time_group`) %>%
-		group_map(~ {
-			
-			# Temporal filter by group
-			ksi_temp <- ksi %>%
-				filter(`_time_group` == .y$`_time_group`)
-			
-			# Buffer 25 meters
-			bike_buff <- .x %>% st_buffer(25)
-			
-			# Spatial join
-			ksi_temp %>%
-				st_join(bike_buff) %>%
-				select(
-					city,
-					id,
-					ksi_id
-				) %>%
-				as_tibble %>%
-				select(-geometry)
-			
-		}, .keep = T) %>%
-		reduce(bind_rows)
+	# Set cache file for spatiotemp join
+	stjid_date <- max(c(
+		vancbike_dldate,
+		calgbike_dldate,
+		toronbike_dldate,
+		toronksi_dldate
+	))
+	stjid_file <- glue("../data/cache/stjid-{tunit}-{stjid_date}.csv")
 	
-	# Cache spatiotemp join
-	bike_nid %>% write_csv(bike_nid_file)
-
-} else {
+	# Spatial join ksi by spatiotemp group
+	if (!file.exists(stjid_file)) {
+		
+		# Run spatial join if no up to date cache
+		stjid <- bike %>%
+			mutate(
+				`_time_group` := !!sym(glue("_time_{tunit}_group"))
+			) %>%
+			filter(!is.na(`_time_group`)) %>%
+			arrange(`_time_group`) %>%
+			group_by(`_time_group`) %>%
+			group_map(~ {
+				
+				# Temporal filter by group
+				ksi_temp <- ksi %>%
+					mutate(
+						`_time_group` := !!sym(glue("_time_{tunit}_group"))
+					) %>%
+					filter(`_time_group` == .y$`_time_group`)
+				
+				# Buffer 25 meters
+				bike_buff <- .x %>% st_buffer(25)
+				
+				# Spatial join
+				ksi_temp %>%
+					st_join(bike_buff) %>%
+					select(
+						city,
+						id,
+						ksi_id
+					) %>%
+					as_tibble %>%
+					select(-geometry)
+				
+			}, .keep = T) %>%
+			reduce(bind_rows)
+		
+		# Cache spatiotemp join
+		stjid %>% write_csv(stjid_file)
 	
-	# Read spatiotemp join from cache
-	bike_nid <- read_csv(bike_nid_file)
-
+	} else {
+		
+		# Read spatiotemp join from cache
+		stjid <- read_csv(stjid_file)
+	
+	}
+	
+	# Store ksi count per bikeway
+	stjid_counts[[tunit]] <- stjid %>%
+		filter(!is.na(id)) %>%
+		group_by(city, id) %>%
+		summarize(
+			!!glue("_ksi_{tunit}_count") := n()
+		) %>%
+		mutate(
+			city = as.character(city),
+			id = as.character(id)
+		)
+	
+	# Add ksi count to bike
+	bike <- bike %>%
+		mutate(
+			city = as.character(city),
+			id = as.character(id)
+		) %>%
+		left_join(
+			stjid_counts[[tunit]],
+			by = c("city", "id")
+		)
+	
 }
 
-# Display ksi count per bikeway
-bike_nid %>%
-	filter(!is.na(id)) %>%
-	group_by(id) %>%
-	summarize(ksi_count = n()) %>%
-	arrange(ksi_count)
+```
+
+### Map
+
+```{r}
+
+# Create map data
+stjid_map_data <- bike %>%
+	filter(city == "toronto") %>%
+	st_buffer(25) %>%
+	select(`_pivot_value`, starts_with("_"))
+
+# Create map
+tmap_mode("view")
+tm_basemap("CartoDB.DarkMatter") +
+	tm_shape(
+		stjid_map_data %>%
+			filter(`_pivot_event` == "install"),
+		name = "Install"
+	) +
+	tm_polygons(
+		col = "green",
+		border.col = NA,
+		popup.vars = T
+	) +
+	tm_shape(
+		stjid_map_data %>%
+			filter(`_pivot_event` == "upgrade1"),
+		name = "1st Upgrade"
+	) +
+	tm_polygons(
+		col = "orange",
+		border.col = NA,
+		popup.vars = T
+	) +
+	tm_shape(
+		stjid_map_data %>%
+			filter(`_pivot_event` == "upgrade2"),
+		name = "2nd Upgrade"
+	) +
+	tm_polygons(
+		col = "red",
+		border.col = NA,
+		popup.vars = T
+	) +
+	tm_shape(
+		ksi %>%
+			select(
+				ksi_date,
+				starts_with("_")
+			) %>%
+			st_join(bike %>% st_buffer(100)) %>%
+			filter(!is.na(id)),
+		name = "KSI"
+	) +
+	tm_dots(
+		col = "white",
+		popup.vars = T
+	)
+
+```
+
+### Month
+
+```{r}
+stjid_counts$month
+```
+
+### Quarter
+
+```{r}
+stjid_counts$quarter
+```
+
+### Third
+
+```{r}
+stjid_counts$third
+```
+
+### Half
+
+```{r}
+stjid_counts$half
+```
+
+### Semester
+
+```{r}
+stjid_counts$semester
+```
+
+### Year
+
+```{r}
+stjid_counts$year
 ```

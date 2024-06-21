@@ -853,8 +853,6 @@ For bikeways, determine the temporal resolution (unit of time) finer than yearly
 * **Half** (low): refers to verified post-2011 installs and upgrades occurring approximately in a half (1/2) of a year
 * **Semester** (low): refers to verified post-2011 installs and upgrades occurring approximately in a half (1/2) of a year with the first half (1) being November (same year) to April (next year) and the second half being May to October (next year)
 
-As there seems to be a large improvement in the percentage of records across cities from quarters to thirds of a year, and diminishing improvements when lowering the resolution to halves of a year, thirds of a year was chosen as the unit of time.
-
 ```{r}
 
 # Prepare plot data
@@ -985,8 +983,8 @@ Add a column `_time_group` that stores the spatiotemporal grouping for both the 
 # Assign spatiotemp group for bikeways
 bike <- bike %>% mutate(
 	`_time_group` = if_else(
-		!is.na(`_time_third`),
-		glue("Third {`_time_third`} {`_pivot_year`}"),
+		!is.na(`_time_semester`),
+		glue("Semester {`_time_semester`} {`_pivot_year`}"),
 		NA
 	)
 )
@@ -994,8 +992,8 @@ bike <- bike %>% mutate(
 # Assign spatiotemp group for ksi
 ksi <- ksi %>% mutate(
 	`_time_group` = if_else(
-		!is.na(`_time_third`),
-		glue("Third {`_time_third`} {year(ksi_date)}"),
+		!is.na(`_time_semester`),
+		glue("Semester {`_time_semester`} {year(ksi_date)}"),
 		NA
 	)
 )

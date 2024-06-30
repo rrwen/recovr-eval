@@ -593,6 +593,7 @@ Add the following time unit columns for installs/upgrades in bikeways and for ea
 	* `2`: represents May to October of next year
 * `_time_year`: standardized year column that bikeway had verified installation/upgrade or ksi record
 * `_time_..._group`: grouped columns of the above defining the time units in textual format
+* KSI records will follow the same patterns above except prefixed with `_ksi` as well
 
 **Note**: Date ranges that fall between months, quarters, thirds, or halves of the year were excluded from being classified as any of the time units (e.g. March 31 to April 15 will be excluded as it does not fall within either the 1st or 2nd quarter of the year).
 
@@ -816,6 +817,10 @@ ksi <- ksi %>%
 		`_pivot_year` = year(ksi_date)
 	) %>%
 	add_time_units %>%
+	rename_with(
+		~ paste0("_ksi", .x),
+		starts_with("_time_")
+	) %>%
 	select( # remove no longer needed cols
 		-verify_date,
 		-verify_date_start,
@@ -1036,31 +1041,78 @@ unit_plot
 tunit = "third"
 ```
 
-## Join Bikeways and KSI {.tabset}
+## Spatial Join Bikeways and KSI {.tabset}
 
-Spatiotemporally join KSI to nearest bikeways based on the spatiotemporal groups.
+Spatially join KSI to nearest bikeways.
 
-Each KSI point is joined to a bikeway if they are:
-
-* **Spatially Related**: is the nearest point within 25 meters of the bikeway
-* **Temporally Related**: has the same year and spatiotemporal group
+Each KSI point is joined to a bikeway if they are within 25 meters of the nearest bikeway
 
 **Note**: if there is overlapping of bikeways, the same KSI can be assigned to multiple bikeways.
 
 ```{r}
 
+# Set cache file for spatiotemp join
+sjoin_date <- max(c(
+	vancbike_dldate,
+	calgbike_dldate,
+	toronbike_dldate,
+	toronksi_dldate
+))
+sjoin_file <- glue("../data/cache/sjoin-{sjoin_date}.csv")
+
+# Run spatial join if not cached
+if (!file.exists(sjoin_file)) {
+	
+	# Buffer bikeways and keep ids
+	bike_buff25 <- bike %>%
+		select(city, id) %>%
+		st_buffer(25)
+	
+	# Spatial join bikeways with ksi keeping ids
+	sjoin <- bike_buff25 %>%
+		st_join(ksi %>% select(ksi_id)) %>%
+		as_tibble %>%
+		select(-geometry)
+	
+	# Cache spatial joined bike and ksi ids
+	sjoin %>% write_csv(sjoin_file)
+	
+} else {
+	
+	# Read spatial joined bike and ksi ids from cache
+	sjoin <- read_csv(sjoin_file)
+	
+}
+
+# Count ksi by unit of time for each bike event
+sjoin_count <- sjoin %>%
+	mutate(
+		city = as.character(city),
+		id = as.character(id),
+		ksi_id = as.character(ksi_id)
+	) %>%
+	left_join(bike, by = c("city", "id")) %>%
+	left_join(ksi, by = "ksi_id") %>%
+	filter(!is.na(`_ksi_time_semester`)) %>%
+	group_by(city, id, `_pivot_event`, `_ksi_time_semester`) %>%
+	count %>%
+	ungroup %>%
+	pivot_wider(
+		names_from = "_ksi_time_semester",
+		values_from = "n",
+		names_prefix = "_ksi_time_semester_"
+	)
+
+# Add counts back into bike
+bike <- bike %>% left_join(sjoin_count, by = c("city", "id", "_pivot_event"))
+```
+
+```
 # Spatiotemp join for each time unit
 stjid_counts <- list()
-for (tunit in c("month", "quarter", "third", "half", "semester", "year")) {
+for (tunit) {
 	
-	# Set cache file for spatiotemp join
-	stjid_date <- max(c(
-		vancbike_dldate,
-		calgbike_dldate,
-		toronbike_dldate,
-		toronksi_dldate
-	))
-	stjid_file <- glue("../data/cache/stjid-{tunit}-{stjid_date}.csv")
+	
 	
 	# Spatial join ksi by spatiotemp group
 	if (!file.exists(stjid_file)) {
@@ -1194,40 +1246,4 @@ tm_basemap("CartoDB.DarkMatter") +
 		popup.vars = T
 	)
 
-```
-
-### Month
-
-```{r}
-stjid_counts$month
-```
-
-### Quarter
-
-```{r}
-stjid_counts$quarter
-```
-
-### Third
-
-```{r}
-stjid_counts$third
-```
-
-### Half
-
-```{r}
-stjid_counts$half
-```
-
-### Semester
-
-```{r}
-stjid_counts$semester
-```
-
-### Year
-
-```{r}
-stjid_counts$year
 ```

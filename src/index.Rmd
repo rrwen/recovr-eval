@@ -1060,20 +1060,20 @@ bike_nosemester <- bike %>% filter(is.na(`_time_semester`)) %>%
 # Save missing semesters
 bike_nosemester %>%
 	select(-geometry) %>%
-    write_sf("../data/archive/bikeways-nosemester-2024-06-30.csv", na = "", append = F)
+    write_sf("../data/archive/bikeways-nosemesterp2011-2024-06-30.csv", na = "", append = F)
 bike_nosemester %>%
 	select(-geometry_wkb) %>%
-    write_sf("../data/archive/bikeways-nosemester-2024-06-30.geojson", na = "", append = F)
+    write_sf("../data/archive/bikeways-nosemesterp2011-2024-06-30.geojson", na = "", append = F)
 
 # Save missing semesters for toronto
 bike_nosemester %>%
 	filter(city == "toronto") %>%
 	select(-geometry) %>%
-    write_sf("../data/archive/toronto-bikeways-nosemester-2024-06-30.csv", na = "", append = F)
+    write_sf("../data/archive/toronto-bikeways-nosemesterp2011-2024-06-30.csv", na = "", append = F)
 bike_nosemester %>%
 	filter(city == "toronto") %>%
 	select(-geometry_wkb) %>%
-    write_sf("../data/archive/toronto-bikeways-nosemester-2024-06-30.geojson", na = "", append = F)
+    write_sf("../data/archive/toronto-bikeways-nosemesterp2011-2024-06-30.geojson", na = "", append = F)
 
 # Remove long values
 bike_nosemester <- bike_nosemester %>%

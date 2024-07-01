@@ -497,7 +497,7 @@ ksi <- toronksi_raw %>%
 	)
 ```
 
-## Pivot Long Format
+## Pivot Bikeway Long
 
 Pivot bikeways data to long format, where each record represents an installation or upgrade.
 
@@ -552,7 +552,7 @@ bike %>%
 
 ```
 
-## Add Clean Dates
+## Add Bikeway Dates
 
 Join ambiguous verified install/upgrade dates (e.g. Jan 1/2022, 2022/02, Fall 2020) to manually cleaned dates with structured time units (e.g. days, months, quarters, semesters, ranges) and date formats (e.g. 2022-01-01, 2022-02-01).
 
@@ -755,42 +755,42 @@ add_time_units <- function(
 			# Month group
 			`_time_month_group` = if_else(
 				!is.na(`_time_month`),
-				glue("Month {`_time_month`} {`_year`}"),
+				glue("{`_year`}_{`_time_month`}"),
 				NA
 			),
 			
 			# Quarter group
 			`_time_quarter_group` = if_else(
 				!is.na(`_time_quarter`),
-				glue("Quarter {`_time_quarter`} {`_year`}"),
+				glue("{`_year`}_{`_time_quarter`}"),
 				NA
 			),
 			
 			# Third group
 			`_time_third_group` = if_else(
 				!is.na(`_time_third`),
-				glue("Third {`_time_third`} {`_year`}"),
+				glue("{`_year`}_{`_time_third`}"),
 				NA
 			),
 			
 			# Half group
 			`_time_half_group` = if_else(
 				!is.na(`_time_half`),
-				glue("Half {`_time_half`} {`_year`}"),
+				glue("{`_year`}_{`_time_half`}"),
 				NA
 			),
 			
 			# Semester group
 			`_time_semester_group` = if_else(
 				!is.na(`_time_semester`),
-				glue("Semester {`_time_semester`} {`_year`}"),
+				glue("{`_year`}_{`_time_semester`}"),
 				NA
 			),
 			
 			# Year group
 			`_time_year_group` = if_else(
 				!is.na(`_time_year`),
-				glue("Year {`_year`}"),
+				glue("{`_year`}"),
 				NA
 			)
 			
@@ -1041,7 +1041,103 @@ unit_plot
 tunit = "third"
 ```
 
-## Spatial Join Bikeways and KSI {.tabset}
+## Inspect Missing Semesters {.tabset}
+
+Display a map of bikeways for each city with missing semesters.
+
+* `Green`: represents installs
+* `Orange``: represents 1st upgrades
+* `Red`: represents 2nd upgrades
+
+```{r}
+
+# Find bikeways with missing semesters
+bike_nosemester <- bike %>% filter(is.na(`_time_semester`)) %>%
+    mutate(geometry_wkb = st_as_text(geometry)) %>%
+    select(!starts_with("_ksi")) %>%
+    select(id, city, `_pivot_event`, `_time_semester`, everything())
+
+# Save missing semesters
+bike_nosemester %>%
+	select(-geometry) %>%
+    write_sf("../data/archive/bikeways-nosemester-2024-06-30.csv", na = "", append = F)
+bike_nosemester %>%
+	select(-geometry_wkb) %>%
+    write_sf("../data/archive/bikeways-nosemester-2024-06-30.geojson", na = "", append = F)
+
+# Save missing semesters for toronto
+bike_nosemester %>%
+	filter(city == "toronto") %>%
+	select(-geometry) %>%
+    write_sf("../data/archive/toronto-bikeways-nosemester-2024-06-30.csv", na = "", append = F)
+bike_nosemester %>%
+	filter(city == "toronto") %>%
+	select(-geometry_wkb) %>%
+    write_sf("../data/archive/toronto-bikeways-nosemester-2024-06-30.geojson", na = "", append = F)
+
+# Remove long values
+bike_nosemester <- bike_nosemester %>%
+	select(!ends_with("_comment"), -geometry_wkb)
+
+# Function to display map for each city
+map_nosemester <- function(city_name, df = bike_nosemester) {
+	
+	# Filter for city data
+	map_data <- df %>% filter(city == city_name)
+	
+	# Plot interactive map
+	tmap_mode("view")
+	out <- tm_basemap("CartoDB.DarkMatter") +
+		tm_shape(
+			map_data %>%
+				filter(`_pivot_event` == "install"),
+			name = "Install"
+		) +
+		tm_lines(
+			col = "green",
+			popup.vars = T
+		) +
+		tm_shape(
+			map_data %>%
+				filter(`_pivot_event` == "upgrade1"),
+			name = "1st Upgrade"
+		) +
+		tm_lines(
+			col = "orange",
+			popup.vars = T
+		) +
+		tm_shape(
+			map_data %>%
+				filter(`_pivot_event` == "upgrade2"),
+			name = "2nd Upgrade"
+		) +
+		tm_lines(
+			col = "red",
+			popup.vars = T
+		)
+	return(out)
+}
+```
+
+### Vancouver
+
+```{r}
+map_nosemester("vancouver")
+```
+
+### Toronto
+
+```{r}
+map_nosemester("toronto")
+```
+
+### Calgary
+
+```{r}
+map_nosemester("calgary")
+```
+
+## Spatial Join KSI {.tabset}
 
 Spatially join KSI to nearest bikeways.
 
@@ -1083,167 +1179,107 @@ if (!file.exists(sjoin_file)) {
 	sjoin <- read_csv(sjoin_file)
 	
 }
-
-# Count ksi by unit of time for each bike event
-sjoin_count <- sjoin %>%
-	mutate(
-		city = as.character(city),
-		id = as.character(id),
-		ksi_id = as.character(ksi_id)
-	) %>%
-	left_join(bike, by = c("city", "id")) %>%
-	left_join(ksi, by = "ksi_id") %>%
-	filter(!is.na(`_ksi_time_semester`)) %>%
-	group_by(city, id, `_pivot_event`, `_ksi_time_semester`) %>%
-	count %>%
-	ungroup %>%
-	pivot_wider(
-		names_from = "_ksi_time_semester",
-		values_from = "n",
-		names_prefix = "_ksi_time_semester_"
-	)
-
-# Add counts back into bike
-bike <- bike %>% left_join(sjoin_count, by = c("city", "id", "_pivot_event"))
 ```
 
-```
-# Spatiotemp join for each time unit
-stjid_counts <- list()
-for (tunit) {
-	
-	
-	
-	# Spatial join ksi by spatiotemp group
-	if (!file.exists(stjid_file)) {
-		
-		# Run spatial join if no up to date cache
-		stjid <- bike %>%
-			mutate(
-				`_time_group` := !!sym(glue("_time_{tunit}_group"))
-			) %>%
-			filter(!is.na(`_time_group`)) %>%
-			arrange(`_time_group`) %>%
-			group_by(`_time_group`) %>%
-			group_map(~ {
-				
-				# Temporal filter by group
-				ksi_temp <- ksi %>%
-					mutate(
-						`_time_group` := !!sym(glue("_time_{tunit}_group"))
-					) %>%
-					filter(`_time_group` == .y$`_time_group`)
-				
-				# Buffer 25 meters
-				bike_buff <- .x %>% st_buffer(25)
-				
-				# Spatial join
-				ksi_temp %>%
-					st_join(bike_buff) %>%
-					select(
-						city,
-						id,
-						ksi_id
-					) %>%
-					as_tibble %>%
-					select(-geometry)
-				
-			}, .keep = T) %>%
-			reduce(bind_rows)
-		
-		# Cache spatiotemp join
-		stjid %>% write_csv(stjid_file)
-	
-	} else {
-		
-		# Read spatiotemp join from cache
-		stjid <- read_csv(stjid_file)
-	
-	}
-	
-	# Store ksi count per bikeway
-	stjid_counts[[tunit]] <- stjid %>%
-		filter(!is.na(id)) %>%
-		group_by(city, id) %>%
-		summarize(
-			!!glue("_ksi_{tunit}_count") := n()
-		) %>%
-		mutate(
-			city = as.character(city),
-			id = as.character(id)
-		)
-	
-	# Add ksi count to bike
-	bike <- bike %>%
-		mutate(
-			city = as.character(city),
-			id = as.character(id)
-		) %>%
-		left_join(
-			stjid_counts[[tunit]],
-			by = c("city", "id")
-		)
-	
-}
+## Count KSI Per Unit of Time
 
-```
+For each bikeway and event type (install, upgrade 1, upgrade 2), count KSI spatially joined to bikeways per unit of time across years.
 
-### Map
+This creates columns in the format of `_ksi_time_<UNIT>_<YEAR>_<VALUE>`, where:
+
+* `<UNIT>`: is the unit of time, either `month`, `quarter`, `half`, or `semester`
+* `<YEAR>`: is the year for the unit of time
+* `<VALUE>`: is the number representing the portion of the time range for the unit of time with month being 1-12, quarter being 1-4, third being 1-3, half being 1-2 and semester being 1-2 (this is omitted if time unit is `year`)
 
 ```{r}
 
-# Create map data
-stjid_map_data <- bike %>%
-	filter(city == "toronto") %>%
-	st_buffer(25) %>%
-	select(`_pivot_value`, starts_with("_"))
-
-# Create map
-tmap_mode("view")
-tm_basemap("CartoDB.DarkMatter") +
-	tm_shape(
-		stjid_map_data %>%
-			filter(`_pivot_event` == "install"),
-		name = "Install"
-	) +
-	tm_polygons(
-		col = "green",
-		border.col = NA,
-		popup.vars = T
-	) +
-	tm_shape(
-		stjid_map_data %>%
-			filter(`_pivot_event` == "upgrade1"),
-		name = "1st Upgrade"
-	) +
-	tm_polygons(
-		col = "orange",
-		border.col = NA,
-		popup.vars = T
-	) +
-	tm_shape(
-		stjid_map_data %>%
-			filter(`_pivot_event` == "upgrade2"),
-		name = "2nd Upgrade"
-	) +
-	tm_polygons(
-		col = "red",
-		border.col = NA,
-		popup.vars = T
-	) +
-	tm_shape(
-		ksi %>%
-			select(
-				ksi_date,
-				starts_with("_")
-			) %>%
-			st_join(bike %>% st_buffer(100)) %>%
-			filter(!is.na(id)),
-		name = "KSI"
-	) +
-	tm_dots(
-		col = "white",
-		popup.vars = T
+# Count ksi spatially joined to bike
+for (tunit in c("month", "third", "quarter", "half", "semester", "year")) {
+	
+	# Count ksi by unit of time for each bike event
+	sjoin_count <- sjoin %>%
+	    mutate(
+	        city = as.character(city),
+	        id = as.character(id),
+	        ksi_id = as.character(ksi_id)
+	    ) %>%
+	    left_join(bike, by = c("city", "id")) %>%
+	    left_join(ksi, by = "ksi_id") %>%
+	    group_by(city, id, `_pivot_event`, across(glue("_ksi_time_{tunit}_group"))) %>%
+	    count %>%
+	    ungroup
+	
+	# Pivot to wider format with each col being a time unit
+	sjoin_count_wide <- sjoin_count %>%
+	    pivot_wider(
+	        names_from = glue("_ksi_time_{tunit}_group"),
+	        values_from = "n",
+	        names_prefix = glue("_ksi_time_{tunit}_")
+	    ) %>%
+	    rename_with(
+	        str_to_lower,
+	        ends_with("_NA")
+	    )
+	
+	# Gen all possible year and time value combinations
+	year_min <- min(year(ksi$DATE), na.rm = T)
+	year_max <- max(year(ksi$DATE), na.rm = T)
+	value_max <- switch(
+		tunit,
+		month = 12,
+		third = 3,
+		quarter = 4,
+		half = 2,
+		semester = 2,
+		year = 1,
+		stop("Invalid value for tunit")
 	)
+	tunit_cols <- expand.grid(
+		year = year_min:year_max,
+		value = 1:value_max,
+		unit = tunit
+	) %>%
+	    mutate(
+	    	column = if_else(
+	    		unit != "year",
+	    		glue("_ksi_time_{tunit}_{year}_{value}"),
+	    		glue("_ksi_time_{tunit}_{year}")
+	    	)
+	    ) %>%
+	    arrange(year, value) %>%
+	    pull(column)
+	
+	# Add missing year and value combos
+	tunit_miss <- tunit_cols[!tunit_cols %in% names(sjoin_count_wide)]
+	has_tunit_miss <- length(tunit_miss) > 0
+	if (has_tunit_miss) {
+		sjoin_count_wide <- sjoin_count_wide %>%
+			add_column(!!!setNames(
+				rep(0, length(tunit_miss)),
+				tunit_miss
+			))
+	}
+	
+	# Sort by time unit and set nas to zeroes
+	sjoin_count_wide <- sjoin_count_wide %>%
+		select(
+			city,
+			id,
+			`_pivot_event`,
+			all_of(tunit_cols)
+		) %>%
+		mutate(across(
+			all_of(tunit_cols),
+			~replace_na(., 0)
+		))
+
+	# Add counts back into bike
+	bike <- bike %>%
+		left_join(
+			sjoin_count_wide,
+			by = c("city", "id", "_pivot_event")
+		)
+	
+}
 
 ```

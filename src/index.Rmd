@@ -1211,7 +1211,8 @@ bike <- bike %>%
 	group_map(~ {
 		
 		# Assign group id as group_by values separated by underscore
-		group_id <- .y %>%
+		group_id <- .y[1,] %>%
+			as.character %>%
 			paste0(., collapse = "_") %>%
 			str_to_lower(.)
 		
@@ -1400,6 +1401,9 @@ bike_merge %>%
 		id,
 		city,
 		event,
+		type,
+		year,
+		semester,
 		starts_with("_ksi_time_semester")
 	)
 

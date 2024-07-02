@@ -1,0 +1,627 @@
+---
+title: "Toronto Bikeways: Data Check"
+subtitle: "R Code"
+author:
+- "Richard Wen richard.wen@utoronto.ca"
+- "Brice Batomen brice.kuimi@utoronto.ca"
+- "Linda Rothman linda.rothman@torontomu.ca"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+knit: |
+    (function(input_rmd, ...) {
+    rmarkdown::render(
+        input_rmd,
+        rmarkdown::html_document(
+            toc = TRUE,
+            toc_float = TRUE,
+            highlight = "zenburn",
+            code_folding = "hide",
+            df_print = "paged",
+            self_contained = FALSE
+        ),
+        output_dir = "../../docs/archive/check-toronto-bikeways",
+        output_file = "index", ...)
+    })
+---
+
+```{r include = FALSE, echo = FALSE}
+knitr::opts_chunk$set(
+	warning = FALSE,
+	message = FALSE
+)
+```
+
+# Libraries
+
+Install R packages if needed.
+
+```{r, results = FALSE}
+
+# Required packages
+required_packages <- c(
+	"rmarkdown",
+	"bookdown",
+	"knitr",
+	"lubridate",
+	"tidyverse",
+	"purrr",
+	"glue",
+	"lubridate",
+	"sf",
+	"tmap",
+	"leaflet",
+	"leaflet.extras"
+)
+
+# Try to install packages if not installed
+default_options <- options()
+tryCatch(
+	{
+		# Disable interactivity
+		options(install.packages.compile.from.source = "always")
+		
+		# Install package if not installed
+		for (package in required_packages) {
+			is_package_installed <- require(package, character.only = TRUE)
+			if (!is_package_installed) {
+				cat(paste0("Installing package: ", package, "\n"))
+				install.packages(package)
+			} else {
+				cat(paste0("Package already installed: ", package, "\n"))
+			}
+		}
+	},
+	error = function(cond) {
+		stop(cond)
+	},
+	finally = {
+		options(default_options) # reset interactivity
+	}
+)
+```
+
+Load R libraries.
+
+```{r}
+library(ggplot2)
+library(glue)
+library(leaflet)
+library(leaflet.extras)
+library(lubridate)
+library(sf)
+library(tidyverse)
+library(tmap)
+```
+
+# Data
+
+Read data from the `data` folder.
+
+```{r}
+ddesc <- read_csv("../../data/data.csv")
+ddesc
+```
+
+## Toronto Bikeways {.tabset}
+
+`r ddesc %>% filter(file == "toronto-bikeways-2024-06-02.geojson") %>% pull(description)`
+
+* **Download Link**: `r ddesc %>% filter(file == "toronto-bikeways-2024-06-02.geojson") %>% pull(url)`
+* **Download Date**: `r format(ddesc %>% filter(file == "toronto-bikeways-2024-06-02.geojson") %>% pull(download_date), '%B %d, %Y')`
+* **Data Updated**: `r format(ddesc %>% filter(file == "toronto-bikeways-2024-06-02.geojson") %>% pull(update_date), '%B %d, %Y')`
+* **Notes**: `r ddesc %>% filter(file == "toronto-bikeways-2024-06-02.geojson") %>% pull(notes)`
+
+```{r}
+
+# Read data
+toronbike_raw <- read_sf("../../data/toronto-bikeways-2024-06-02.geojson")
+
+# Get download date
+toronbike_dldate <- ddesc %>% filter(
+	file == "toronto-bikeways-2024-06-02.geojson"
+) %>% pull(download_date)
+```
+
+### Map
+
+Only the first 1000 records are shown.
+
+```{r}
+tmap_mode("view")
+tm_shape(toronbike_raw %>% head(1000)) +
+    tm_lines(
+    	col = "#336699",
+    	border.col = "white",
+    	popup.vars = TRUE
+    )
+```
+
+### Data
+
+* Columns: `r ncol(toronbike_raw)`
+* Rows: `r nrow(toronbike_raw)`
+
+```{r}
+toronbike_raw %>% as_tibble
+```
+
+### Dictionary
+
+The data contains the following columns:
+
+```{r, cols.print = 3}
+toronbike_ddict <- read_csv("../../data/toronto-bikeways-2024-06-02-datadict.csv")
+toronbike_ddict
+```
+
+### Details
+
+```{r}
+print(toronbike_raw)
+```
+
+### Files
+
+The data files are available below:
+
+- [toronto-bikeways-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-bikeways-2024-06-02.geojson)
+- [toronto-bikeways-2024-06-02-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-bikeways-2024-06-02-datadict.csv)
+
+## Verified Dates {.tabset}
+
+`r ddesc %>% filter(file == "verify-dates-2024-06-12.csv") %>% pull(description)`
+
+* **Download Link**: `r ddesc %>% filter(file == "verify-dates-2024-06-12.csv") %>% pull(url)`
+* **Download Date**: `r format(ddesc %>% filter(file == "verify-dates-2024-06-12.csv") %>% pull(download_date), '%B %d, %Y')`
+* **Data Updated**: `r format(ddesc %>% filter(file == "verify-dates-2024-06-12.csv") %>% pull(update_date), '%B %d, %Y')`
+* **Notes**: `r ddesc %>% filter(file == "verify-dates-2024-06-12.csv") %>% pull(notes)`
+
+```{r}
+
+# Read data
+vdates_raw <- read_csv("../../data/verify-dates-2024-06-12.csv")
+
+# Get download date
+vdates_dldate <- ddesc %>% filter(
+	file == "verify-dates-2024-06-12.csv"
+) %>% pull(download_date)
+```
+
+### Data
+
+* Columns: `r ncol(vdates_raw)`
+* Rows: `r nrow(vdates_raw)`
+
+```{r}
+vdates_raw
+```
+
+### Dictionary
+
+The data contains the following columns:
+
+```{r, cols.print = 3}
+vdates_ddict <- read_csv("../../data/verify-dates-2024-06-12-datadict.csv")
+vdates_ddict
+```
+
+### Files
+
+The data files are available below:
+
+- [verify-dates-2024-06-12.csv](https://github.com/rrwen/recovr-eval/blob/main/data/verify-dates-2024-06-12.csv)
+- [verify-dates-2024-06-12-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/verify-dates-2024-06-12-datadict.csv)
+
+# Cleaning
+
+## Add Dates
+
+Add cleaned post-2011 dates to verified bikeways.
+
+```{r}
+
+# Add cleaned post-2011 dates to bikeways
+toronbike <- toronbike_raw %>%
+    left_join( # clean install dates
+        vdates_raw %>%
+            rename_all(~str_replace(., "verify_", "clean_install_")),
+        by = join_by(verify_install_date == clean_install_date_raw)
+    ) %>%
+	left_join( # clean upgrade1 dates
+        vdates_raw %>%
+            rename_all(~str_replace(., "verify_", "clean_upgrade1_")),
+        by = join_by(verify_upgrade1_date == clean_upgrade1_date_raw)
+    ) %>%
+	left_join( # clean upgrade2 dates
+        vdates_raw %>%
+            rename_all(~str_replace(., "verify_", "clean_upgrade2_")),
+        by = join_by(verify_upgrade2_date == clean_upgrade2_date_raw)
+    )
+
+# Display cleaned dates columns
+toronbike %>%
+	as_tibble %>%
+	select(-geometry) %>%
+	select(id, verify_install_date, verify_upgrade1_date, verify_upgrade2_date, starts_with("clean_"))
+```
+
+## Add Semesters
+
+Assign semesters to each bikeway date, where a value of:
+
+* `1`: represents November (this year) to April of next year
+* `2`: represents May to October of next year
+
+```{r}
+
+# Add semesters to bike based on clean dates
+toronbike <- toronbike %>%
+	mutate(
+		clean_install_semester = case_when( # install semester
+			month(clean_install_date) %in% c(11:12, 1:4) |
+			(
+				month(clean_install_date_start) %in% c(11:12, 1:4) &
+				( # Nov to Dec of this year
+					month(clean_install_date_end) %in% 11:12 &
+					year(clean_install_date_end) == year(clean_install_date_start)
+				) |
+				( # Jan to Apr of this or next year
+					month(clean_install_date_end) %in% 1:4 &
+					year(clean_install_date_end) == year(clean_install_date_start) |
+					year(clean_install_date_end) == (year(clean_install_date_start) + 1)
+				)
+			) ~ 2, # Nov to Apr of next year
+			month(clean_install_date) %in% 5:10 |
+			(
+				month(clean_install_date_start) %in% 5:10 &
+				month(clean_install_date_end) %in% 5:10 &
+				year(clean_install_date_start) == year(clean_install_date_end)
+			) ~ 1 # May to Oct
+		),
+		clean_upgrade1_semester = case_when( # upgrade1 semester
+			month(clean_upgrade1_date) %in% c(11:12, 1:4) |
+			(
+				month(clean_upgrade1_date_start) %in% c(11:12, 1:4) &
+				( # Nov to Dec of this year
+					month(clean_upgrade1_date_end) %in% 11:12 &
+					year(clean_upgrade1_date_end) == year(clean_upgrade1_date_start)
+				) |
+				( # Jan to Apr of this or next year
+					month(clean_upgrade1_date_end) %in% 1:4 &
+					year(clean_upgrade1_date_end) == year(clean_upgrade1_date_start) |
+					year(clean_upgrade1_date_end) == (year(clean_upgrade1_date_start) + 1)
+				)
+			) ~ 2, # Nov to Apr of next year
+			month(clean_upgrade1_date) %in% 5:10 |
+			(
+				month(clean_upgrade1_date_start) %in% 5:10 &
+				month(clean_upgrade1_date_end) %in% 5:10 &
+				year(clean_upgrade1_date_start) == year(clean_upgrade1_date_end)
+			) ~ 1 # May to Oct
+		),
+		clean_upgrade2_semester = case_when( # upgrade2 semester
+			month(clean_upgrade2_date) %in% c(11:12, 1:4) |
+			(
+				month(clean_upgrade2_date_start) %in% c(11:12, 1:4) &
+				( # Nov to Dec of this year
+					month(clean_upgrade2_date_end) %in% 11:12 &
+					year(clean_upgrade2_date_end) == year(clean_upgrade2_date_start)
+				) |
+				( # Jan to Apr of this or next year
+					month(clean_upgrade2_date_end) %in% 1:4 &
+					year(clean_upgrade2_date_end) == year(clean_upgrade2_date_start) |
+					year(clean_upgrade2_date_end) == (year(clean_upgrade2_date_start) + 1)
+				)
+			) ~ 2, # Nov to Apr of next year
+			month(clean_upgrade2_date) %in% 5:10 |
+			(
+				month(clean_upgrade2_date_start) %in% 5:10 &
+				month(clean_upgrade2_date_end) %in% 5:10 &
+				year(clean_upgrade2_date_start) == year(clean_upgrade2_date_end)
+			) ~ 1 # May to Oct
+		)
+	)
+
+# Display semesters
+toronbike %>%
+	as_tibble %>%
+	select(-geometry) %>%
+	select(
+		id,
+		clean_install_date,
+		clean_install_date_start,
+		clean_install_date_end,
+		clean_install_semester,
+		clean_upgrade1_date,
+		clean_upgrade1_date_start,
+		clean_upgrade1_date_end,
+		clean_upgrade1_semester,
+		clean_upgrade2_date,
+		clean_upgrade2_date_start,
+		clean_upgrade2_date_end,
+		clean_upgrade2_semester
+	)
+```
+
+# Exploration
+
+Explore accuracy of Toronto bikeway data compared.
+
+## Inaccurate Install Years {.tabset}
+
+Inspect all bikeways where the original installation year is not equal to the verified installation year.
+
+```{r}
+
+# Filter bike for unmatched install year and add diff in years
+toronbike_instyearx <- toronbike %>%
+	filter(
+		install_year != verify_install_year
+	) %>%
+	mutate(
+		verify_install_year_diff = verify_install_year - install_year
+	) %>%
+	relocate(
+		install_year,
+		verify_install_year,
+		verify_install_year,
+		verify_install_year_diff,
+		install_type,
+		verify_install_type,
+		.after = street_to
+	)
+
+```
+
+### Map
+
+```{r}
+	
+# Map bike with unmatched install years
+tmap_mode("view")
+toronbike_instyearx_map <- tm_basemap("CartoDB.Positron") +
+	tm_shape(
+		toronbike_instyearx %>%
+			select(!ends_with("_comment")) %>%
+			st_buffer(25),
+		name = "Install with Inaccurate Year"
+	) +
+	tm_polygons(
+		col = "verify_install_year_diff",
+		border.col = NULL,
+		popup.vars = T
+	)
+
+# Add fullscreen control to map
+tmap_leaflet(toronbike_instyearx_map) %>%
+	addFullscreenControl()
+```
+
+### Data
+
+- [toronto-bikeways-instyearx-2024-06-02.csv](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-instyearx-2024-06-02.csv)
+- [toronto-bikeways-instyearx-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-instyearx-2024-06-02.geojson)
+
+```{r}
+
+# Save unmatched install year bike csv
+toronbike_instyearx %>%
+	mutate(geometry_wkb = st_as_text(geometry)) %>%
+	select(-geometry) %>%
+    write_sf("../../data/archive/toronto-bikeways-instyearx-2024-06-02.csv", na = "", append = F)
+
+# Save unmatched bike install year geojson
+toronbike_instyearx %>%
+    write_sf("../../data/archive/toronto-bikeways-instyearx-2024-06-02.geojson", na = "", append = F)
+
+# Display bike with unmatched years
+toronbike_instyearx %>%
+	as_tibble %>%
+	select(-geometry)
+```
+
+## No Semester Assigned {.tabset}
+
+Inspect post-2011 bikeways where segments had no semester assigned.
+
+```{r}
+
+# Filter bike for post-2011 and no semester
+toronbike_nosemesterp2011 <- toronbike %>%
+	filter( # post-2011
+		verify_install_year > 2011 |
+		verify_upgrade1_year > 2011 |
+		verify_upgrade2_year > 2011
+	) %>%
+	filter( # no semester
+		is.na(clean_install_semester) |
+		is.na(clean_upgrade1_semester) |
+		is.na(clean_upgrade2_semester)
+	) %>%
+	relocate(
+		verify_install_year,
+		verify_install_date,
+		clean_install_date_start,
+		clean_install_date_end,
+		clean_install_semester,
+		verify_upgrade1_year,
+		verify_upgrade1_date,
+		clean_upgrade1_date_start,
+		clean_upgrade1_date_end,
+		clean_upgrade1_semester,
+		verify_upgrade2_year,
+		verify_upgrade2_date,
+		clean_upgrade2_date_start,
+		clean_upgrade2_date_end,
+		clean_upgrade2_semester,
+		.after = street_to
+	)
+
+# Assign base cols for map
+nosemester_cols <- c(
+	"id",
+	"street",
+	"street_from",
+	"street_to"
+)
+
+# Filter post-2011 install with no semesters
+toronbike_noseminstp2011 <- toronbike_nosemesterp2011 %>%
+	select(
+		all_of(nosemester_cols),
+		starts_with("install"),
+		starts_with("verify_install"),
+		starts_with("clean_install")
+	) %>%
+	filter(
+		is.na(clean_install_semester) &
+		verify_install_year > 2011
+	)
+
+# Filter post-2011 upgrade1 with no semesters
+toronbike_nosemu1p2011 <- toronbike_nosemesterp2011 %>%
+	select(
+		all_of(nosemester_cols),
+		starts_with("upgrade1"),
+		starts_with("verify_upgrade1"),
+		starts_with("clean_upgrade1")
+	) %>%
+	filter(
+		is.na(clean_upgrade1_semester) &
+		verify_upgrade1_year > 2011
+	)
+
+# Filter post-2011 upgrade2 with no semesters
+toronbike_nosemu2p2011 <- toronbike_nosemesterp2011 %>%
+	select(
+		all_of(nosemester_cols),
+		starts_with("upgrade2"),
+		starts_with("verify_upgrade2"),
+		starts_with("clean_upgrade2")
+	) %>%
+	filter(
+		is.na(clean_upgrade2_semester) &
+		verify_upgrade2_year > 2011
+	)
+
+```
+
+### Map
+
+```{r}
+
+# Map bike with unmatched install years
+tmap_mode("view")
+toronbike_nosemester_map <- tm_basemap("CartoDB.Positron") +
+	tm_shape(
+		toronbike_noseminstp2011 %>%
+			select(!ends_with("_comment")) %>%
+			st_buffer(25),
+		name = "Install (Green)"
+	) +
+	tm_polygons(
+		col = "green",
+		border.col = "green",
+		popup.vars = T
+	) +
+	tm_shape(
+		toronbike_nosemu1p2011 %>%
+			select(!ends_with("_comment")) %>%
+			st_buffer(25),
+		name = "1st Upgrade (Orange)"
+	) +
+	tm_polygons(
+		col = "orange",
+		border.col = "orange",
+		popup.vars = T
+	) +
+	tm_shape(
+		toronbike_nosemu2p2011 %>%
+			select(!ends_with("_comment")) %>%
+			st_buffer(25),
+		name = "2nd Upgrade (Red)"
+	) +
+	tm_polygons(
+		col = "red",
+		border.col = "red",
+		popup.vars = T
+	)
+
+# Add fullscreen control to map
+tmap_leaflet(toronbike_nosemester_map) %>%
+	addFullscreenControl()
+```
+
+### Data {.tabset .tabset-pills}
+
+#### Install
+
+- [toronto-bikeways-noseminstp2011-2024-06-02.csv](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noseminstp2011-2024-06-02.csv.csv)
+- [toronto-bikeways-noseminstp2011-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noseminstp2011-2024-06-02.geojson)
+
+```{r}
+
+# Save post2011 no semester install csv
+toronbike_noseminstp2011 %>%
+	mutate(geometry_wkb = st_as_text(geometry)) %>%
+	select(-geometry) %>%
+    write_sf("../../data/archive/toronto-bikeways-noseminstp2011-2024-06-02.csv", na = "", append = F)
+
+# Save post2011 no semester install geojson
+toronbike_noseminstp2011 %>%
+    write_sf("../../data/archive/toronto-bikeways-noseminstp2011-2024-06-02.geojson", na = "", append = F)
+
+# Display data
+toronbike_noseminstp2011 %>%
+	as_tibble %>%
+	select(-geometry)
+
+```
+
+#### 1st Upgrade
+
+- [toronto-bikeways-nosemu1p2011-2024-06-02.csv](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-nosemu1p2011-2024-06-02.csv.csv)
+- [toronto-bikeways-nosemu1p2011-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-nosemu1p2011-2024-06-02.geojson)
+
+```{r}
+
+# Save post2011 no semester upgrade1 csv
+toronbike_nosemu1p2011 %>%
+	mutate(geometry_wkb = st_as_text(geometry)) %>%
+	select(-geometry) %>%
+    write_sf("../../data/archive/toronto-bikeways-nosemu1p2011-2024-06-02.csv", na = "", append = F)
+
+# Save post2011 no semester upgrade1 geojson
+toronbike_nosemu1p2011 %>%
+    write_sf("../../data/archive/toronto-bikeways-nosemu1p2011-2024-06-02.geojson", na = "", append = F)
+
+# Display data
+toronbike_nosemu1p2011 %>%
+	as_tibble %>%
+	select(-geometry)
+
+```
+
+#### 2nd Upgrade
+
+- [toronto-bikeways-nosemu2p2011-2024-06-02.csv](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-nosemu2p2011-2024-06-02.csv.csv)
+- [toronto-bikeways-nosemu2p2011-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-nosemu2p2011-2024-06-02.geojson)
+
+
+```{r}
+
+# Save post2011 no semester upgrade2 csv
+toronbike_nosemu2p2011 %>%
+	mutate(geometry_wkb = st_as_text(geometry)) %>%
+	select(-geometry) %>%
+    write_sf("../../data/archive/toronto-bikeways-nosemu2p2011-2024-06-02.csv", na = "", append = F)
+
+# Save post2011 no semester upgrade2 geojson
+toronbike_nosemu2p2011 %>%
+    write_sf("../../data/archive/toronto-bikeways-nosemu2p2011-2024-06-02.geojson", na = "", append = F)
+
+# Display data
+toronbike_nosemu2p2011 %>%
+	as_tibble %>%
+	select(-geometry)
+
+```

@@ -78,7 +78,8 @@ required_packages <- c(
 	"prettymapr",
 	"units",
 	"leaflet",
-	"leaflet.extras"
+	"leaflet.extras",
+	"igraph"
 )
 
 # Try to install packages if not installed
@@ -115,6 +116,7 @@ library(DiagrammeR)
 library(ggplot2)
 library(ggspatial)
 library(glue)
+library(igraph)
 library(leaflet)
 library(leaflet.extras)
 library(lubridate)
@@ -509,7 +511,7 @@ Also adds the following columns:
 
 * `_pivot_event`: one of `install`, `upgrade1`, or `upgrade2`
 * `_pivot_year`: the year of the install or upgrade from `verify_install_year`, `verify_upgrade1_year`, or `verify_upgrade2_year`
-* `_pivot_infra`: one of `LSB`, `PL`, `BUF`, or `PBL` 
+* `_pivot_type`: one of `LSB`, `PL`, `BUF`, `PBL`, `None` or `NA` 
 
 ```{r}
 
@@ -550,10 +552,32 @@ bike %>%
 		`_pivot_year`,
 		`_pivot_column`,
 		`_pivot_value`,
+		`_pivot_type`,
 		everything()
 	) %>%
 	arrange(`_pivot_year`)
 
+```
+
+## Remove Empty Bikeway Types
+
+Removes empty types from `_pivot_type` with `None` and `NA`.
+
+```{r}
+
+# Remove none or na bike types
+bike <- bike %>%
+	filter(!`_pivot_type` %in% c("None", NA))
+
+# Display counts
+bike %>%
+	as_tibble %>%
+	select(
+		city,
+		id,
+		`_pivot_type`,
+	) %>%
+	arrange(`_pivot_type`)
 ```
 
 ## Add Bikeway Dates
@@ -914,7 +938,7 @@ ksi %>%
 
 ```
 
-## Determine Unit of Time
+## Determine Time Unit
 
 For bikeways, determine the temporal resolution (unit of time) finer than yearly based on the amount of data available per time unit (sorted from the highest resolution time unit to the lowest resolution time unit):
 
@@ -1176,7 +1200,55 @@ bike_nosemester %>% as_tibble
 
 ```
 
-## Spatial Join KSI {.tabset}
+## Merge Bikeways
+
+```{r}
+
+# Determine adjacent segments if they are within same event, type, and time unit
+bike <- bike %>%
+	filter(!is.na(`_time_semester_group`)) %>%
+	group_by(city, `_pivot_event`, `_pivot_type`, `_time_semester_group`) %>%
+	group_map(~ {
+		
+		# Assign group id as group_by values separated by underscore
+		group_id <- .y %>%
+			paste0(., collapse = "_") %>%
+			str_to_lower(.)
+		
+		# Find adjacent segments and group them together using a group id
+		adj_group <- .x %>%
+			st_touches %>%
+			graph_from_adj_list %>%
+			components %>%
+			.$membership %>%
+			paste0(group_id, "_", .)
+		
+		# Assign adj group to data in order
+		out <- .x %>% mutate(`_adj_group` = adj_group)
+		return(out)
+		
+	}, .keep = T) %>%
+	reduce(add_row)
+
+# Merge bike segments by adjacency
+bike_merge <- bike %>%
+	group_by(`_adj_group`) %>%
+	summarize(
+		id = paste0(id, collapse = ","),
+		city = paste0(unique(city), collapse = ","),
+		event = paste0(unique(`_pivot_event`), collapse = ","),
+		type = paste0(str_to_upper(unique(`_pivot_type`)), collapse = ","),
+		year = paste0(unique(`_time_year`), collapse = ","),
+		semester = paste0(unique(`_time_semester`), collapse = ",")
+	)
+
+# Display merged bike segments
+bike_merge %>%
+	as_tibble %>%
+	select(-geometry)
+```
+
+## Join KSI to Bikeways {.tabset}
 
 Spatially join KSI to nearest bikeways.
 
@@ -1199,12 +1271,12 @@ sjoin_file <- glue("../data/cache/sjoin-{sjoin_date}.csv")
 if (!file.exists(sjoin_file)) {
 	
 	# Buffer bikeways and keep ids
-	bike_buff25 <- bike %>%
+	bike_merge_buff25 <- bike_merge %>%
 		select(city, id) %>%
 		st_buffer(25)
 	
 	# Spatial join bikeways with ksi keeping ids
-	sjoin <- bike_buff25 %>%
+	sjoin <- bike_merge_buff25 %>%
 		st_join(ksi %>% select(ksi_id)) %>%
 		as_tibble %>%
 		select(-geometry)
@@ -1215,12 +1287,12 @@ if (!file.exists(sjoin_file)) {
 } else {
 	
 	# Read spatial joined bike and ksi ids from cache
-	sjoin <- read_csv(sjoin_file)
+	sjoin <- read_csv(sjoin_file, col_types = cols(id = "c"))
 	
 }
 ```
 
-## Count KSI Per Unit of Time {.tabset}
+## Count KSI Per Time Unit {.tabset}
 
 For each bikeway and event type (install, upgrade 1, upgrade 2), count KSI spatially joined to bikeways per unit of time across years.
 
@@ -1242,9 +1314,9 @@ for (tunit in c("month", "third", "quarter", "half", "semester", "year")) {
 	        id = as.character(id),
 	        ksi_id = as.character(ksi_id)
 	    ) %>%
-	    left_join(bike, by = c("city", "id")) %>%
+	    left_join(bike_merge, by = c("city", "id")) %>%
 	    left_join(ksi, by = "ksi_id") %>%
-	    group_by(city, id, `_pivot_event`, across(glue("_ksi_time_{tunit}_group"))) %>%
+	    group_by(city, id, event, across(glue("_ksi_time_{tunit}_group"))) %>%
 	    count %>%
 	    ungroup
 	
@@ -1299,34 +1371,35 @@ for (tunit in c("month", "third", "quarter", "half", "semester", "year")) {
 			))
 	}
 	
-	# Sort by time unit and set nas to zeroes
+	# Sort by time unit
 	sjoin_count_wide <- sjoin_count_wide %>%
 		select(
 			city,
 			id,
-			`_pivot_event`,
+			event,
 			all_of(tunit_cols)
+		)
+
+	# Add counts back into bike and set nas to zeroes
+	bike_merge <- bike_merge %>%
+		left_join(
+			sjoin_count_wide,
+			by = c("city", "id", "event")
 		) %>%
 		mutate(across(
 			all_of(tunit_cols),
 			~replace_na(., 0)
 		))
-
-	# Add counts back into bike
-	bike <- bike %>%
-		left_join(
-			sjoin_count_wide,
-			by = c("city", "id", "_pivot_event")
-		)
 }
 
 # Display ksi counts per bike and time unit
-bike %>%
+bike_merge %>%
 	as_tibble %>%
 	select(-geometry) %>%
 	select(
 		id,
 		city,
+		event,
 		starts_with("_ksi_time_semester")
 	)
 

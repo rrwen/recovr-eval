@@ -213,6 +213,32 @@ The data files are available below:
 
 # Cleaning
 
+## Filter Empty Types
+
+Filter out empty install/upgrade types.
+
+```{r}
+
+# Filter out none or na
+toronbike <- toronbike_raw %>%
+	filter(
+		!verify_install_type %in% c("None", NA) |
+		!verify_upgrade1_type %in% c("None", NA) |
+		!verify_upgrade2_type %in% c("None", NA)
+	)
+
+# Display non empty types in at least one of install or upgrade
+toronbike %>%
+	as_tibble %>%
+	select(-geometry) %>%
+	select(
+		id,
+		verify_install_type,
+		verify_upgrade1_type,
+		verify_upgrade2_type
+	)
+```
+
 ## Add Dates
 
 Add cleaned post-2011 dates to verified bikeways.
@@ -220,7 +246,7 @@ Add cleaned post-2011 dates to verified bikeways.
 ```{r}
 
 # Add cleaned post-2011 dates to bikeways
-toronbike <- toronbike_raw %>%
+toronbike <- toronbike %>%
     left_join( # clean install dates
         vdates_raw %>%
             rename_all(~str_replace(., "verify_", "clean_install_")),
@@ -355,7 +381,8 @@ Inspect all bikeways where the original installation year is not equal to the ve
 # Filter bike for unmatched install year and add diff in years
 toronbike_instyearx <- toronbike %>%
 	filter(
-		install_year != verify_install_year
+		install_year != verify_install_year &
+		!verify_install_type %in% c("None", NA)
 	) %>%
 	mutate(
 		verify_install_year_diff = verify_install_year - install_year
@@ -474,7 +501,8 @@ toronbike_noseminstp2011 <- toronbike_nosemesterp2011 %>%
 	) %>%
 	filter(
 		is.na(clean_install_semester) &
-		verify_install_year > 2011
+		verify_install_year > 2011 &
+		!verify_install_type %in% c("None", NA)
 	)
 
 # Filter post-2011 upgrade1 with no semesters
@@ -487,7 +515,8 @@ toronbike_nosemu1p2011 <- toronbike_nosemesterp2011 %>%
 	) %>%
 	filter(
 		is.na(clean_upgrade1_semester) &
-		verify_upgrade1_year > 2011
+		verify_upgrade1_year > 2011 &
+		!verify_upgrade1_type %in% c("None", NA)
 	)
 
 # Filter post-2011 upgrade2 with no semesters
@@ -500,7 +529,8 @@ toronbike_nosemu2p2011 <- toronbike_nosemesterp2011 %>%
 	) %>%
 	filter(
 		is.na(clean_upgrade2_semester) &
-		verify_upgrade2_year > 2011
+		verify_upgrade2_year > 2011 &
+		!verify_upgrade2_type %in% c("None", NA)
 	)
 
 ```

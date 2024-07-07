@@ -385,13 +385,37 @@ toronbike_instyearx <- toronbike %>%
 		!verify_install_type %in% c("None", NA)
 	) %>%
 	mutate(
-		verify_install_year_diff = verify_install_year - install_year
+		verify_install_year_diff = verify_install_year - install_year,
+		verify_install_year_diff_group = case_when(
+			verify_install_year_diff <= 1 & verify_install_year_diff >= -1 ~ "±1",
+			verify_install_year_diff <= 5 & verify_install_year_diff >= -5 ~ "±5",
+			verify_install_year_diff > 5 | verify_install_year_diff < -5 ~ paste0(
+				min(verify_install_year_diff),
+				" to ",
+				"-6 or 6 to ",
+				max(verify_install_year_diff)
+			)
+		),
+		verify_install_year_diff_group = factor(
+			verify_install_year_diff_group,
+			levels = c(
+				"±1",
+				"±5",
+				paste0(
+					min(verify_install_year_diff),
+					" to ",
+					"-6 or 6 to ",
+					max(verify_install_year_diff)
+				)
+			)
+		)
 	) %>%
 	relocate(
 		install_year,
 		verify_install_year,
 		verify_install_year,
 		verify_install_year_diff,
+		verify_install_year_diff_group,
 		install_type,
 		verify_install_type,
 		.after = street_to
@@ -413,9 +437,11 @@ toronbike_instyearx_map <- tm_basemap("CartoDB.Positron") +
 		name = "Install with Inaccurate Year"
 	) +
 	tm_polygons(
-		col = "verify_install_year_diff",
+		col = "verify_install_year_diff_group",
+		title = "Difference in install years",
 		border.col = NULL,
-		popup.vars = T
+		popup.vars = T,
+		palette = c("green", "orange", "red")
 	)
 
 # Add fullscreen control to map

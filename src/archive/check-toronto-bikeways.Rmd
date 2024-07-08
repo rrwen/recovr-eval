@@ -270,19 +270,19 @@ toronbike %>%
 	select(id, verify_install_date, verify_upgrade1_date, verify_upgrade2_date, starts_with("clean_"))
 ```
 
-## Add Semesters
+## Add Quarters
 
-Assign semesters to each bikeway date, where a value of:
+Assign quarters to each bikeway date, where a value of:
 
 * `1`: represents November (this year) to April of next year
 * `2`: represents May to October of next year
 
 ```{r}
 
-# Add semesters to bike based on clean dates
+# Add quarters to bike based on clean dates
 toronbike <- toronbike %>%
 	mutate(
-		clean_install_semester = case_when( # install semester
+		clean_install_quarter = case_when( # install quarter
 			month(clean_install_date) %in% c(11:12, 1:4) |
 			(
 				month(clean_install_date_start) %in% c(11:12, 1:4) &
@@ -303,7 +303,7 @@ toronbike <- toronbike %>%
 				year(clean_install_date_start) == year(clean_install_date_end)
 			) ~ 1 # May to Oct
 		),
-		clean_upgrade1_semester = case_when( # upgrade1 semester
+		clean_upgrade1_quarter = case_when( # upgrade1 quarter
 			month(clean_upgrade1_date) %in% c(11:12, 1:4) |
 			(
 				month(clean_upgrade1_date_start) %in% c(11:12, 1:4) &
@@ -324,7 +324,7 @@ toronbike <- toronbike %>%
 				year(clean_upgrade1_date_start) == year(clean_upgrade1_date_end)
 			) ~ 1 # May to Oct
 		),
-		clean_upgrade2_semester = case_when( # upgrade2 semester
+		clean_upgrade2_quarter = case_when( # upgrade2 quarter
 			month(clean_upgrade2_date) %in% c(11:12, 1:4) |
 			(
 				month(clean_upgrade2_date_start) %in% c(11:12, 1:4) &
@@ -347,7 +347,7 @@ toronbike <- toronbike %>%
 		)
 	)
 
-# Display semesters
+# Display quarters
 toronbike %>%
 	as_tibble %>%
 	select(-geometry) %>%
@@ -356,15 +356,15 @@ toronbike %>%
 		clean_install_date,
 		clean_install_date_start,
 		clean_install_date_end,
-		clean_install_semester,
+		clean_install_quarter,
 		clean_upgrade1_date,
 		clean_upgrade1_date_start,
 		clean_upgrade1_date_end,
-		clean_upgrade1_semester,
+		clean_upgrade1_quarter,
 		clean_upgrade2_date,
 		clean_upgrade2_date_start,
 		clean_upgrade2_date_end,
-		clean_upgrade2_semester
+		clean_upgrade2_quarter
 	)
 ```
 
@@ -374,7 +374,7 @@ Explore accuracy of Toronto bikeway data compared.
 
 ## Inaccurate Install Years {.tabset}
 
-Inspect all bikeways where the original installation year is not equal to the verified installation year.
+Inspect all bikeways where the original installation year is not equal to the verified installation year for years 2010 to 2022.
 
 ```{r}
 
@@ -382,7 +382,8 @@ Inspect all bikeways where the original installation year is not equal to the ve
 toronbike_instyearx <- toronbike %>%
 	filter(
 		install_year != verify_install_year &
-		!verify_install_type %in% c("None", NA)
+		!verify_install_type %in% c("None", NA) &
+		verify_install_year > 2009 & verify_install_year <= 2022
 	) %>%
 	mutate(
 		verify_install_year_diff = verify_install_year - install_year,
@@ -421,7 +422,43 @@ toronbike_instyearx <- toronbike %>%
 		.after = street_to
 	)
 
+# Calc seg totals
+verify_rows <- toronbike %>% nrow
+all_rows <- toronbike %>%
+	filter(verify_install_year > 2009 & verify_install_year <= 2022) %>%
+	nrow
+instyearx_rows <- toronbike_instyearx %>% nrow
+instyear_rows <- all_rows - instyearx_rows
+instyearx1_rows <- toronbike_instyearx %>%
+	filter(verify_install_year_diff_group == "±1") %>%
+	nrow
+instyearx5_rows <- toronbike_instyearx %>%
+	filter(verify_install_year_diff_group == "±5") %>%
+	nrow
+instyearxr_rows <- toronbike_instyearx %>%
+	filter(
+		verify_install_year_diff_group != "±5" &
+		verify_install_year_diff_group != "±1"
+	) %>%
+	nrow
+
+# Calc seg perc
+all_rows_perc <- round(all_rows / verify_rows * 100, 2)
+instyearx_perc <- round(instyearx_rows / all_rows * 100, 2)
+instyear_perc <- round(instyear_rows / all_rows * 100, 2)
+instyearx1_perc <- round(instyearx1_rows / instyearx_rows * 100, 2)
+instyearx5_perc <- round(instyearx5_rows / instyearx_rows * 100, 2)
+instyearxr_perc <- round(instyearxr_rows / instyearx_rows * 100, 2)
+
 ```
+
+* Verified installs: `r verify_rows` (100%)
+* Verified installs between 2009 and 2022: `r all_rows` of  (`r all_rows_perc`%) of `r verify_rows` verified installs
+* Installs with correct year: `r instyear_rows` (`r instyear_perc`%) of `r all_rows` verified installs between 2009 and 2022
+* Installs with incorrect year: `r instyearx_rows` (`r instyearx_perc`%) of `r all_rows` verified installs between 2009 and 2022
+* Installs with incorrect year (±1): `r instyearx1_rows` (`r instyearx1_perc`%) of `r instyearx_rows` installs with incorrect year
+* Installs with incorrect year (±5): `r instyearx5_rows` (`r instyearx5_perc`%) of `r instyearx_rows` installs with incorrect year
+* Installs with incorrect year (>±5): `r instyearxr_rows` (`r instyearxr_perc`%) of `r instyearx_rows` installs with incorrect year
 
 ### Map
 
@@ -472,94 +509,118 @@ toronbike_instyearx %>%
 	select(-geometry)
 ```
 
-## No Semester Assigned {.tabset}
+## No Quarters Assigned {.tabset}
 
-Inspect post-2011 bikeways where segments had no semester assigned.
+Inspect post-2011 bikeways where segments had no quarters assigned.
 
 ```{r}
 
-# Filter bike for post-2011 and no semester
-toronbike_nosemesterp2011 <- toronbike %>%
+# Filter bike for post-2011 and no quarter
+toronbike_noquarterp2011 <- toronbike %>%
 	filter( # post-2011
 		verify_install_year > 2011 |
 		verify_upgrade1_year > 2011 |
 		verify_upgrade2_year > 2011
 	) %>%
-	filter( # no semester
-		is.na(clean_install_semester) |
-		is.na(clean_upgrade1_semester) |
-		is.na(clean_upgrade2_semester)
+	filter( # no quarter
+		is.na(clean_install_quarter) |
+		is.na(clean_upgrade1_quarter) |
+		is.na(clean_upgrade2_quarter)
 	) %>%
 	relocate(
 		verify_install_year,
 		verify_install_date,
 		clean_install_date_start,
 		clean_install_date_end,
-		clean_install_semester,
+		clean_install_quarter,
 		verify_upgrade1_year,
 		verify_upgrade1_date,
 		clean_upgrade1_date_start,
 		clean_upgrade1_date_end,
-		clean_upgrade1_semester,
+		clean_upgrade1_quarter,
 		verify_upgrade2_year,
 		verify_upgrade2_date,
 		clean_upgrade2_date_start,
 		clean_upgrade2_date_end,
-		clean_upgrade2_semester,
+		clean_upgrade2_quarter,
 		.after = street_to
 	)
 
 # Assign base cols for map
-nosemester_cols <- c(
+noquarter_cols <- c(
 	"id",
 	"street",
 	"street_from",
 	"street_to"
 )
 
-# Filter post-2011 install with no semesters
-toronbike_noseminstp2011 <- toronbike_nosemesterp2011 %>%
+# Filter post-2011 install with no quarters
+toronbike_noquartinstp2011 <- toronbike_noquarterp2011 %>%
 	select(
-		all_of(nosemester_cols),
+		all_of(noquarter_cols),
 		starts_with("install"),
 		starts_with("verify_install"),
 		starts_with("clean_install")
 	) %>%
 	filter(
-		is.na(clean_install_semester) &
+		is.na(clean_install_quarter) &
 		verify_install_year > 2011 &
 		!verify_install_type %in% c("None", NA)
 	)
 
-# Filter post-2011 upgrade1 with no semesters
-toronbike_nosemu1p2011 <- toronbike_nosemesterp2011 %>%
+# Filter post-2011 upgrade1 with no quarters
+toronbike_noquartu1p2011 <- toronbike_noquarterp2011 %>%
 	select(
-		all_of(nosemester_cols),
+		all_of(noquarter_cols),
 		starts_with("upgrade1"),
 		starts_with("verify_upgrade1"),
 		starts_with("clean_upgrade1")
 	) %>%
 	filter(
-		is.na(clean_upgrade1_semester) &
+		is.na(clean_upgrade1_quarter) &
 		verify_upgrade1_year > 2011 &
 		!verify_upgrade1_type %in% c("None", NA)
 	)
 
-# Filter post-2011 upgrade2 with no semesters
-toronbike_nosemu2p2011 <- toronbike_nosemesterp2011 %>%
+# Filter post-2011 upgrade2 with no quarters
+toronbike_noquartu2p2011 <- toronbike_noquarterp2011 %>%
 	select(
-		all_of(nosemester_cols),
+		all_of(noquarter_cols),
 		starts_with("upgrade2"),
 		starts_with("verify_upgrade2"),
 		starts_with("clean_upgrade2")
 	) %>%
 	filter(
-		is.na(clean_upgrade2_semester) &
+		is.na(clean_upgrade2_quarter) &
 		verify_upgrade2_year > 2011 &
 		!verify_upgrade2_type %in% c("None", NA)
 	)
 
+# Calc seg totals
+verify_rows <- toronbike %>% nrow
+all_rows <- toronbike %>% filter(
+		verify_install_year > 2011 |
+		verify_upgrade1_year > 2011 |
+		verify_upgrade2_year > 2011
+	) %>%
+	nrow
+noquartinst_rows <- toronbike_noquartinstp2011 %>% nrow
+noquartu1_rows <- toronbike_noquartu1p2011 %>% nrow
+noquartu2_rows <- toronbike_noquartu2p2011 %>% nrow
+
+# Calc seg perc
+all_rows_perc <- round(all_rows / verify_rows * 100, 2)
+noquartinst_perc <- round(noquartinst_rows / all_rows * 100, 2)
+noquartu1_perc <- round(noquartu1_rows / noquartinst_rows * 100, 2)
+noquartu2_perc <- round(noquartu2_rows / noquartinst_rows * 100, 2)
+
 ```
+
+* Verified installs: `r verify_rows` (100%)
+* Verified installs or upgrades post-2011: `r all_rows` (`r all_rows_perc`%) of `r verify_rows` verified installs
+* Installs with no quarters: `r noquartinst_rows` (`r noquartinst_perc`%) of `r all_rows` post-2011 verified installs or upgrades
+* 1st upgrades with no quarters: `r noquartu1_rows` (`r noquartu1_perc`%) of `r noquartinst_rows` post-2011 no quarter installs
+* 2nd upgrades with no quarters: `r noquartu2_rows` (`r noquartu2_perc`%) of `r noquartinst_rows` post-2011 no quarter installs
 
 ### Map
 
@@ -567,9 +628,9 @@ toronbike_nosemu2p2011 <- toronbike_nosemesterp2011 %>%
 
 # Map bike with unmatched install years
 tmap_mode("view")
-toronbike_nosemester_map <- tm_basemap("CartoDB.Positron") +
+toronbike_noquarter_map <- tm_basemap("CartoDB.Positron") +
 	tm_shape(
-		toronbike_noseminstp2011 %>%
+		toronbike_noquartinstp2011 %>%
 			select(!ends_with("_comment")) %>%
 			st_buffer(25),
 		name = "Install (Green)"
@@ -580,7 +641,7 @@ toronbike_nosemester_map <- tm_basemap("CartoDB.Positron") +
 		popup.vars = T
 	) +
 	tm_shape(
-		toronbike_nosemu1p2011 %>%
+		toronbike_noquartu1p2011 %>%
 			select(!ends_with("_comment")) %>%
 			st_buffer(25),
 		name = "1st Upgrade (Orange)"
@@ -591,7 +652,7 @@ toronbike_nosemester_map <- tm_basemap("CartoDB.Positron") +
 		popup.vars = T
 	) +
 	tm_shape(
-		toronbike_nosemu2p2011 %>%
+		toronbike_noquartu2p2011 %>%
 			select(!ends_with("_comment")) %>%
 			st_buffer(25),
 		name = "2nd Upgrade (Red)"
@@ -603,7 +664,7 @@ toronbike_nosemester_map <- tm_basemap("CartoDB.Positron") +
 	)
 
 # Add fullscreen control to map
-tmap_leaflet(toronbike_nosemester_map) %>%
+tmap_leaflet(toronbike_noquarter_map) %>%
 	addFullscreenControl()
 ```
 
@@ -611,23 +672,23 @@ tmap_leaflet(toronbike_nosemester_map) %>%
 
 #### Install
 
-- [toronto-bikeways-noseminstp2011-2024-06-02.csv](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noseminstp2011-2024-06-02.csv.csv)
-- [toronto-bikeways-noseminstp2011-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noseminstp2011-2024-06-02.geojson)
+- [toronto-bikeways-noquartinstp2011-2024-06-02.csv](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noquartinstp2011-2024-06-02.csv.csv)
+- [toronto-bikeways-noquartinstp2011-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noquartinstp2011-2024-06-02.geojson)
 
 ```{r}
 
-# Save post2011 no semester install csv
-toronbike_noseminstp2011 %>%
+# Save post2011 no quarter install csv
+toronbike_noquartinstp2011 %>%
 	mutate(geometry_wkb = st_as_text(geometry)) %>%
 	select(-geometry) %>%
-    write_sf("../../data/archive/toronto-bikeways-noseminstp2011-2024-06-02.csv", na = "", append = F)
+    write_sf("../../data/archive/toronto-bikeways-noquartinstp2011-2024-06-02.csv", na = "", append = F)
 
-# Save post2011 no semester install geojson
-toronbike_noseminstp2011 %>%
-    write_sf("../../data/archive/toronto-bikeways-noseminstp2011-2024-06-02.geojson", na = "", append = F)
+# Save post2011 no quarter install geojson
+toronbike_noquartinstp2011 %>%
+    write_sf("../../data/archive/toronto-bikeways-noquartinstp2011-2024-06-02.geojson", na = "", append = F)
 
 # Display data
-toronbike_noseminstp2011 %>%
+toronbike_noquartinstp2011 %>%
 	as_tibble %>%
 	select(-geometry)
 
@@ -635,23 +696,23 @@ toronbike_noseminstp2011 %>%
 
 #### 1st Upgrade
 
-- [toronto-bikeways-nosemu1p2011-2024-06-02.csv](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-nosemu1p2011-2024-06-02.csv.csv)
-- [toronto-bikeways-nosemu1p2011-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-nosemu1p2011-2024-06-02.geojson)
+- [toronto-bikeways-noquartu1p2011-2024-06-02.csv](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noquartu1p2011-2024-06-02.csv.csv)
+- [toronto-bikeways-noquartu1p2011-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noquartu1p2011-2024-06-02.geojson)
 
 ```{r}
 
-# Save post2011 no semester upgrade1 csv
-toronbike_nosemu1p2011 %>%
+# Save post2011 no quarter upgrade1 csv
+toronbike_noquartu1p2011 %>%
 	mutate(geometry_wkb = st_as_text(geometry)) %>%
 	select(-geometry) %>%
-    write_sf("../../data/archive/toronto-bikeways-nosemu1p2011-2024-06-02.csv", na = "", append = F)
+    write_sf("../../data/archive/toronto-bikeways-noquartu1p2011-2024-06-02.csv", na = "", append = F)
 
-# Save post2011 no semester upgrade1 geojson
-toronbike_nosemu1p2011 %>%
-    write_sf("../../data/archive/toronto-bikeways-nosemu1p2011-2024-06-02.geojson", na = "", append = F)
+# Save post2011 no quarter upgrade1 geojson
+toronbike_noquartu1p2011 %>%
+    write_sf("../../data/archive/toronto-bikeways-noquartu1p2011-2024-06-02.geojson", na = "", append = F)
 
 # Display data
-toronbike_nosemu1p2011 %>%
+toronbike_noquartu1p2011 %>%
 	as_tibble %>%
 	select(-geometry)
 
@@ -659,24 +720,24 @@ toronbike_nosemu1p2011 %>%
 
 #### 2nd Upgrade
 
-- [toronto-bikeways-nosemu2p2011-2024-06-02.csv](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-nosemu2p2011-2024-06-02.csv.csv)
-- [toronto-bikeways-nosemu2p2011-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-nosemu2p2011-2024-06-02.geojson)
+- [toronto-bikeways-noquartu2p2011-2024-06-02.csv](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noquartu2p2011-2024-06-02.csv.csv)
+- [toronto-bikeways-noquartu2p2011-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noquartu2p2011-2024-06-02.geojson)
 
 
 ```{r}
 
-# Save post2011 no semester upgrade2 csv
-toronbike_nosemu2p2011 %>%
+# Save post2011 no quarter upgrade2 csv
+toronbike_noquartu2p2011 %>%
 	mutate(geometry_wkb = st_as_text(geometry)) %>%
 	select(-geometry) %>%
-    write_sf("../../data/archive/toronto-bikeways-nosemu2p2011-2024-06-02.csv", na = "", append = F)
+    write_sf("../../data/archive/toronto-bikeways-noquartu2p2011-2024-06-02.csv", na = "", append = F)
 
-# Save post2011 no semester upgrade2 geojson
-toronbike_nosemu2p2011 %>%
-    write_sf("../../data/archive/toronto-bikeways-nosemu2p2011-2024-06-02.geojson", na = "", append = F)
+# Save post2011 no quarter upgrade2 geojson
+toronbike_noquartu2p2011 %>%
+    write_sf("../../data/archive/toronto-bikeways-noquartu2p2011-2024-06-02.geojson", na = "", append = F)
 
 # Display data
-toronbike_nosemu2p2011 %>%
+toronbike_noquartu2p2011 %>%
 	as_tibble %>%
 	select(-geometry)
 

@@ -941,7 +941,7 @@ ksi %>%
 
 ```
 
-## Determine Time Unit {.tabset}
+## Determine Time Unit {.tabset .tabset-pills}
 
 For bikeways, determine the temporal resolution (unit of time) finer than yearly based on the amount of data available per time unit (sorted from the highest resolution time unit to the lowest resolution time unit):
 
@@ -1087,8 +1087,6 @@ plot_time_units <- function(
 	return(out)
 }
 
-# Select time unit
-tunit = "semester"
 ```
 
 ### Install
@@ -1125,56 +1123,68 @@ plot_time_units(
 )
 ```
 
-### Map {.tabset .tabset-pills}
+## Merge Bikeways {.tabset}
 
-#### Vancouver
+Merge bikeway segments if they are within the same infrastructure type, time unit, and known status (e.g. install, 1st upgrade, 2nd upgrade).
 
-```{r}
-map_nosemester("vancouver")
-```
+The known status is the most recent change **with a known time unit** for a segment with one of the following values:
 
-#### Toronto
+1. `install`: an installed segment with no upgrades
+2. `upgrade1` a segment upgraded once and was previously installed
+3. `upgrade2`: a segment upgraded twice and was previously upgrade once and installed
 
-```{r}
-map_nosemester("toronto")
-```
+This also adds an additional column `_merge_group` specifying the merge group in the format of `<CITYNUM>_<STATUS>_<TYPE>_<YEAR>_<TIME>_<ADJID>`, where:
 
-#### Calgary
+* `<CITYNUM>`: is the numeric id of the city, 1 is vancouver, 2 is calgary, and 3 is toronto
+* `<STATUS>`: the status of the segment, one of `install`, `upgrade1`, or `upgrade2`
+* `<TYPE>`: the infrastructure type of the segment
+* `<YEAR>`: the year of the segment status
+* `<TIME>`: the value of the time unit
+* `<ADJID>`: the adjacency id, if the ids are the same, they are adjacent in space
 
-```{r}
-map_nosemester("calgary")
-```
-
-### Data
-
-* [bikeways-nosemesterp2011-2024-06-30.csv](https://github.com/rrwen/recovr-eval/blob/main/data/archive/bikeways-nosemesterp2011-2024-06-30.csv)
-* [bikeways-nosemesterp2011-2024-06-30.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/archive/bikeways-nosemesterp2011-2024-06-30.geojson)
+Other merge related columns start with `_merge_...`.
 
 ```{r}
 
-# Save missing semesters csv
-bike_nosemester %>%
-	select(-geometry) %>%
-    write_sf("../data/archive/bikeways-nosemesterp2011-2024-06-30.csv", na = "", append = F)
+# Select time unit
+tunit <- "semester"
 
-# Save missing semesters geojson
-bike_nosemester %>%
-	select(-geometry_wkb) %>%
-    write_sf("../data/archive/bikeways-nosemesterp2011-2024-06-30.geojson", na = "", append = F)
-
-# Display data
-bike_nosemester %>% as_tibble
-
-```
-
-## Merge Bikeways
-
-```{r}
-
-# Determine adjacent segments if they are within same event, type, and time unit
+# Determine adjacent segments if they are within same status, type, and time unit
 bike <- bike %>%
-	filter(!is.na(`_time_semester_group`)) %>%
-	group_by(city, `_pivot_event`, `_pivot_type`, `_time_semester_group`) %>%
+	filter( # remove segments that do not have the time unit
+		!is.na(.data[[glue("_upgrade2_time_{tunit}")]]) |
+		!is.na(.data[[glue("_upgrade1_time_{tunit}")]]) |
+		!is.na(.data[[glue("_install_time_{tunit}")]])
+	) %>%
+	mutate( # add column to store status, type, and time unit
+		`_merge_status` = case_when(
+			!is.na(.data[[glue("_upgrade2_time_{tunit}")]]) ~ "upgrade2",
+			!is.na(.data[[glue("_upgrade1_time_{tunit}")]])~ "upgrade1",
+			!is.na(.data[[glue("_install_time_{tunit}")]]) ~ "install"
+		),
+		`_merge_type` = case_when(
+			`_merge_status` == "upgrade2" ~ verify_upgrade2_type,
+			`_merge_status` == "upgrade1" ~ verify_upgrade1_type,
+			`_merge_status` == "install" ~ verify_install_type
+		),
+		`_merge_time_unit` = tunit,
+		`_merge_time` = case_when(
+			`_merge_status` == "upgrade2" ~ .data[[glue("_upgrade2_time_{tunit}")]],
+			`_merge_status` == "upgrade1" ~ .data[[glue("_upgrade1_time_{tunit}")]],
+			`_merge_status` == "install" ~ .data[[glue("_install_time_{tunit}")]]
+		),
+		`_merge_time_group` = case_when(
+			`_merge_status` == "upgrade2" ~ .data[[glue("_upgrade2_time_{tunit}_group")]],
+			`_merge_status` == "upgrade1" ~ .data[[glue("_upgrade1_time_{tunit}_group")]],
+			`_merge_status` == "install" ~ .data[[glue("_install_time_{tunit}_group")]]
+		),
+		`_merge_year` = case_when(
+			`_merge_status` == "upgrade2" ~ `_upgrade2_time_year`,
+			`_merge_status` == "upgrade1" ~ `_upgrade1_time_year`,
+			`_merge_status` == "install" ~ `_install_time_year`
+		)
+	) %>%
+	group_by(city, `_merge_status`, `_merge_type`, `_merge_time_group`) %>%
 	group_map(~ {
 		
 		# Assign group id as group_by values separated by underscore
@@ -1192,7 +1202,7 @@ bike <- bike %>%
 			paste0(group_id, "_", .)
 		
 		# Assign adj group to data in order
-		out <- .x %>% mutate(`_adj_group` = adj_group)
+		out <- .x %>% mutate(`_merge_group` = adj_group)
 		return(out)
 		
 	}, .keep = T) %>%
@@ -1200,16 +1210,65 @@ bike <- bike %>%
 
 # Merge bike segments by adjacency
 bike_merge <- bike %>%
-	group_by(`_adj_group`) %>%
+	group_by(`_merge_group`) %>%
 	summarize(
 		id = paste0(id, collapse = ","),
 		city = paste0(unique(city), collapse = ","),
-		event = paste0(unique(`_pivot_event`), collapse = ","),
-		type = paste0(str_to_upper(unique(`_pivot_type`)), collapse = ","),
-		year = paste0(unique(`_time_year`), collapse = ","),
-		semester = paste0(unique(`_time_semester`), collapse = ",")
+		status = case_when( # assign single status if possible
+			all(unique(`_merge_status`) == "upgrade2") ~ "upgrade2",
+			all(unique(`_merge_status`) == "upgrade1") ~ "upgrade1",
+			all(unique(`_merge_status`) == "install") ~ "install",
+			.default = paste(unique(`_merge_status`), collapse = ",") # multiple status
+		),
+		type = if_else( # assign single type if possible
+			length(unique(`_merge_type`)) == 1,
+			unique(`_merge_type`) %>% as.character, # single type
+			paste(unique(`_merge_type`), collapse = ",") # multiple types
+		),
+		year = if_else( # assign single year if possible
+			length(unique(`_merge_year`)) == 1,
+			unique(`_merge_year`) %>% as.character, # single year
+			paste(unique(`_merge_year`), collapse = ",") # multiple years
+		),
+		time_unit = tunit,
+		time_value = if_else( # assign single time if possible
+			length(unique(`_merge_time`)) == 1,
+			unique(`_merge_time`) %>% as.character, # single time
+			paste(unique(`_merge_time`), collapse = ",") # multiple times
+		),
+		time_group = if_else( # assign single time if possible
+			length(unique(`_merge_time_group`)) == 1,
+			unique(`_merge_time_group`) %>% as.character, # single time
+			paste(unique(`_merge_time_group`), collapse = ",") # multiple times
+		)
 	)
 
+```
+
+### Map
+
+```{r}
+tmap_mode("view")
+tm_shape(bike_merge %>% st_buffer(25)) +
+    tm_polygons(
+    	group = "Merged (Black)",
+    	col = "black",
+    	border.col = "white",
+    	popup.vars = T
+    ) +
+	tm_shape(bike) +
+	tm_lines(
+		group = "Segments (Red)",
+		col = "red",
+		lwd = 1.5
+	) +
+	tm_shape(bike %>% st_cast("POINT")) +
+	tm_dots(group = NULL, col = "red", size = 0.03)
+```
+
+### Data
+
+```{r}
 # Display merged bike segments
 bike_merge %>%
 	as_tibble %>%

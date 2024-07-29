@@ -603,6 +603,7 @@ Add the following time unit columns for installs/upgrades in bikeways and for ea
 #' @param end_col Name of the end date column to use
 #' @param type_col Name of the date type column to use (e.g. month, day, year, etc)
 #' @param prefix Additional text to add to the output column names
+#' @param assign_semester Whether to assign intervals between semesters to be in the semester with the max duration that the interval falls in. When durations are equal, semester 2 will be chosen.
 #'
 #' @return A data frame with additional columns (without `prefix`):
 #' \describe{
@@ -615,6 +616,9 @@ Add the following time unit columns for installs/upgrades in bikeways and for ea
 #'   \item{`_time_half`}{Half of the year (1-2).}
 #'   \item{`_time_half_group`}{Unique time group for half.}
 #'   \item{`_time_semester`}{Custom semester (1 for May-Oct, 2 for Nov-Apr).}
+#'   \item{`_assign_semester`}{Whether the date was assigned since it did not fall between either semester 1 or 2.}
+#'   \item{`_assign_semester_1_days`}{Number of days that the date is in semester 1 if `assign_semester` is `TRUE`.}
+#'   \item{`_assign_semester_2_days`}{Number of days that the date is in semester 2 if `assign_semester` is `TRUE`.}
 #'   \item{`_time_semester_group`}{Unique time group for semester.}
 #'   \item{`_time_year`}{4-digit year.}
 #' }
@@ -641,7 +645,8 @@ add_time_units <- function(
 	end_col = "_install_verify_date_end",
 	type_col = "_install_verify_date_type",
 	year_col = "verify_install_year",
-	prefix = NULL
+	prefix = NULL,
+	assign_semester = T
 ) {
 	
 	# Code time units
@@ -753,8 +758,84 @@ add_time_units <- function(
 			# Year
 			`_time_year` = `_year`
 			
-		) %>%
-		mutate( # add time groups that include the year
+		)
+	
+	# For intervals between semesters, assign in max duration
+	if (assign_semester) {
+		out <- out %>%
+			mutate( # add intervals for semesters and date
+				`_assign_semester_1_interval_1` = interval( # sem 1 this year to next year
+		            start = glue("{`_year`}-11-01") %>% as_date,
+		            end = glue("{`_year` + 1}-04-30") %>% as_date
+		        ),
+				`_assign_semester_1_interval_2` = interval( # sem 1 last year to this year
+		            start = glue("{`_year` - 1}-11-01") %>% as_date,
+		            end = glue("{`_year`}-04-30") %>% as_date
+		        ),
+		        `_assign_semester_2_interval_1` = interval( # sem 2 next year
+		            start = glue("{`_year` + 1}-05-01") %>% as_date,
+		            end = glue("{`_year` + 1}-10-31") %>% as_date
+		        ),
+				`_assign_semester_2_interval_2` = interval( # sem 2 this year
+		            start = glue("{`_year`}-05-01") %>% as_date,
+		            end = glue("{`_year`}-10-31") %>% as_date
+		        ),
+				`_assign_date_interval` = if_else( # only for non-assigned sem
+					!is.na(`_start`) & !is.na(`_end`) & is.na(`_time_semester`),
+					interval(`_start`, `_end`),
+					NA
+				)
+			) %>%
+			mutate( # get duration in days
+				`_assign_semester_1_days` = coalesce(
+					intersect(
+						`_assign_date_interval`,
+						`_assign_semester_1_interval_1`
+					),
+					intersect(
+						`_assign_date_interval`,
+						`_assign_semester_1_interval_2`
+					)
+				) %>% as.numeric / (3600 * 24),
+				`_assign_semester_2_days` = coalesce(
+					intersect(
+						`_assign_date_interval`,
+						`_assign_semester_2_interval_1`
+					),
+					intersect(
+						`_assign_date_interval`,
+						`_assign_semester_2_interval_2`
+					)
+				) %>% as.numeric / (3600 * 24)
+			) %>%
+			mutate( # assign semester
+				`_time_semester` = if_else(
+					!is.na(`_assign_date_interval`),
+					case_when(
+						`_assign_semester_1_days` == `_assign_semester_2_days` ~ 2, # break ties to sem 2
+						`_assign_semester_1_days` > `_assign_semester_2_days` ~ 1, # sem 1
+						`_assign_semester_1_days` < `_assign_semester_2_days` ~ 2 # sem 2
+					),
+					`_time_semester`
+				),
+				`_assign_semester` = if_else(
+					!is.na(`_assign_semester_1_days`) | !is.na(`_assign_semester_2_days`),
+					TRUE,
+					FALSE
+				)
+			) %>%
+			select(-c( # remove unwanted cols
+				`_assign_semester_1_interval_1`,
+				`_assign_semester_1_interval_2`,
+				`_assign_semester_2_interval_1`,
+				`_assign_semester_2_interval_2`,
+				`_assign_date_interval`
+			))
+	}
+	
+	# Add time groups that include the year
+	out <- out %>%
+		mutate(
 			
 			# Month group
 			`_time_month_group` = if_else(
@@ -883,7 +964,8 @@ ksi <- ksi %>%
 		end_col = "_ksi_date_end",
 		type_col = "_ksi_date_type",
 		year_col = "_ksi_year",
-		prefix = "_ksi_"
+		prefix = "_ksi_",
+		assign_semester = F
 	)
 
 # Display time unit cols for ksi
@@ -1010,8 +1092,10 @@ plot_time_units <- function(
 	    arrange(desc(perc)) %>% 
 	    mutate( # detect overlap labels and shift down and up
 	        perc_label_y = case_when(
+	        	lag(perc) - perc < 2 ~ perc - 2,
 	            lag(perc) - perc < 7 ~ perc - 1,
-	            lead(perc) - perc > -7 ~ perc + 1,
+	            lead(perc) - perc > -2 ~ perc + 2,
+	        	lead(perc) - perc > -7 ~ perc + 1,
 	            .default = perc
 	        )
 	    ) %>%
@@ -1254,7 +1338,8 @@ tm_shape(bike_merge %>% st_buffer(25)) +
     	group = "Merged (Black)",
     	col = "black",
     	border.col = "white",
-    	popup.vars = T
+    	popup.vars = T,
+    	lwd = 1.5
     ) +
 	tm_shape(bike) +
 	tm_lines(

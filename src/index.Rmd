@@ -451,7 +451,9 @@ The data files are available below:
 
 ## Combine Bikeways {.tabset}
 
-Combine bikeway data across all cities.
+Combine bikeway data across all cities using common columns.
+
+**Note**: For Calgary and Toronto, there weren't any included bikeways that were not verified (e.g. Local Street Bikeways (LSBs)), and a dummy column was added to account for this case.
 
 ```{r}
 
@@ -470,7 +472,7 @@ bike_cols <- bike_list %>%
 	reduce(intersect)
 
 # Combine bikeway data across cities
-bike_raw <- names(bike_list) %>%
+bike_combine <- names(bike_list) %>%
 	map(function(city) {
 		bike_list[[city]] %>%
 			select(
@@ -482,74 +484,174 @@ bike_raw <- names(bike_list) %>%
 			)
 	}) %>%
 	reduce(add_row)
+bike <- bike_combine
+```
+
+### Details
+
+```{r}
+
+# Display combined bikeway rows and cols
+cat(glue(
+	"\n* Rows: ", bike_combine %>% nrow,
+	"\n* Columns: ", bike_combine %>% ncol
+))
+
+# Display rows per city
+bike_combine_counts <- bike_combine %>%
+	as_tibble %>%
+	group_by(city) %>% count
+bike_combine_counts
+
+```
+
+### Preview
+
+```{r}
 
 # Display combined bikeway data
-bike_raw %>% as_tibble %>% head
+bike_combine %>% as_tibble %>% head
 
 ```
 
 ## Combine KSI
 
-Combine KSI data across cities and standardize columns.
+Combine KSI data across cities using common columns.
 
-**Note**: Only Toronto KSI is included for now.
+**Note**: Only Toronto KSI was included currently.
 
 ```{r}
-ksi <- toronksi_raw %>%
+
+# Combine KSI data
+ksi_combine <- toronksi_raw %>%
 	mutate(
 		ksi_city = "toronto",
 		ksi_id = INDEX,
 		ksi_date = DATE
 	)
+ksi <- ksi_combine
 
-# Display combined bikeway data
-ksi %>% as_tibble %>% head
 ```
 
-## Remove Empty Bikeway Types
+### Details
 
-Removes empty types from `verify_install_type` with `None`, `NA`, and `N`.
+```{r}
+
+# Display combined ksi rows and cols
+cat(glue(
+	"\n* Rows: ", ksi_combine %>% nrow,
+	"\n* Columns: ", ksi_combine %>% ncol
+))
+
+# Display rows per city
+ksi_combine_counts <- ksi_combine %>%
+	as_tibble %>%
+	group_by(ksi_city) %>%
+	count
+ksi_combine_counts
+
+```
+
+### Preview
+
+```{r}
+
+# Display combined ksi data
+ksi_combine %>% as_tibble %>% head
+
+```
+
+## Filter Infrastructure Types
+
+Filter for painted lanes (`PL` and `BUF`) and cycle tracks (`PBL`) only in any of `verify_install_type`, `verify_upgrade1_type`, and `verify_upgrade2_type`.
 
 ```{r}
 
 # Remove none or na bike types
-bike <- bike_raw %>%
-	filter(!verify_install_type %in% c("None", "N", NA))
+bike_ftypes <- bike_combine %>%
+	filter(
+		verify_install_type %in% c("PL", "BUF", "PBL") |
+		verify_upgrade1_type %in% c("PL", "BUF", "PBL") |
+		verify_upgrade2_type %in% c("PL", "BUF", "PBL")
+	)
+bike <- bike_ftypes
+
+```
+
+### Details
+
+```{r}
+
+# Display rows and cols
+cat(glue(
+	"\nBefore\n",
+	"\n* Rows: ", bike_combine %>% nrow,
+	"\n* Columns: ", bike_combine %>% ncol,
+	"\n\nAfter\n",
+	"\n* Rows: ", bike_ftypes %>% nrow,
+	"\n* Columns: ", bike_ftypes %>% ncol
+))
 
 # Display counts
-bike %>%
+bike_ftypes_counts <- bike_ftypes %>%
 	as_tibble %>%
-	select(
-		city,
-		id,
-		verify_install_type
+	filter(
+		verify_install_type %in% c("PL", "BUF", "PBL")
 	) %>%
-	group_by(city, verify_install_type) %>%
-	count
+	mutate(
+		type = verify_install_type
+	) %>%
+	group_by(type) %>%
+	count %>%
+	ungroup %>%
+	add_row(
+		bike_ftypes %>%
+			as_tibble %>%
+			filter(
+				!verify_install_type %in% c("PL", "BUF", "PBL") &
+				verify_upgrade1_type %in% c("PL", "BUF", "PBL")
+			) %>%
+			mutate(
+				type = glue("{verify_install_type} (Install) to {verify_upgrade1_type} (1st Upgrade)")
+			) %>%
+			group_by(type) %>%
+			count
+	) %>%
+	add_row(
+		bike_ftypes %>%
+			as_tibble %>%
+			filter(
+				!verify_install_type %in% c("PL", "BUF", "PBL") &
+				!verify_upgrade1_type %in% c("PL", "BUF", "PBL") &
+				verify_upgrade2_type %in% c("PL", "BUF", "PBL")
+			) %>%
+			mutate(
+				type = glue("{verify_install_type} to {verify_upgrade1_type} (1st Upgrade) to {verify_upgrade2_type} (2nd Upgrade)")
+			) %>%
+			group_by(type) %>%
+			count
+	)
+bike_ftypes_counts
+
+```
+
+### Preview
+
+```{r}
+
+# Preview filtered bike types data
+bike_ftypes %>% as_tibble %>% head
+
 ```
 
 ## Add Bikeway Dates
 
 Join ambiguous verified install/upgrade dates (e.g. Jan 1/2022, 2022/02, Fall 2020) to manually cleaned dates with structured time units (e.g. days, months, quarters, semesters, ranges) and date formats (e.g. 2022-01-01, 2022-02-01).
 
-The following cleaned structured date columns will be added to bikeways:
-
-```{r}
-
-# Get column names from verified dates
-vdates_cols <- tidyr::crossing(c("_install_", "_upgrade1_", "_upgrade2_"), colnames(vdates_raw)) %>%
-    filter(.[[2]] != "verify_date_raw") %>%
-    mutate(column = paste0(.[[1]], .[[2]])) %>%
-    pull(column)
-    
-```
-
-`r vdates_cols %>% paste0("\n * ", ., collapse = "")`
-
 ```{r}
 
 # Join clean dates to include structured date formats
-bike <- bike %>%
+bike_dates <- bike_ftypes %>%
 	left_join( # install dates
 		vdates_raw %>%
 			rename_with(~ paste0("_install_", .x)),
@@ -565,11 +667,101 @@ bike <- bike %>%
 			rename_with(~ paste0("_upgrade2_", .x)),
 		by = join_by(verify_upgrade2_date == `_upgrade2_verify_date_raw`)
 	)
+bike <- bike_dates
+
+```
+
+### Details
+
+```{r}
+
+# Display rows and cols
+cat(glue(
+	"\nBefore\n",
+	"\n* Rows: ", bike_ftypes %>% nrow,
+	"\n* Columns: ", bike_ftypes %>% ncol,
+	"\n\nAfter\n",
+	"\n* Rows: ", bike_dates %>% nrow,
+	"\n* Columns: ", bike_dates %>% ncol,
+	"\n\nNew Columns\n",
+	paste0(
+		"\n* ",
+		colnames(bike_dates) %>%
+			.[!. %in% colnames(bike_ftypes)],
+		collapse = ""
+	)
+))
+
+# Display complete date counts
+bike_dates_counts <- bike_dates %>%
+    as_tibble %>%
+    pivot_longer(
+        c(
+            verify_install_year,
+            verify_upgrade1_year,
+            verify_upgrade2_year
+        ),
+        names_to = "event",
+        values_to = "event_year"
+    ) %>%
+    mutate(
+        event = case_when(
+            str_starts(event, "verify_install") ~ "install",
+            str_starts(event, "verify_upgrade1") ~ "upgrade1",
+            str_starts(event, "verify_upgrade2") ~ "upgrade2"
+        )
+    ) %>%
+    group_by(city, event) %>%
+    summarize(
+        n = sum(!is.na(event_year))
+    ) %>%
+	left_join(
+		bike_dates %>%
+		    as_tibble %>%
+		    pivot_longer(
+		        c(
+		            `_install_verify_date_type`,
+		            `_upgrade1_verify_date_type`,
+		            `_upgrade2_verify_date_type`
+		        ),
+		        names_to = "event",
+		        values_to = "event_date_type"
+		    ) %>%
+		    mutate(
+		        event = case_when(
+		            str_starts(event, "_install") ~ "install",
+		            str_starts(event, "_upgrade1") ~ "upgrade1",
+		            str_starts(event, "_upgrade2") ~ "upgrade2"
+		        )
+		    ) %>%
+		    group_by(city, event) %>%
+		    summarize(
+		        n_with_dates = sum(!is.na(event_date_type))
+		    ),
+		by = c("city", "event")
+	) %>%
+	mutate(
+		n_without_dates = n - n_with_dates
+	) %>%
+	select(
+		city,
+		event,
+		n_with_dates,
+		n_without_dates,
+		n
+	)
+bike_dates_counts
+
+```
+
+### Preview
+
+```{r}
 
 # Display clean dates cols
-bike %>%
+bike_dates %>%
 	as_tibble %>%
-	select(all_of(vdates_cols)) %>%
+	select(starts_with(c("_install_", "_upgrade1_", "_upgrade2_")), everything()) %>%
 	arrange(`_install_verify_date_type`)
 
 ```
@@ -587,7 +779,14 @@ Add the following time unit columns for installs/upgrades in bikeways and for ea
 	* `2`: represents May to October of next year
 * `_time_year`: standardized year column that bikeway had verified installation/upgrade or ksi record
 * `_time_..._group`: grouped columns of the above defining the time units in textual format
+* Install records follow the patterns above prefixed with `_install`
+* Upgrade records are prefixed with `_upgrade1` and `_upgrade2`
 * KSI records will follow the same patterns above except prefixed with `_ksi` as well
+* Additional columns for installs and upgrades only:
+	* `_assign_semester`: if the date falls between semester 1 or 2 and was automatically assigned to semester 1 or 2 based on the larger number of days in either semester 1 or 2
+	* `_assign_semester_1_days`: number of days in semester 1 if the date falls between semesters
+	* `_assign_semester_2_days`: number of days in semester 2 if the date falls between semesters
+	* If the number of days are equal, then semester 2 is assigned by default
 
 **Note**: Date ranges that fall between months, quarters, thirds, or halves of the year were excluded from being classified as any of the time units (e.g. March 31 to April 15 will be excluded as it does not fall within either the 1st or 2nd quarter of the year).
 
@@ -979,11 +1178,9 @@ ksi %>%
 
 ```
 
-## Filter Verified Post-2011 {.tabset}
+## Filter Post-2011 Bikeways
 
-Filter for bikeways and KSI with a verified installations after 2011.
-
-### Bikeways
+Filter for bikeways with a verified installations after 2011.
 
 ```{r}
 
@@ -1007,13 +1204,15 @@ bike %>%
 
 ```
 
-### KSI
+## Filter 2009-2023 KSI
+
+Filter for KSI records between 2009 and 2023 inclusively.
 
 ```{r}
 
 # Filter ksi for post2011
 ksi <- ksi %>%
-	filter(year(ksi_date) > 2011)
+	filter(year(ksi_date) >= 2009 & year(ksi_date) <= 2023)
 
 # Display filtered rows
 ksi %>%
@@ -1406,7 +1605,7 @@ if (!file.exists(sjoin_file)) {
 
 ## Count KSI Per Time Unit {.tabset}
 
-For each bikeway and event type (install, upgrade 1, upgrade 2), count KSI spatially joined to bikeways per unit of time across years.
+For each merged bikeway, count KSI spatially joined to bikeways per unit of time.
 
 This creates columns in the format of `_ksi_time_<UNIT>_<YEAR>_<VALUE>`, where:
 
@@ -1415,6 +1614,10 @@ This creates columns in the format of `_ksi_time_<UNIT>_<YEAR>_<VALUE>`, where:
 * `<VALUE>`: is the number representing the portion of the time range for the unit of time with month being 1-12, quarter being 1-4, third being 1-3, half being 1-2 and semester being 1-2 (this is omitted if time unit is `year`)
 
 ```{r}
+
+# Count ksi spatially joined to bike
+bike_merge <- bike_merge %>%
+	left_join()
 
 # Count ksi spatially joined to bike
 for (tunit in c("month", "third", "quarter", "half", "semester", "year")) {

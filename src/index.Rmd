@@ -484,7 +484,7 @@ bike_combine <- names(bike_list) %>%
 			)
 	}) %>%
 	reduce(add_row)
-bike <- bike_combine
+
 ```
 
 ### Details
@@ -529,7 +529,6 @@ ksi_combine <- toronksi_raw %>%
 		ksi_id = INDEX,
 		ksi_date = DATE
 	)
-ksi <- ksi_combine
 
 ```
 
@@ -561,6 +560,205 @@ ksi_combine %>% as_tibble %>% head
 
 ```
 
+## Filter Verified Bikeways
+
+Filter for bikeways with a verified installations or upgrades.
+
+```{r}
+
+# Filter bikeways for post2011
+bike_verify <- bike_combine %>%
+	filter(
+		!is.na(verify_install_year) |
+		!is.na(verify_upgrade1_year) |
+		!is.na(verify_upgrade2_year) &
+		is.na(no_verify_install_type)
+	)
+
+```
+
+#### Details
+
+```{r}
+
+# Display rows and cols
+cat(glue(
+	"\nBefore\n",
+	"\n* Rows: ", bike_combine %>% nrow,
+	"\n* Columns: ", bike_combine %>% ncol,
+	"\n\nAfter\n",
+	"\n* Rows: ", bike_verify %>% nrow,
+	"\n* Columns: ", bike_verify %>% ncol
+))
+
+# Display counts
+bike_verify_counts <- bike_verify %>%
+	as_tibble %>%
+	pivot_longer(
+		c(
+			verify_install_year,
+			verify_upgrade1_year,
+			verify_upgrade2_year
+		),
+		names_to = "column",
+		values_to = "value"
+	) %>%
+	mutate(
+		status = case_when(
+			str_starts(column, "verify_install") ~ "install",
+			str_starts(column, "verify_upgrade1") ~ "upgrade1",
+			str_starts(column, "verify_upgrade2") ~ "upgrade2"
+		)
+	) %>%
+	group_by(status, value) %>%
+	count
+bike_p2011_counts
+
+```
+
+#### Preview
+
+```{r}
+
+# Display filtered rows
+bike_verify %>%
+	as_tibble %>%
+	select(
+		verify_install_year,
+		verify_upgrade1_year,
+		verify_upgrade2_year,
+		no_verify_install_type,
+		everything()
+	) %>%
+	arrange(`verify_install_year`) %>%
+	head
+
+```
+
+## Filter Bikeways for Post-2011
+
+Filter for bikeways with a verified installations or upgrades after 2011.
+
+```{r}
+
+# Filter bikeways for post2011
+bike_p2011 <- bike_verify %>%
+	filter(
+		verify_install_year > 2011 |
+		verify_upgrade1_year > 2011 |
+		verify_upgrade2_year > 2011
+	)
+
+```
+
+#### Details
+
+```{r}
+
+# Display rows and cols
+cat(glue(
+	"\nBefore\n",
+	"\n* Rows: ", bike_verify %>% nrow,
+	"\n* Columns: ", bike_verify %>% ncol,
+	"\n\nAfter\n",
+	"\n* Rows: ", bike_p2011 %>% nrow,
+	"\n* Columns: ", bike_p2011 %>% ncol
+))
+
+# Display counts
+bike_p2011_counts <- bike_p2011 %>%
+	as_tibble %>%
+	pivot_longer(
+		c(
+			verify_install_year,
+			verify_upgrade1_year,
+			verify_upgrade2_year
+		),
+		names_to = "column",
+		values_to = "value"
+	) %>%
+	mutate(
+		status = case_when(
+			str_starts(column, "verify_install") ~ "install",
+			str_starts(column, "verify_upgrade1") ~ "upgrade1",
+			str_starts(column, "verify_upgrade2") ~ "upgrade2"
+		)
+	) %>%
+	group_by(status, value) %>%
+	count
+bike_p2011_counts
+
+```
+
+#### Preview
+
+```{r}
+
+# Display filtered rows
+bike_p2011 %>%
+	as_tibble %>%
+	select(
+		verify_install_year,
+		verify_upgrade1_year,
+		verify_upgrade2_year,
+		everything()
+	) %>%
+	arrange(`verify_install_year`) %>%
+	head
+
+```
+
+## Filter KSI for 2009-2023
+
+Filter for KSI records between 2009 and 2023 inclusively.
+
+```{r}
+
+# Filter ksi for post2011
+ksi_y2009to2023 <- ksi_combine %>%
+	filter(year(ksi_date) >= 2009 & year(ksi_date) <= 2023)
+
+```
+
+#### Details
+
+```{r}
+
+# Display rows and cols
+cat(glue(
+	"\nBefore\n",
+	"\n* Rows: ", ksi_combine %>% nrow,
+	"\n* Columns: ", ksi_combine %>% ncol,
+	"\n\nAfter\n",
+	"\n* Rows: ", ksi_y2009to2023 %>% nrow,
+	"\n* Columns: ", ksi_y2009to2023 %>% ncol
+))
+
+# Display counts
+ksi_y2009to2023_counts <- ksi_y2009to2023 %>%
+	as_tibble %>%
+	group_by(year(ksi_date)) %>%
+	count
+ksi_y2009to2023_counts
+
+```
+
+#### Preview
+
+```{r}
+
+# Display filtered rows
+ksi_y2009to2023 %>%
+	as_tibble %>%
+	select(
+		ksi_date,
+		everything()
+	) %>%
+	arrange(year(ksi_date)) %>%
+	head
+
+```
+
 ## Filter Infrastructure Types
 
 Filter for painted lanes (`PL` and `BUF`) and cycle tracks (`PBL`) only in any of `verify_install_type`, `verify_upgrade1_type`, and `verify_upgrade2_type`.
@@ -568,13 +766,12 @@ Filter for painted lanes (`PL` and `BUF`) and cycle tracks (`PBL`) only in any o
 ```{r}
 
 # Remove none or na bike types
-bike_ftypes <- bike_combine %>%
+bike_itypes <- bike_p2011 %>%
 	filter(
 		verify_install_type %in% c("PL", "BUF", "PBL") |
 		verify_upgrade1_type %in% c("PL", "BUF", "PBL") |
 		verify_upgrade2_type %in% c("PL", "BUF", "PBL")
 	)
-bike <- bike_ftypes
 
 ```
 
@@ -585,15 +782,15 @@ bike <- bike_ftypes
 # Display rows and cols
 cat(glue(
 	"\nBefore\n",
-	"\n* Rows: ", bike_combine %>% nrow,
-	"\n* Columns: ", bike_combine %>% ncol,
+	"\n* Rows: ", bike_p2011 %>% nrow,
+	"\n* Columns: ", bike_p2011 %>% ncol,
 	"\n\nAfter\n",
-	"\n* Rows: ", bike_ftypes %>% nrow,
-	"\n* Columns: ", bike_ftypes %>% ncol
+	"\n* Rows: ", bike_itypes %>% nrow,
+	"\n* Columns: ", bike_itypes %>% ncol
 ))
 
 # Display counts
-bike_ftypes_counts <- bike_ftypes %>%
+bike_itypes_counts <- bike_itypes %>%
 	as_tibble %>%
 	filter(
 		verify_install_type %in% c("PL", "BUF", "PBL")
@@ -605,7 +802,7 @@ bike_ftypes_counts <- bike_ftypes %>%
 	count %>%
 	ungroup %>%
 	add_row(
-		bike_ftypes %>%
+		bike_itypes %>%
 			as_tibble %>%
 			filter(
 				!verify_install_type %in% c("PL", "BUF", "PBL") &
@@ -618,7 +815,7 @@ bike_ftypes_counts <- bike_ftypes %>%
 			count
 	) %>%
 	add_row(
-		bike_ftypes %>%
+		bike_itypes %>%
 			as_tibble %>%
 			filter(
 				!verify_install_type %in% c("PL", "BUF", "PBL") &
@@ -631,7 +828,7 @@ bike_ftypes_counts <- bike_ftypes %>%
 			group_by(type) %>%
 			count
 	)
-bike_ftypes_counts
+bike_itypes_counts
 
 ```
 
@@ -640,7 +837,7 @@ bike_ftypes_counts
 ```{r}
 
 # Preview filtered bike types data
-bike_ftypes %>% as_tibble %>% head
+bike_itypes %>% as_tibble %>% head
 
 ```
 
@@ -651,7 +848,7 @@ Join ambiguous verified install/upgrade dates (e.g. Jan 1/2022, 2022/02, Fall 20
 ```{r}
 
 # Join clean dates to include structured date formats
-bike_dates <- bike_ftypes %>%
+bike_dates <- bike_itypes %>%
 	left_join( # install dates
 		vdates_raw %>%
 			rename_with(~ paste0("_install_", .x)),
@@ -667,7 +864,6 @@ bike_dates <- bike_ftypes %>%
 			rename_with(~ paste0("_upgrade2_", .x)),
 		by = join_by(verify_upgrade2_date == `_upgrade2_verify_date_raw`)
 	)
-bike <- bike_dates
 
 ```
 
@@ -678,21 +874,21 @@ bike <- bike_dates
 # Display rows and cols
 cat(glue(
 	"\nBefore\n",
-	"\n* Rows: ", bike_ftypes %>% nrow,
-	"\n* Columns: ", bike_ftypes %>% ncol,
+	"\n* Rows: ", bike_itypes %>% nrow,
+	"\n* Columns: ", bike_itypes %>% ncol,
 	"\n\nAfter\n",
 	"\n* Rows: ", bike_dates %>% nrow,
 	"\n* Columns: ", bike_dates %>% ncol,
-	"\n\nNew Columns\n",
+	"\n\nNew Columns (", bike_dates %>% ncol - bike_itypes %>% ncol, ")\n",
 	paste0(
 		"\n* ",
 		colnames(bike_dates) %>%
-			.[!. %in% colnames(bike_ftypes)],
+			.[!. %in% colnames(bike_itypes)],
 		collapse = ""
 	)
 ))
 
-# Display complete date counts
+# Display counts
 bike_dates_counts <- bike_dates %>%
     as_tibble %>%
     pivot_longer(
@@ -701,19 +897,19 @@ bike_dates_counts <- bike_dates %>%
             verify_upgrade1_year,
             verify_upgrade2_year
         ),
-        names_to = "event",
-        values_to = "event_year"
+        names_to = "status",
+        values_to = "status_year"
     ) %>%
     mutate(
-        event = case_when(
-            str_starts(event, "verify_install") ~ "install",
-            str_starts(event, "verify_upgrade1") ~ "upgrade1",
-            str_starts(event, "verify_upgrade2") ~ "upgrade2"
+        status = case_when(
+            str_starts(status, "verify_install") ~ "install",
+            str_starts(status, "verify_upgrade1") ~ "upgrade1",
+            str_starts(status, "verify_upgrade2") ~ "upgrade2"
         )
     ) %>%
-    group_by(city, event) %>%
+    group_by(city, status) %>%
     summarize(
-        n = sum(!is.na(event_year))
+        n = sum(!is.na(status_year))
     ) %>%
 	left_join(
 		bike_dates %>%
@@ -724,28 +920,28 @@ bike_dates_counts <- bike_dates %>%
 		            `_upgrade1_verify_date_type`,
 		            `_upgrade2_verify_date_type`
 		        ),
-		        names_to = "event",
-		        values_to = "event_date_type"
+		        names_to = "status",
+		        values_to = "status_date_type"
 		    ) %>%
 		    mutate(
-		        event = case_when(
-		            str_starts(event, "_install") ~ "install",
-		            str_starts(event, "_upgrade1") ~ "upgrade1",
-		            str_starts(event, "_upgrade2") ~ "upgrade2"
+		        status = case_when(
+		            str_starts(status, "_install") ~ "install",
+		            str_starts(status, "_upgrade1") ~ "upgrade1",
+		            str_starts(status, "_upgrade2") ~ "upgrade2"
 		        )
 		    ) %>%
-		    group_by(city, event) %>%
+		    group_by(city, status) %>%
 		    summarize(
-		        n_with_dates = sum(!is.na(event_date_type))
+		        n_with_dates = sum(!is.na(status_date_type))
 		    ),
-		by = c("city", "event")
+		by = c("city", "status")
 	) %>%
 	mutate(
 		n_without_dates = n - n_with_dates
 	) %>%
 	select(
 		city,
-		event,
+		status,
 		n_with_dates,
 		n_without_dates,
 		n
@@ -766,7 +962,7 @@ bike_dates %>%
 
 ```
 
-## Add Time Units {.tabset}
+## Add Time Units {.tabset .tabset-pills}
 
 Add the following time unit columns for installs/upgrades in bikeways and for each ksi record:
 
@@ -1103,12 +1299,12 @@ add_time_units <- function(
 
 ```
 
-### Bikeways
+### Bikeways {.tabset}
 
 ```{r}
 
 # Add time unit columns using func for bikeways
-bike <- bike %>%
+bike_tunits <- bike_dates %>%
 	add_time_units( # install tunits
 		date_col = "_install_verify_date",
 		start_col = "_install_verify_date_start",
@@ -1134,22 +1330,78 @@ bike <- bike %>%
 		prefix = "_upgrade2"
 	)
 
-# Display time unit cols for bikeways
-bike %>%
-	as_tibble %>%
-	select(
-		starts_with("_")
+```
+
+#### Details
+
+```{r}
+
+# Display rows and cols
+cat(glue(
+	"\nBefore\n",
+	"\n* Rows: ", bike_dates %>% nrow,
+	"\n* Columns: ", bike_dates %>% ncol,
+	"\n\nAfter\n",
+	"\n* Rows: ", bike_tunits %>% nrow,
+	"\n* Columns: ", bike_tunits %>% ncol,
+	"\n\nNew Columns (", bike_tunits %>% ncol - bike_dates %>% ncol, ")\n",
+	paste0(
+		"\n* ",
+		colnames(bike_tunits) %>%
+			.[!. %in% colnames(bike_dates)],
+		collapse = ""
+	)
+))
+
+# Display counts
+bike_tunits_counts <- bike_tunits %>%
+    as_tibble %>%
+	pivot_longer(
+		ends_with("_group"),
+		names_to = "column",
+		values_to = "value"
 	) %>%
-	arrange(`_install_verify_date`)
+	mutate(
+		status = case_when(
+			str_starts(column, "_install") ~ "install",
+			str_starts(column, "_upgrade1") ~ "upgrade1",
+			str_starts(column, "_upgrade2") ~ "upgrade2"
+		),
+		time_unit = str_replace_all(
+			column,
+			"_install_time_|_upgrade1_time_|_upgrade2_time_|_group",
+			""
+		)
+	) %>%
+	filter(!is.na(value)) %>%
+	group_by(status, time_unit) %>%
+	count
+bike_tunits_counts
 
 ```
 
-### KSI
+#### Preview
+
+```{r}
+
+# Display time unit cols for bikeways
+bike_tunits %>%
+	as_tibble %>%
+	select(
+		starts_with("_"),
+		everything()
+	) %>%
+	arrange(`_install_verify_date`) %>%
+	head
+
+```
+
+### KSI {.tabset}
 
 ```{r}
 
 # Add time unit columns using func for ksi
-ksi <- ksi %>%
+ksi_tunits <- ksi_y2009to2023 %>%
 	mutate( # add cols to standardize func params
 		`_ksi_date` = ksi_date,
 		`_ksi_date_start` = NA,
@@ -1163,62 +1415,68 @@ ksi <- ksi %>%
 		end_col = "_ksi_date_end",
 		type_col = "_ksi_date_type",
 		year_col = "_ksi_year",
-		prefix = "_ksi_",
+		prefix = "_ksi",
 		assign_semester = F
 	)
 
+```
+
+#### Details
+
+```{r}
+
+# Display rows and cols
+cat(glue(
+	"\nBefore\n",
+	"\n* Rows: ", ksi_y2009to2023 %>% nrow,
+	"\n* Columns: ", ksi_y2009to2023 %>% ncol,
+	"\n\nAfter\n",
+	"\n* Rows: ", ksi_tunits %>% nrow,
+	"\n* Columns: ", ksi_tunits %>% ncol,
+	"\n\nNew Columns (", ksi_tunits %>% ncol - ksi_y2009to2023 %>% ncol, ")\n",
+	paste0(
+		"\n* ",
+		colnames(ksi_tunits) %>%
+			.[!. %in% colnames(ksi_combine)],
+		collapse = ""
+	)
+))
+
+# Display counts
+ksi_tunits_counts <- ksi_tunits %>%
+    as_tibble %>%
+	pivot_longer(
+		ends_with("_group"),
+		names_to = "column",
+		values_to = "value"
+	) %>%
+	mutate(
+		time_unit = str_replace_all(
+			column,
+			"_ksi_time_|_group",
+			""
+		)
+	) %>%
+	filter(!is.na(value)) %>%
+	group_by(time_unit) %>%
+	count
+ksi_tunits_counts
+
+```
+
+#### Preview
+
+```{r}
+
 # Display time unit cols for ksi
-ksi %>%
+ksi_tunits %>%
 	as_tibble %>%
 	select(
 		ksi_date,
 		starts_with("_")
 	) %>%
-	arrange(year(ksi_date))
-
-```
-
-## Filter Post-2011 Bikeways
-
-Filter for bikeways with a verified installations after 2011.
-
-```{r}
-
-# Filter bikeways for post2011
-bike <- bike %>%
-	filter(
-		verify_install_year > 2011 |
-		verify_upgrade1_year > 2011 |
-		verify_upgrade2_year > 2011
-	)
-
-# Display filtered rows
-bike %>%
-	as_tibble %>%
-	select(
-		verify_install_year,
-		verify_upgrade1_year,
-		verify_upgrade2_year
-	) %>%
-	arrange(`verify_install_year`)
-
-```
-
-## Filter 2009-2023 KSI
-
-Filter for KSI records between 2009 and 2023 inclusively.
-
-```{r}
-
-# Filter ksi for post2011
-ksi <- ksi %>%
-	filter(year(ksi_date) >= 2009 & year(ksi_date) <= 2023)
-
-# Display filtered rows
-ksi %>%
-	as_tibble %>%
-	select(ksi_date) %>%
-	arrange(year(ksi_date))
+	arrange(year(ksi_date)) %>%
+	head
 
 ```
 
@@ -1241,7 +1499,15 @@ plot_time_units <- function(
 		third_col = "_install_time_third",
 		half_col = "_install_time_half",
 		semester_col = "_install_time_semester",
-		title = "% of Verified Post-2011 Installs by Unit of Time"
+		title = "% of Verified Post-2011 Installs by Unit of Time",
+		overlap_eq_lag = 3,
+		overlap_eq_lead = 3,
+		overlap_small_lag = 2,
+		overlap_small_lead = 2,
+		overlap_lag = 1.5,
+		overlap_lead = 1.5,
+		expand = c(0.18, 0),
+		city_nudge_x = 0.25
 ) {
 	
 	# Prepare plot data
@@ -1291,10 +1557,12 @@ plot_time_units <- function(
 	    arrange(desc(perc)) %>% 
 	    mutate( # detect overlap labels and shift down and up
 	        perc_label_y = case_when(
-	        	lag(perc) - perc < 2 ~ perc - 2,
-	            lag(perc) - perc < 7 ~ perc - 1,
-	            lead(perc) - perc > -2 ~ perc + 2,
-	        	lead(perc) - perc > -7 ~ perc + 1,
+	        	lag(perc) == perc ~ perc - overlap_eq_lag,
+	            lead(perc) == perc ~ perc + overlap_eq_lead,
+	        	lag(perc) - perc < 2 ~ perc - overlap_small_lag,
+	            lag(perc) - perc < 7 ~ perc - overlap_lag,
+	            lead(perc) - perc > -2 ~ perc + overlap_small_lead,
+	        	lead(perc) - perc > -7 ~ perc + overlap_lead,
 	            .default = perc
 	        )
 	    ) %>%
@@ -1343,13 +1611,13 @@ plot_time_units <- function(
 			size = 2.5,
 			show.legend = F,
 			hjust = 0,
-			nudge_x = 0.25
+			nudge_x = city_nudge_x
 		) +
 		scale_y_continuous(labels = function(x) paste0(x, "%")) +
 		scale_x_discrete(
 			limits = levels(plot_data$type),
 			position = "top",
-			expand = c(0.18, 0)
+			expand = expand
 		) +
 		labs(
 			title = glue(
@@ -1375,14 +1643,14 @@ plot_time_units <- function(
 ### Install
 
 ```{r}
-plot_time_units(bike)
+plot_time_units(bike_tunits)
 ```
 
 ### 1st Upgrade
 
 ```{r}
 plot_time_units(
-	bike %>% filter(!is.na(verify_upgrade1_year)),
+	bike_tunits %>% filter(!is.na(verify_upgrade1_year)),
 	month_col = "_upgrade1_time_month",
 	quarter_col = "_upgrade1_time_quarter",
 	third_col = "_upgrade1_time_third",
@@ -1396,19 +1664,29 @@ plot_time_units(
 
 ```{r}
 plot_time_units(
-	bike %>% filter(!is.na(verify_upgrade2_year)),
+	bike_tunits %>% filter(!is.na(verify_upgrade2_year)),
 	month_col = "_upgrade2_time_month",
 	quarter_col = "_upgrade2_time_quarter",
 	third_col = "_upgrade2_time_third",
 	half_col = "_upgrade2_time_half",
 	semester_col = "_upgrade2_time_semester",
-	title = "% of Verified Post-2011 2nd Upgrades by Unit of Time"
+	title = "% of Verified Post-2011 2nd Upgrades by Unit of Time",
+	overlap_eq_lag = 6.25,
+	overlap_eq_lead = -1.75,
+	overlap_small_lag = 1.75,
+	overlap_small_lead = 1.75,
+	overlap_lag = 1,
+	overlap_lead = 1,
+	expand = c(0.2, 0),
+	city_nudge_x = 0.35
 )
 ```
 
 ## Merge Bikeways {.tabset}
 
 Merge bikeway segments if they are within the same infrastructure type, time unit, and known status (e.g. install, 1st upgrade, 2nd upgrade).
+
+As `semester` seemed to have the most available data, it was chosen as the time unit.
 
 The known status is the most recent change **with a known time unit** for a segment with one of the following values:
 
@@ -1433,7 +1711,7 @@ Other merge related columns start with `_merge_...`.
 tunit <- "semester"
 
 # Determine adjacent segments if they are within same status, type, and time unit
-bike <- bike %>%
+bike_adj <- bike_tunits %>%
 	filter( # remove segments that do not have the time unit
 		!is.na(.data[[glue("_upgrade2_time_{tunit}")]]) |
 		!is.na(.data[[glue("_upgrade1_time_{tunit}")]]) |
@@ -1492,7 +1770,7 @@ bike <- bike %>%
 	reduce(add_row)
 
 # Merge bike segments by adjacency
-bike_merge <- bike %>%
+bike_merge <- bike_adj %>%
 	group_by(`_merge_group`) %>%
 	summarize(
 		id = paste0(id, collapse = ","),
@@ -1528,6 +1806,46 @@ bike_merge <- bike %>%
 
 ```
 
+### Details
+
+```{r}
+
+# Display rows and cols
+cat(glue(
+	"\nBefore\n",
+	"\n* Rows: ", bike_tunits %>% nrow,
+	"\n* Columns: ", bike_tunits %>% ncol,
+	"\n\nAfter\n",
+	"\n* Rows: ", bike_merge %>% nrow,
+	"\n* Columns: ", bike_merge %>% ncol,
+	"\n\nNew Columns (", bike_merge %>% ncol - bike_tunits %>% ncol, ")\n",
+	paste0(
+		"\n* ",
+		colnames(bike_merge) %>%
+			.[!. %in% colnames(bike_tunits)],
+		collapse = ""
+	)
+))
+
+# Display counts
+bike_merge_counts <- bike_merge %>%
+    as_tibble %>%
+	group_by(city, status) %>%
+	count
+bike_merge_counts
+
+```
+
+### Preview
+
+```{r}
+# Display merged bike segments
+bike_merge %>%
+	as_tibble %>%
+	select(-geometry) %>%
+	head
+```
+
 ### Map
 
 ```{r}
@@ -1540,24 +1858,16 @@ tm_shape(bike_merge %>% st_buffer(25)) +
     	popup.vars = T,
     	lwd = 1.5
     ) +
-	tm_shape(bike) +
+	tm_shape(bike_adj) +
 	tm_lines(
 		group = "Segments (Red)",
 		col = "red",
 		lwd = 1.5
 	) +
-	tm_shape(bike %>% st_cast("POINT")) +
+	tm_shape(bike_adj %>% st_cast("POINT")) +
 	tm_dots(group = NULL, col = "red", size = 0.03)
 ```
 
-### Data
-
-```{r}
-# Display merged bike segments
-bike_merge %>%
-	as_tibble %>%
-	select(-geometry)
-```
 
 ## Join KSI to Bikeways {.tabset}
 
@@ -1588,7 +1898,7 @@ if (!file.exists(sjoin_file)) {
 	
 	# Spatial join bikeways with ksi keeping ids
 	sjoin <- bike_merge_buff25 %>%
-		st_join(ksi %>% select(ksi_id)) %>%
+		st_join(ksi_tunits %>% select(ksi_city, ksi_id)) %>%
 		as_tibble %>%
 		select(-geometry)
 	
@@ -1601,6 +1911,65 @@ if (!file.exists(sjoin_file)) {
 	sjoin <- read_csv(sjoin_file, col_types = cols(id = "c"))
 	
 }
+
+```
+
+#### Details
+
+```{r}
+
+# Display rows and cols
+cat(glue(
+	"\nBikeways\n",
+	"\n* Rows: ", bike_merge %>% nrow,
+	"\n* Columns: ", bike_merge %>% ncol,
+	"\n\nKSI\n",
+	"\n* Rows: ", ksi_tunits %>% nrow,
+	"\n* Columns: ", ksi_tunits %>% ncol,
+	"\n\nSpatial Join Keys\n",
+	"\n* Rows: ", sjoin %>% nrow,
+	"\n* Columns: ", sjoin %>% ncol,
+	"\n* Rows Spatially Joined (Bikeways): ",
+	sjoin %>%
+		filter(!is.na(id)) %>%
+		pull(id) %>%
+		unique %>%
+		length,
+	"\n* Rows Spatially Joined (KSI): ",
+	sjoin %>%
+		filter(!is.na(ksi_id)) %>%
+		pull(ksi_id) %>%
+		unique %>%
+		length
+))
+
+# Display 
+sjoin_counts <- sjoin %>%
+	group_by(city) %>%
+	summarize(
+		n_bike = n_distinct(id, na.rm = T)
+	) %>%
+	left_join(
+		sjoin %>%
+			group_by(ksi_city) %>%
+			summarize(
+				n_ksi = n_distinct(ksi_id, na.rm = T)
+			),
+		by = join_by(city == ksi_city)
+	)
+sjoin_counts
+
+```
+
+#### Preview
+
+```{r}
+
+# Display spatially joined ids
+sjoin %>%
+	filter(!is.na(ksi_id)) %>%
+	head
+
 ```
 
 ## Count KSI Per Time Unit {.tabset}
@@ -1615,110 +1984,43 @@ This creates columns in the format of `_ksi_time_<UNIT>_<YEAR>_<VALUE>`, where:
 
 ```{r}
 
-# Count ksi spatially joined to bike
-bike_merge <- bike_merge %>%
-	left_join()
-
-# Count ksi spatially joined to bike
-for (tunit in c("month", "third", "quarter", "half", "semester", "year")) {
-	
-	# Count ksi by unit of time for each bike event
-	sjoin_count <- sjoin %>%
-	    mutate(
-	        city = as.character(city),
-	        id = as.character(id),
-	        ksi_id = as.character(ksi_id)
-	    ) %>%
-	    left_join(bike_merge, by = c("city", "id")) %>%
-	    left_join(ksi, by = "ksi_id") %>%
-	    group_by(city, id, event, across(glue("_ksi_time_{tunit}_group"))) %>%
-	    count %>%
-	    ungroup
-	
-	# Pivot to wider format with each col being a time unit
-	sjoin_count_wide <- sjoin_count %>%
-	    pivot_wider(
-	        names_from = glue("_ksi_time_{tunit}_group"),
-	        values_from = "n",
-	        names_prefix = glue("_ksi_time_{tunit}_")
-	    ) %>%
-	    rename_with(
-	        str_to_lower,
-	        ends_with("_NA")
-	    )
-	
-	# Gen all possible year and time value combinations
-	year_min <- min(year(ksi$DATE), na.rm = T)
-	year_max <- max(year(ksi$DATE), na.rm = T)
-	value_max <- switch(
-		tunit,
-		month = 12,
-		third = 3,
-		quarter = 4,
-		half = 2,
-		semester = 2,
-		year = 1,
-		stop("Invalid value for tunit")
+# Ensure ids are same data type
+sjoin <- sjoin %>%
+	mutate(
+		id = as.character(id),
+		ksi_id = as.character(ksi_id)
 	)
-	tunit_cols <- expand.grid(
-		year = year_min:year_max,
-		value = 1:value_max,
-		unit = tunit
+ksi_tunits <- ksi_tunits %>%
+	mutate(
+		ksi_id = as.character(ksi_id)
+	)
+
+# Get time unit col
+tunit_col <- glue("_ksi_time_{tunit}_group")
+
+# Count ksi spatially joined to bike
+bike_ksi <- bike_merge %>%
+	mutate(
+		id = as.character(id)
 	) %>%
-	    mutate(
-	    	column = if_else(
-	    		unit != "year",
-	    		glue("_ksi_time_{tunit}_{year}_{value}"),
-	    		glue("_ksi_time_{tunit}_{year}")
-	    	)
-	    ) %>%
-	    arrange(year, value) %>%
-	    pull(column)
-	
-	# Add missing year and value combos
-	tunit_miss <- tunit_cols[!tunit_cols %in% names(sjoin_count_wide)]
-	has_tunit_miss <- length(tunit_miss) > 0
-	if (has_tunit_miss) {
-		sjoin_count_wide <- sjoin_count_wide %>%
-			add_column(!!!setNames(
-				rep(0, length(tunit_miss)),
-				tunit_miss
-			))
-	}
-	
-	# Sort by time unit
-	sjoin_count_wide <- sjoin_count_wide %>%
-		select(
-			city,
-			id,
-			event,
-			all_of(tunit_cols)
-		)
-
-	# Add counts back into bike and set nas to zeroes
-	bike_merge <- bike_merge %>%
-		left_join(
-			sjoin_count_wide,
-			by = c("city", "id", "event")
-		) %>%
-		mutate(across(
-			all_of(tunit_cols),
-			~replace_na(., 0)
-		))
-}
-
-# Display ksi counts per bike and time unit
-bike_merge %>%
-	as_tibble %>%
-	select(-geometry) %>%
-	select(
-		id,
-		city,
-		event,
-		type,
-		year,
-		semester,
-		starts_with("_ksi_time_semester")
+	full_join(
+		sjoin,
+		by = join_by(city, id)
+	) %>%
+	full_join(
+		ksi_tunits %>%
+			as_tibble %>%
+			select(-geometry),
+		by = join_by(ksi_city, ksi_id)
+	) %>%
+	group_by(across(c(
+		"city",
+		"id",
+		tunit_col
+	))) %>%
+	summarize(
+		across(everything(), ~ paste0(unique(.x), collapse = ",")),
+		`ksi` = n()
 	)
 
 ```

@@ -2023,4 +2023,55 @@ bike_ksi <- bike_merge %>%
 		`ksi` = n()
 	)
 
+# Create combination of all id and time unit combos
+tunit_combo <- expand_grid(
+    `_merge_group` = unique(bike_merge$`_merge_group`),
+    year = min(year(ksi_tunits$ksi_date)):max(year(ksi_tunits$ksi_date)),
+    time_value = unique(ksi_tunits[[glue("_ksi_time_{tunit}")]])
+) %>%
+    mutate(
+    	!!tunit_col := glue("{year}_{time_value}")
+    ) %>%
+    select(-year, -time_value)
+
+# Fill in missing time units as zero
+bike_ksi <- tunit_combo %>%
+	left_join(
+		bike_merge,
+		by = c("_merge_group")
+	) %>%
+	left_join(
+		bike_ksi %>%
+			as_tibble %>%
+			select(-geometry) %>%
+			select(c("_merge_group", tunit_col, "ksi")),
+		by = c("_merge_group", tunit_col)
+	) %>%
+	mutate(
+		ksi = replace_na(ksi, 0)
+	)
+
+```
+
+### Details
+
+```{r}
+
+# Display rows and cols
+cat(glue(
+	"\nBefore\n",
+	"\n* Rows: ", bike_merge %>% nrow,
+	"\n* Columns: ", bike_merge %>% ncol,
+	"\n\nAfter\n",
+	"\n* Rows: ", bike_ksi %>% nrow,
+	"\n* Columns: ", bike_ksi %>% ncol,
+	"\n\nNew Columns (", bike_ksi %>% ncol - bike_merge %>% ncol, ")\n",
+	paste0(
+		"\n* ",
+		colnames(bike_ksi) %>%
+			.[!. %in% colnames(bike_merge)],
+		collapse = ""
+	)
+))
+
 ```

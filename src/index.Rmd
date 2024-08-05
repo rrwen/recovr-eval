@@ -1999,7 +1999,7 @@ ksi_tunits <- ksi_tunits %>%
 tunit_col <- glue("_ksi_time_{tunit}_group")
 
 # Count ksi spatially joined to bike
-bike_ksi <- bike_merge %>%
+bike_sjoin <- bike_merge %>%
 	mutate(
 		id = as.character(id)
 	) %>%
@@ -2041,10 +2041,10 @@ bike_ksi <- tunit_combo %>%
 		by = c("_merge_group")
 	) %>%
 	left_join(
-		bike_ksi %>%
+		bike_sjoin %>%
 			as_tibble %>%
 			select(-geometry) %>%
-			select(c("_merge_group", tunit_col, "ksi")),
+			select(c("_merge_group", tunit_col, "ksi_id", "ksi")),
 		by = c("_merge_group", tunit_col)
 	) %>%
 	mutate(

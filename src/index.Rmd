@@ -2020,7 +2020,7 @@ bike_sjoin <- bike_merge %>%
 	))) %>%
 	summarize(
 		across(everything(), ~ paste0(unique(.x), collapse = ",")),
-		`ksi` = n()
+		`ksi_count` = n()
 	)
 
 # Create combination of all id and time unit combos
@@ -2043,12 +2043,17 @@ bike_ksi <- tunit_combo %>%
 	left_join(
 		bike_sjoin %>%
 			as_tibble %>%
-			select(-geometry) %>%
-			select(c("_merge_group", tunit_col, "ksi_id", "ksi")),
+			select(c(
+				"_merge_group",
+				tunit_col,
+				"ksi_count",
+				colnames(ksi_tunits)
+			)) %>%
+			select(-geometry),
 		by = c("_merge_group", tunit_col)
 	) %>%
 	mutate(
-		ksi = replace_na(ksi, 0)
+		ksi_count = replace_na(ksi_count, 0)
 	)
 
 ```
@@ -2073,5 +2078,99 @@ cat(glue(
 		collapse = ""
 	)
 ))
+
+```
+
+### Preview
+
+```{r}
+
+# Display merged bikeways with ksi counts
+bike_ksi %>%
+	filter(!is.na(ksi_id)) %>%
+	head
+
+```
+
+## Format Model Data
+
+```{r}
+
+# Extract year and semester for time ids
+tid_data <- bike_ksi %>%
+	separate(
+		`_ksi_time_semester_group`,
+		c("year", "semester"),
+		sep = "_"
+	) %>%
+	select(year, semester)
+
+# Assign time ids using ordered levels
+tid <- expand_grid(
+	time_year = min(tid_data$year):max(tid_data$year),
+	time_semester = unique(tid_data$semester)
+) %>%
+    arrange(time_year, time_semester) %>%
+    mutate(
+    	time_orig = glue("{time_year}_{time_semester}"),
+    	time = factor(time_orig) %>% as.integer
+    )
+
+# Prepare model data
+model_data <- bike_ksi %>%
+	select(
+		bike_merge_id = `_merge_group`,
+		bike_city = city,
+		bike_status = status,
+		bike_type = type,
+		bike_time_orig = time_group,
+		bike_year = year,
+		bike_semester = time_value,
+		ksi_time_orig = `_ksi_time_semester_group`,
+		ksi = `ksi_count`
+	) %>%
+	separate( # get year and semester
+		ksi_time_orig,
+		c("ksi_year", "ksi_semester"),
+		sep = "_",
+		remove = F
+	) %>%
+	mutate( # assign ids
+		id = factor(bike_merge_id) %>% as.integer
+	) %>%
+	left_join( # assign ksi time ids
+		tid %>%
+			select(
+				ksi_time_orig = time_orig,
+				time
+			),
+		by = "ksi_time_orig"
+	) %>%
+	left_join( # assign cohort based on bike time ids
+		tid %>%
+			select(
+				bike_time_orig = time_orig,
+				cohort = time
+			),
+		by = "bike_time_orig"
+	) %>%
+	mutate( # assign post based on whether it is greater than bike time
+		post_all = as.integer(time >= cohort)
+	) %>%
+	arrange(id, time) %>%
+	filter(bike_city == "toronto") %>%
+	select(
+		starts_with("bike_"),
+		starts_with("ksi_"),
+		id,
+		time,
+		post_all,
+		ksi,
+		cohort,
+		everything()
+	)
+
+# Export model data to folder
+model_data %>% write_csv("../data/recovr-eval-data-2024-08-05.csv")
 
 ```

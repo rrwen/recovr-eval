@@ -2170,7 +2170,39 @@ model_data <- bike_ksi %>%
 		everything()
 	)
 
-# Export model data to folder
+# Export model data and time ids to folder
 model_data %>% write_csv("../data/recovr-eval-data-2024-08-05.csv")
+```
+
+### Details
+
+```{r}
+
+# Display rows and cols
+cat(glue(
+	"\nBefore\n",
+	"\n* Rows: ", bike_ksi %>% nrow,
+	"\n* Columns: ", bike_ksi %>% ncol,
+	"\n\nAfter\n",
+	"\n* Rows: ", model_data %>% nrow,
+	"\n* Columns: ", model_data %>% ncol,
+	"\n\nNew Columns (", model_data %>% ncol - bike_ksi %>% ncol, ")\n",
+	paste0(
+		"\n* ",
+		colnames(model_data) %>%
+			.[!. %in% colnames(bike_ksi)],
+		collapse = ""
+	)
+))
+
+```
+
+#### Preview
+
+```{r}
+
+# Display model data
+model_data %>%
+	head
 
 ```

@@ -283,6 +283,7 @@ toronbike_raw <- read_sf("../data/toronto-bikeways-2024-06-02.geojson")
 toronbike_dldate <- ddesc %>% filter(
 	file == "toronto-bikeways-2024-06-02.geojson"
 ) %>% pull(download_date)
+
 ```
 
 ### Map
@@ -612,7 +613,7 @@ bike_verify_counts <- bike_verify %>%
 	) %>%
 	group_by(status, value) %>%
 	count
-bike_p2011_counts
+bike_verify_counts
 
 ```
 
@@ -635,6 +636,88 @@ bike_verify %>%
 
 ```
 
+## Filter Infrastructure Types
+
+Filter for painted lanes (`PL` and `BUF`) and cycle tracks (`PBL`) only in any of `verify_install_type`, `verify_upgrade1_type`, and `verify_upgrade2_type`.
+
+```{r}
+
+# Remove none or na bike types
+bike_itypes <- bike_verify %>%
+	filter(
+		verify_install_type %in% c("PL", "BUF", "PBL") |
+		verify_upgrade1_type %in% c("PL", "BUF", "PBL") |
+		verify_upgrade2_type %in% c("PL", "BUF", "PBL")
+	)
+
+```
+
+### Details
+
+```{r}
+
+# Display rows and cols
+cat(glue(
+	"\nBefore\n",
+	"\n* Rows: ", bike_verify %>% nrow,
+	"\n* Columns: ", bike_verify %>% ncol,
+	"\n\nAfter\n",
+	"\n* Rows: ", bike_itypes %>% nrow,
+	"\n* Columns: ", bike_itypes %>% ncol
+))
+
+# Display counts
+bike_itypes_counts <- bike_itypes %>%
+	as_tibble %>%
+	filter(
+		verify_install_type %in% c("PL", "BUF", "PBL")
+	) %>%
+	mutate(
+		type = verify_install_type
+	) %>%
+	group_by(type) %>%
+	count %>%
+	ungroup %>%
+	add_row(
+		bike_itypes %>%
+			as_tibble %>%
+			filter(
+				!verify_install_type %in% c("PL", "BUF", "PBL") &
+				verify_upgrade1_type %in% c("PL", "BUF", "PBL")
+			) %>%
+			mutate(
+				type = glue("{verify_install_type} (Install) to {verify_upgrade1_type} (1st Upgrade)")
+			) %>%
+			group_by(type) %>%
+			count
+	) %>%
+	add_row(
+		bike_itypes %>%
+			as_tibble %>%
+			filter(
+				!verify_install_type %in% c("PL", "BUF", "PBL") &
+				!verify_upgrade1_type %in% c("PL", "BUF", "PBL") &
+				verify_upgrade2_type %in% c("PL", "BUF", "PBL")
+			) %>%
+			mutate(
+				type = glue("{verify_install_type} to {verify_upgrade1_type} (1st Upgrade) to {verify_upgrade2_type} (2nd Upgrade)")
+			) %>%
+			group_by(type) %>%
+			count
+	)
+bike_itypes_counts
+
+```
+
+### Preview
+
+```{r}
+
+# Preview filtered bike types data
+bike_itypes %>% as_tibble %>% head
+
+```
+
 ## Filter Bikeways for Post-2011
 
 Filter for bikeways with a verified installations or upgrades after 2011.
@@ -642,7 +725,7 @@ Filter for bikeways with a verified installations or upgrades after 2011.
 ```{r}
 
 # Filter bikeways for post2011
-bike_p2011 <- bike_verify %>%
+bike_p2011 <- bike_itypes %>%
 	filter(
 		verify_install_year > 2011 |
 		verify_upgrade1_year > 2011 |
@@ -658,8 +741,8 @@ bike_p2011 <- bike_verify %>%
 # Display rows and cols
 cat(glue(
 	"\nBefore\n",
-	"\n* Rows: ", bike_verify %>% nrow,
-	"\n* Columns: ", bike_verify %>% ncol,
+	"\n* Rows: ", bike_itypes %>% nrow,
+	"\n* Columns: ", bike_itypes %>% ncol,
 	"\n\nAfter\n",
 	"\n* Rows: ", bike_p2011 %>% nrow,
 	"\n* Columns: ", bike_p2011 %>% ncol
@@ -759,88 +842,6 @@ ksi_y2009to2023 %>%
 
 ```
 
-## Filter Infrastructure Types
-
-Filter for painted lanes (`PL` and `BUF`) and cycle tracks (`PBL`) only in any of `verify_install_type`, `verify_upgrade1_type`, and `verify_upgrade2_type`.
-
-```{r}
-
-# Remove none or na bike types
-bike_itypes <- bike_p2011 %>%
-	filter(
-		verify_install_type %in% c("PL", "BUF", "PBL") |
-		verify_upgrade1_type %in% c("PL", "BUF", "PBL") |
-		verify_upgrade2_type %in% c("PL", "BUF", "PBL")
-	)
-
-```
-
-### Details
-
-```{r}
-
-# Display rows and cols
-cat(glue(
-	"\nBefore\n",
-	"\n* Rows: ", bike_p2011 %>% nrow,
-	"\n* Columns: ", bike_p2011 %>% ncol,
-	"\n\nAfter\n",
-	"\n* Rows: ", bike_itypes %>% nrow,
-	"\n* Columns: ", bike_itypes %>% ncol
-))
-
-# Display counts
-bike_itypes_counts <- bike_itypes %>%
-	as_tibble %>%
-	filter(
-		verify_install_type %in% c("PL", "BUF", "PBL")
-	) %>%
-	mutate(
-		type = verify_install_type
-	) %>%
-	group_by(type) %>%
-	count %>%
-	ungroup %>%
-	add_row(
-		bike_itypes %>%
-			as_tibble %>%
-			filter(
-				!verify_install_type %in% c("PL", "BUF", "PBL") &
-				verify_upgrade1_type %in% c("PL", "BUF", "PBL")
-			) %>%
-			mutate(
-				type = glue("{verify_install_type} (Install) to {verify_upgrade1_type} (1st Upgrade)")
-			) %>%
-			group_by(type) %>%
-			count
-	) %>%
-	add_row(
-		bike_itypes %>%
-			as_tibble %>%
-			filter(
-				!verify_install_type %in% c("PL", "BUF", "PBL") &
-				!verify_upgrade1_type %in% c("PL", "BUF", "PBL") &
-				verify_upgrade2_type %in% c("PL", "BUF", "PBL")
-			) %>%
-			mutate(
-				type = glue("{verify_install_type} to {verify_upgrade1_type} (1st Upgrade) to {verify_upgrade2_type} (2nd Upgrade)")
-			) %>%
-			group_by(type) %>%
-			count
-	)
-bike_itypes_counts
-
-```
-
-### Preview
-
-```{r}
-
-# Preview filtered bike types data
-bike_itypes %>% as_tibble %>% head
-
-```
-
 ## Add Bikeway Dates
 
 Join ambiguous verified install/upgrade dates (e.g. Jan 1/2022, 2022/02, Fall 2020) to manually cleaned dates with structured time units (e.g. days, months, quarters, semesters, ranges) and date formats (e.g. 2022-01-01, 2022-02-01).
@@ -848,7 +849,7 @@ Join ambiguous verified install/upgrade dates (e.g. Jan 1/2022, 2022/02, Fall 20
 ```{r}
 
 # Join clean dates to include structured date formats
-bike_dates <- bike_itypes %>%
+bike_dates <- bike_p2011 %>%
 	left_join( # install dates
 		vdates_raw %>%
 			rename_with(~ paste0("_install_", .x)),
@@ -874,16 +875,16 @@ bike_dates <- bike_itypes %>%
 # Display rows and cols
 cat(glue(
 	"\nBefore\n",
-	"\n* Rows: ", bike_itypes %>% nrow,
-	"\n* Columns: ", bike_itypes %>% ncol,
+	"\n* Rows: ", bike_p2011 %>% nrow,
+	"\n* Columns: ", bike_p2011 %>% ncol,
 	"\n\nAfter\n",
 	"\n* Rows: ", bike_dates %>% nrow,
 	"\n* Columns: ", bike_dates %>% ncol,
-	"\n\nNew Columns (", bike_dates %>% ncol - bike_itypes %>% ncol, ")\n",
+	"\n\nNew Columns (", bike_dates %>% ncol - bike_p2011 %>% ncol, ")\n",
 	paste0(
 		"\n* ",
 		colnames(bike_dates) %>%
-			.[!. %in% colnames(bike_itypes)],
+			.[!. %in% colnames(bike_p2011)],
 		collapse = ""
 	)
 ))
@@ -2204,5 +2205,57 @@ cat(glue(
 # Display model data
 model_data %>%
 	head
+
+```
+
+## Flow Chart
+
+```{r}
+
+# Create flow chart
+fig_flowchart <- grViz('
+
+digraph {
+
+	layout=neato
+	splines=ortho
+	
+	node [shape="box", width=2.75, height=1 margin=0.1]
+	
+	toronbike_raw[width=2, shape=cylinder, label="Toronto Bikeways\n(n=@@1)", pos="0,0!"]
+	toronbike_verify[label="Verified Bikeways Only\n(n=@@2)", pos="3,0!"]
+	toronbike_itypes[label="Painted Lanes and\nCycle Tracks Only\n(n=@@3)", pos="6,0!"]
+	toronbike_p2011[label="Post-2011 Installs\nor Upgrades Only\n(n=@@4)", pos="0,-1.5!"]
+	toronbike_tunits[label="Installs or Upgrades\nwith Semesters Only\n(n=@@5)", pos="3,-1.5!"]
+	toronbike_merge[label="Spatially Merged Bikeways\nby Status, Type, and Semester\n(n=@@6)", pos="6,-1.5!"]
+	
+	toronksi_raw[width=2, shape=cylinder, label="Toronto KSI\n(n=@@7)", pos="0,-3!"]
+	toronksi_y2009to2023[label="From 2009 to 2023 Only\n(n=@@8)", pos="3,-3!"]
+	toronksi_sjoin[label="Spatially Joined to\nMerged Bikeways\n(n_bikeways=@@6, n_ksi=@@9)", pos="6,-3!"]
+	
+	toronbike_raw -> toronbike_verify -> toronbike_itypes -> toronbike_p2011 -> toronbike_tunits -> toronbike_merge
+
+	toronbike_merge -> toronksi_sjoin
+	toronksi_raw -> toronksi_y2009to2023 [minlen=3]
+	toronksi_y2009to2023 -> toronksi_sjoin [minlen=3]
+}
+
+[1]: toronbike_raw %>% nrow
+[2]: bike_verify %>% filter(city == "toronto") %>% nrow
+[3]: bike_itypes %>% filter(city == "toronto") %>% nrow
+[4]: bike_p2011 %>% filter(city == "toronto") %>% nrow
+[5]: bike_tunits %>% filter(city == "toronto" & (!is.na(`_install_time_semester`) | !is.na(`_upgrade1_time_semester`) | !is.na(`_upgrade2_time_semester`))) %>% nrow
+[6]: bike_merge %>% filter(city == "toronto") %>% nrow
+[7]: ksi_combine %>% filter(ksi_city == "toronto") %>% nrow %>% format(big.mark = ",")
+[8]: ksi_y2009to2023 %>% filter(ksi_city == "toronto") %>% nrow %>% format(big.mark = ",")
+[9]: sjoin %>% filter(ksi_city == "toronto" & !is.na(ksi_id)) %>% pull(ksi_id) %>% unique %>% length
+
+')
+
+# Export flowchart
+fig_flowchart %>%
+    export_svg %>%
+    charToRaw %>%
+    rsvg_png("../figures/fig-methods-toronto.png")
 
 ```

@@ -2186,8 +2186,6 @@ bike_ksi %>%
 
 ## Format Model Data
 
-* TODO: post ct, post bl, post up -> create cohort as well
-
 ```{r}
 
 # Extract year and semester for time ids
@@ -2248,8 +2246,16 @@ model_data <- bike_ksi %>%
 			),
 		by = "bike_time_orig"
 	) %>%
+	mutate( # assign cohort based on pl, ct, and upgrade
+		cohort_pl = if_else(bike_type %in% c("PL", "BUF"), cohort, NA),
+		cohort_ct = if_else(bike_type == "PBL", cohort, NA),
+		cohort_upgrade = if_else(str_starts(bike_status, "upgrade"), cohort, NA)
+	) %>%
 	mutate( # assign post based on whether it is greater than bike time
-		post_all = as.integer(time >= cohort)
+		post = as.integer(time >= cohort),
+		post_pl = as.integer(time >= cohort_pl) %>% replace_na(0),
+		post_ct = as.integer(time >= cohort_ct) %>% replace_na(0),
+		post_upgrade = as.integer(time >= cohort_upgrade) %>% replace_na(0)
 	) %>%
 	arrange(id, time) %>%
 	filter(bike_city == "toronto") %>%
@@ -2258,14 +2264,14 @@ model_data <- bike_ksi %>%
 		starts_with("ksi_"),
 		id,
 		time,
-		post_all,
+		starts_with("post"),
 		ksi,
-		cohort,
+		starts_with("cohort"),
 		everything()
 	)
 
 # Export model data and time ids to folder
-model_data %>% write_csv("../data/recovr-eval-data-2024-08-05.csv")
+model_data %>% write_csv("../data/recovr-eval-data-2024-08-07.csv")
 ```
 
 ### Details

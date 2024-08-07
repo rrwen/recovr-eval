@@ -718,7 +718,7 @@ bike_itypes %>% as_tibble %>% head
 
 ```
 
-## Filter Bikeways for Post-2011
+## Filter Post-2011 Bikeways
 
 Filter for bikeways with a verified installations or upgrades after 2011.
 
@@ -791,7 +791,7 @@ bike_p2011 %>%
 
 ```
 
-## Filter KSI for 2009-2023
+## Filter 2009-2023 KSI
 
 Filter for KSI records between 2009 and 2023 inclusively.
 
@@ -972,8 +972,8 @@ Add the following time unit columns for installs/upgrades in bikeways and for ea
 * `_time_third`: which third (1, 2, 3) of the year a bikeway had a verified installation/upgrade or ksi record
 * `_time_half`: which half (1, 2) of the year a bikeway had a verified installation/upgrade or ksi record
 * `_time_semester`: which semester (1, 2) of the year a bikeway had a verified installation/upgrade or ksi record, where:
-	* `1`: represents November (this year) to April of next year
-	* `2`: represents May to October of next year
+	* `1`: represents May to October of this year
+	* `2`: represents November (this year) to April of next year
 * `_time_year`: standardized year column that bikeway had verified installation/upgrade or ksi record
 * `_time_..._group`: grouped columns of the above defining the time units in textual format
 * Install records follow the patterns above prefixed with `_install`
@@ -1130,25 +1130,18 @@ add_time_units <- function(
 			
 			# Semester (custom range)
 			`_time_semester` = case_when(
-				month(`_date`) %in% c(11:12, 1:4) |
-				(
-					month(`_start`) %in% c(11:12, 1:4) &
-					( # Nov to Dec of this year
-						month(`_end`) %in% 11:12 &
-						year(`_end`) == year(`_start`)
-					) |
-					( # Jan to Apr of this or next year
-						month(`_end`) %in% 1:4 &
-						year(`_end`) == year(`_start`) |
-						year(`_end`) == (year(`_start`) + 1)
-					)
-				) ~ 2, # Nov to Apr of next year
-				month(`_date`) %in% 5:10 |
+				month(`_date`) %in% 5:10 | # May to Oct (this year)
 				(
 					month(`_start`) %in% 5:10 &
 					month(`_end`) %in% 5:10 &
 					year(`_start`) == year(`_end`)
-				) ~ 1 # May to Oct
+				) ~ 1,
+				month(`_date`) %in% c(11:12, 1:4) | # Nov (this/last year) to Apr (next/this year)
+				(
+					month(`_start`) %in% c(11:12, 1:4) &
+					month(`_end`) %in% c(11:12, 1:4) &
+					year(`_start`) <= (year(`_end`) + 1)
+				) ~ 2
 			),
 			
 			# Year
@@ -1160,21 +1153,17 @@ add_time_units <- function(
 	if (assign_semester) {
 		out <- out %>%
 			mutate( # add intervals for semesters and date
-				`_assign_semester_1_interval_1` = interval( # sem 1 this year to next year
+				`_assign_semester_1_interval_1` = interval( # sem 1 this year
+		            start = glue("{`_year`}-05-01") %>% as_date,
+		            end = glue("{`_year`}-10-31") %>% as_date
+		        ),
+		        `_assign_semester_2_interval_1` = interval( # sem 2 this to next year
 		            start = glue("{`_year`}-11-01") %>% as_date,
 		            end = glue("{`_year` + 1}-04-30") %>% as_date
 		        ),
-				`_assign_semester_1_interval_2` = interval( # sem 1 last year to this year
+				`_assign_semester_2_interval_2` = interval( # sem 2 last to this year
 		            start = glue("{`_year` - 1}-11-01") %>% as_date,
 		            end = glue("{`_year`}-04-30") %>% as_date
-		        ),
-		        `_assign_semester_2_interval_1` = interval( # sem 2 next year
-		            start = glue("{`_year` + 1}-05-01") %>% as_date,
-		            end = glue("{`_year` + 1}-10-31") %>% as_date
-		        ),
-				`_assign_semester_2_interval_2` = interval( # sem 2 this year
-		            start = glue("{`_year`}-05-01") %>% as_date,
-		            end = glue("{`_year`}-10-31") %>% as_date
 		        ),
 				`_assign_date_interval` = if_else( # only for non-assigned sem
 					!is.na(`_start`) & !is.na(`_end`) & is.na(`_time_semester`),
@@ -1187,10 +1176,6 @@ add_time_units <- function(
 					intersect(
 						`_assign_date_interval`,
 						`_assign_semester_1_interval_1`
-					),
-					intersect(
-						`_assign_date_interval`,
-						`_assign_semester_1_interval_2`
 					)
 				) %>% as.numeric / (3600 * 24),
 				`_assign_semester_2_days` = coalesce(
@@ -1222,7 +1207,6 @@ add_time_units <- function(
 			) %>%
 			select(-c( # remove unwanted cols
 				`_assign_semester_1_interval_1`,
-				`_assign_semester_1_interval_2`,
 				`_assign_semester_2_interval_1`,
 				`_assign_semester_2_interval_2`,
 				`_assign_date_interval`
@@ -1641,13 +1625,28 @@ plot_time_units <- function(
 
 ```
 
-### Install
+### Install {.tabset}
+
+#### Plot
 
 ```{r}
 plot_time_units(bike_tunits)
 ```
 
-### 1st Upgrade
+#### Details
+
+```{r}
+bike_tunits %>%
+	as_tibble %>%
+	group_by(city, `_install_time_semester`) %>%
+	count %>%
+	group_by(city) %>%
+	mutate(perc = round(n / sum(n) * 100, 2))
+```
+
+### 1st Upgrade {.tabset}
+
+#### Plot
 
 ```{r}
 plot_time_units(
@@ -1661,7 +1660,21 @@ plot_time_units(
 )
 ```
 
-### 2nd Upgrade
+#### Details
+
+```{r}
+bike_tunits %>%
+	as_tibble %>%
+	filter(!is.na(verify_upgrade1_year)) %>%
+	group_by(city, `_upgrade1_time_semester`) %>%
+	count %>%
+	group_by(city) %>%
+	mutate(perc = round(n / sum(n) * 100, 2))
+```
+
+### 2nd Upgrade {.tabset}
+
+#### Plot
 
 ```{r}
 plot_time_units(
@@ -1681,6 +1694,82 @@ plot_time_units(
 	expand = c(0.2, 0),
 	city_nudge_x = 0.35
 )
+```
+
+#### Details
+
+```{r}
+bike_tunits %>%
+	as_tibble %>%
+	filter(!is.na(verify_upgrade2_year)) %>%
+	group_by(city, `_upgrade1_time_semester`) %>%
+	count %>%
+	group_by(city) %>%
+	mutate(perc = round(n / sum(n) * 100, 2))
+```
+
+## Filter Semester Bikeways {.tabset}
+
+Filter for bikeways with semesters that were installed/upgraded post-2011.
+
+```{r}
+bike_sem <- bike_tunits %>%
+	filter(
+		(verify_install_year > 2011 & !is.na(`_install_time_semester`)) |
+		(verify_upgrade1_year > 2011 & !is.na(`_upgrade1_time_semester`)) |
+		(verify_upgrade2_year > 2011 & !is.na(`_upgrade1_time_semester`)) 
+	)
+```
+
+### Details
+
+```{r}
+
+# Display rows and cols
+cat(glue(
+	"\nBefore\n",
+	"\n* Rows: ", bike_tunits %>% nrow,
+	"\n* Columns: ", bike_tunits %>% ncol,
+	"\n\nAfter\n",
+	"\n* Rows: ", bike_sem%>% nrow,
+	"\n* Columns: ", bike_sem %>% ncol
+))
+
+# Display counts
+bike_sem_counts <- bike_sem %>%
+    as_tibble %>%
+	pivot_longer(
+		c(
+			verify_install_year,
+			verify_upgrade1_year,
+			verify_upgrade2_year
+		),
+		names_to = "column",
+		values_to = "value"
+	) %>%
+	mutate(
+		status = case_when(
+			str_starts(column, "verify_install") ~ "install",
+			str_starts(column, "verify_upgrade1") ~ "upgrade1",
+			str_starts(column, "verify_upgrade2") ~ "upgrade2"
+		)
+	) %>%
+	group_by(city, status, value) %>%
+	count
+bike_sem_counts
+
+```
+
+### Preview
+
+```{r}
+
+# Display merged bike segments
+bike_sem %>%
+	as_tibble %>%
+	select(-geometry) %>%
+	head
+
 ```
 
 ## Merge Bikeways {.tabset}
@@ -1712,7 +1801,7 @@ Other merge related columns start with `_merge_...`.
 tunit <- "semester"
 
 # Determine adjacent segments if they are within same status, type, and time unit
-bike_adj <- bike_tunits %>%
+bike_adj <- bike_sem %>%
 	filter( # remove segments that do not have the time unit
 		!is.na(.data[[glue("_upgrade2_time_{tunit}")]]) |
 		!is.na(.data[[glue("_upgrade1_time_{tunit}")]]) |
@@ -1814,16 +1903,16 @@ bike_merge <- bike_adj %>%
 # Display rows and cols
 cat(glue(
 	"\nBefore\n",
-	"\n* Rows: ", bike_tunits %>% nrow,
-	"\n* Columns: ", bike_tunits %>% ncol,
+	"\n* Rows: ", bike_sem %>% nrow,
+	"\n* Columns: ", bike_sem %>% ncol,
 	"\n\nAfter\n",
 	"\n* Rows: ", bike_merge %>% nrow,
 	"\n* Columns: ", bike_merge %>% ncol,
-	"\n\nNew Columns (", bike_merge %>% ncol - bike_tunits %>% ncol, ")\n",
+	"\n\nNew Columns (", bike_merge %>% ncol - bike_sem %>% ncol, ")\n",
 	paste0(
 		"\n* ",
 		colnames(bike_merge) %>%
-			.[!. %in% colnames(bike_tunits)],
+			.[!. %in% colnames(bike_sem)],
 		collapse = ""
 	)
 ))
@@ -1840,11 +1929,13 @@ bike_merge_counts
 ### Preview
 
 ```{r}
+
 # Display merged bike segments
 bike_merge %>%
 	as_tibble %>%
 	select(-geometry) %>%
 	head
+
 ```
 
 ### Map
@@ -2095,6 +2186,8 @@ bike_ksi %>%
 
 ## Format Model Data
 
+* TODO: post ct, post bl, post up -> create cohort as well
+
 ```{r}
 
 # Extract year and semester for time ids
@@ -2226,14 +2319,14 @@ digraph {
 	toronbike_verify[label="Verified Bikeways Only\n(n=@@2)", pos="3,0!"]
 	toronbike_itypes[label="Painted Lanes and\nCycle Tracks Only\n(n=@@3)", pos="6,0!"]
 	toronbike_p2011[label="Post-2011 Installs\nor Upgrades Only\n(n=@@4)", pos="0,-1.5!"]
-	toronbike_tunits[label="Installs or Upgrades\nwith Semesters Only\n(n=@@5)", pos="3,-1.5!"]
+	toronbike_sem[label="Installs or Upgrades\nwith Semesters Only\n(n=@@5)", pos="3,-1.5!"]
 	toronbike_merge[label="Spatially Merged Bikeways\nby Status, Type, and Semester\n(n=@@6)", pos="6,-1.5!"]
 	
 	toronksi_raw[width=2, shape=cylinder, label="Toronto KSI\n(n=@@7)", pos="0,-3!"]
 	toronksi_y2009to2023[label="From 2009 to 2023 Only\n(n=@@8)", pos="3,-3!"]
 	toronksi_sjoin[label="Spatially Joined to\nMerged Bikeways\n(n_bikeways=@@6, n_ksi=@@9)", pos="6,-3!"]
 	
-	toronbike_raw -> toronbike_verify -> toronbike_itypes -> toronbike_p2011 -> toronbike_tunits -> toronbike_merge
+	toronbike_raw -> toronbike_verify -> toronbike_itypes -> toronbike_p2011 -> toronbike_sem -> toronbike_merge
 
 	toronbike_merge -> toronksi_sjoin
 	toronksi_raw -> toronksi_y2009to2023 [minlen=3]
@@ -2244,7 +2337,7 @@ digraph {
 [2]: bike_verify %>% filter(city == "toronto") %>% nrow
 [3]: bike_itypes %>% filter(city == "toronto") %>% nrow
 [4]: bike_p2011 %>% filter(city == "toronto") %>% nrow
-[5]: bike_tunits %>% filter(city == "toronto" & (!is.na(`_install_time_semester`) | !is.na(`_upgrade1_time_semester`) | !is.na(`_upgrade2_time_semester`))) %>% nrow
+[5]: bike_sem %>% filter(city == "toronto" & (!is.na(`_install_time_semester`) | !is.na(`_upgrade1_time_semester`) | !is.na(`_upgrade2_time_semester`))) %>% nrow
 [6]: bike_merge %>% filter(city == "toronto") %>% nrow
 [7]: ksi_combine %>% filter(ksi_city == "toronto") %>% nrow %>% format(big.mark = ",")
 [8]: ksi_y2009to2023 %>% filter(ksi_city == "toronto") %>% nrow %>% format(big.mark = ",")
@@ -2258,4 +2351,6 @@ fig_flowchart %>%
     charToRaw %>%
     rsvg_png("../figures/fig-methods-toronto.png")
 
+# Display flowchart
+fig_flowchart
 ```

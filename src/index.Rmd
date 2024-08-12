@@ -456,6 +456,8 @@ Combine bikeway data across all cities using common columns.
 
 **Note**: For Calgary and Toronto, there weren't any included bikeways that were not verified (e.g. Local Street Bikeways (LSBs)), and a dummy column was added to account for this case.
 
+**Note 2**: Bikeway lengths were also calculated in meters as an additional column `geometry_len_meters`. 
+
 ```{r}
 
 # List of city bikeway data
@@ -484,7 +486,10 @@ bike_combine <- names(bike_list) %>%
 				.before = 1
 			)
 	}) %>%
-	reduce(add_row)
+	reduce(add_row) %>%
+	mutate(
+		geometry_len_meters = st_length(geometry) %>% as.numeric
+	)
 
 ```
 
@@ -1795,6 +1800,8 @@ This also adds an additional column `_merge_group` specifying the merge group in
 
 Other merge related columns start with `_merge_...`.
 
+**Note**: This also re-calculates the bikeway lengths after merging segments.
+
 ```{r}
 
 # Select time unit
@@ -1892,6 +1899,9 @@ bike_merge <- bike_adj %>%
 			unique(`_merge_time_group`) %>% as.character, # single time
 			paste(unique(`_merge_time_group`), collapse = ",") # multiple times
 		)
+	) %>%
+	mutate(
+		geometry_len_meters = st_length(geometry) %>% as.numeric
 	)
 
 ```
@@ -2215,6 +2225,7 @@ model_data <- bike_ksi %>%
 		bike_city = city,
 		bike_status = status,
 		bike_type = type,
+		bike_len_meters = geometry_len_meters,
 		bike_time_orig = time_group,
 		bike_year = year,
 		bike_semester = time_value,
@@ -2256,6 +2267,9 @@ model_data <- bike_ksi %>%
 		post_pl = as.integer(time >= cohort_pl) %>% replace_na(0),
 		post_ct = as.integer(time >= cohort_ct) %>% replace_na(0),
 		post_upgrade = as.integer(time >= cohort_upgrade) %>% replace_na(0)
+	) %>%
+	mutate( # add length in km
+		bike_len_km = bike_len_meters / 1000
 	) %>%
 	arrange(id, time) %>%
 	filter(bike_city == "toronto") %>%
@@ -2311,6 +2325,26 @@ model_data %>%
 
 ```{r}
 
+# Func to calc km
+calc_total_km <- function(df, places = 0) {
+	out <- round(
+		df %>%
+			st_length %>%
+			as.numeric %>%
+			sum(., na.rm = T) / 1000,
+		places
+	)
+	return(out)
+}
+
+# Calculate vars
+toronbike_raw_km <- calc_total_km(toronbike_raw)
+toronbike_verify_km <- calc_total_km(bike_verify %>% filter(city == "toronto"))
+toronbike_itypes_km <- calc_total_km(bike_itypes %>% filter(city == "toronto"))
+toronbike_p2011_km <- calc_total_km(bike_p2011 %>% filter(city == "toronto"))
+toronbike_sem_km <- calc_total_km(bike_sem %>% filter(city == "toronto"))
+toronbike_merge_km <- calc_total_km(bike_merge %>% filter(city == "toronto"))
+
 # Create flow chart
 fig_flowchart <- grViz('
 
@@ -2321,16 +2355,16 @@ digraph {
 	
 	node [shape="box", width=2.75, height=1 margin=0.1]
 	
-	toronbike_raw[width=2, shape=cylinder, label="Toronto Bikeways\n(n=@@1)", pos="0,0!"]
-	toronbike_verify[label="Verified Bikeways Only\n(n=@@2)", pos="3,0!"]
-	toronbike_itypes[label="Painted Lanes and\nCycle Tracks Only\n(n=@@3)", pos="6,0!"]
-	toronbike_p2011[label="Post-2011 Installs\nor Upgrades Only\n(n=@@4)", pos="0,-1.5!"]
-	toronbike_sem[label="Installs or Upgrades\nwith Semesters Only\n(n=@@5)", pos="3,-1.5!"]
-	toronbike_merge[label="Spatially Merged Bikeways\nby Status, Type, and Semester\n(n=@@6)", pos="6,-1.5!"]
+	toronbike_raw[width=2, shape=cylinder, label="Toronto Bikeways\n(n=@@1, @@11 km)", pos="0,0!"]
+	toronbike_verify[label="Verified Bikeways Only\n(n=@@2, @@12 km)", pos="3,0!"]
+	toronbike_itypes[label="Painted Lanes and\nCycle Tracks Only\n(n=@@3, @@13 km)", pos="6,0!"]
+	toronbike_p2011[label="Post-2011 Installs\nor Upgrades Only\n(n=@@4, @@14 km)", pos="0,-1.5!"]
+	toronbike_sem[label="Installs or Upgrades\nwith Semesters Only\n(n=@@5, @@15 km)", pos="3,-1.5!"]
+	toronbike_merge[label="Spatially Merged Bikeways\nby Status, Type, and Semester\n(n=@@6, @@16 km)", pos="6,-1.5!"]
 	
 	toronksi_raw[width=2, shape=cylinder, label="Toronto KSI\n(n=@@7)", pos="0,-3!"]
 	toronksi_y2009to2023[label="From 2009 to 2023 Only\n(n=@@8)", pos="3,-3!"]
-	toronksi_sjoin[label="Spatially Joined to\nMerged Bikeways\n(n_bikeways=@@6, n_ksi=@@9)", pos="6,-3!"]
+	toronksi_sjoin[label="Spatially Joined to\nMerged Bikeways\n(n_bike=@@6, n_ksi=@@9)", pos="6,-3!"]
 	
 	toronbike_raw -> toronbike_verify -> toronbike_itypes -> toronbike_p2011 -> toronbike_sem -> toronbike_merge
 
@@ -2343,11 +2377,18 @@ digraph {
 [2]: bike_verify %>% filter(city == "toronto") %>% nrow
 [3]: bike_itypes %>% filter(city == "toronto") %>% nrow
 [4]: bike_p2011 %>% filter(city == "toronto") %>% nrow
-[5]: bike_sem %>% filter(city == "toronto" & (!is.na(`_install_time_semester`) | !is.na(`_upgrade1_time_semester`) | !is.na(`_upgrade2_time_semester`))) %>% nrow
+[5]: bike_sem %>% filter(city == "toronto") %>% nrow
 [6]: bike_merge %>% filter(city == "toronto") %>% nrow
 [7]: ksi_combine %>% filter(ksi_city == "toronto") %>% nrow %>% format(big.mark = ",")
 [8]: ksi_y2009to2023 %>% filter(ksi_city == "toronto") %>% nrow %>% format(big.mark = ",")
 [9]: sjoin %>% filter(ksi_city == "toronto" & !is.na(ksi_id)) %>% pull(ksi_id) %>% unique %>% length
+
+[11]: toronbike_raw_km
+[12]: toronbike_verify_km
+[13]: toronbike_itypes_km
+[14]: toronbike_p2011_km
+[15]: toronbike_sem_km
+[16]: toronbike_merge_km
 
 ')
 
@@ -2355,8 +2396,12 @@ digraph {
 fig_flowchart %>%
     export_svg %>%
     charToRaw %>%
-    rsvg_png("../figures/fig-methods-toronto.png")
+    rsvg_png(
+    	"../figures/fig-methods-toronto.png",
+    	width = 1920
+    )
 
 # Display flowchart
 fig_flowchart
+
 ```

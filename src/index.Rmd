@@ -2269,7 +2269,8 @@ model_data <- bike_ksi %>%
 		post_upgrade = as.integer(time >= cohort_upgrade) %>% replace_na(0)
 	) %>%
 	mutate( # add length in km
-		bike_len_km = bike_len_meters / 1000
+		bike_len_km = bike_len_meters / 1000,
+		.after = bike_len_meters
 	) %>%
 	arrange(id, time) %>%
 	filter(bike_city == "toronto") %>%
@@ -2285,7 +2286,7 @@ model_data <- bike_ksi %>%
 	)
 
 # Export model data and time ids to folder
-model_data %>% write_csv("../data/recovr-eval-data-2024-08-07.csv")
+model_data %>% write_csv("../data/recovr-eval-data-2024-08-12.csv")
 ```
 
 ### Details

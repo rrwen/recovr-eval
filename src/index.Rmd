@@ -2194,7 +2194,7 @@ bike_ksi %>%
 
 ```
 
-## Format Model Data
+## Prepare Semester Model Data
 
 ```{r}
 
@@ -2312,7 +2312,7 @@ cat(glue(
 
 ```
 
-#### Preview
+### Preview
 
 ```{r}
 
@@ -2322,7 +2322,7 @@ model_data %>%
 
 ```
 
-## Flow Chart
+### Flow Chart
 
 ```{r}
 

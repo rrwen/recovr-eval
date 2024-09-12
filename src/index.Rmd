@@ -1979,38 +1979,16 @@ Each KSI point is joined to a bikeway if they are within 25 meters of the neares
 
 ```{r}
 
-# Set cache file for spatiotemp join
-sjoin_date <- max(c(
-	vancbike_dldate,
-	calgbike_dldate,
-	toronbike_dldate,
-	toronksi_dldate
-))
-sjoin_file <- glue("../data/cache/sjoin-{sjoin_date}.csv")
+# Buffer bikeways and keep ids
+bike_merge_buff25 <- bike_merge %>%
+	select(city, id) %>%
+	st_buffer(25)
 
-# Run spatial join if not cached
-if (!file.exists(sjoin_file)) {
-	
-	# Buffer bikeways and keep ids
-	bike_merge_buff25 <- bike_merge %>%
-		select(city, id) %>%
-		st_buffer(25)
-	
-	# Spatial join bikeways with ksi keeping ids
-	sjoin <- bike_merge_buff25 %>%
-		st_join(ksi_tunits %>% select(ksi_city, ksi_id)) %>%
-		as_tibble %>%
-		select(-geometry)
-	
-	# Cache spatial joined bike and ksi ids
-	sjoin %>% write_csv(sjoin_file)
-	
-} else {
-	
-	# Read spatial joined bike and ksi ids from cache
-	sjoin <- read_csv(sjoin_file, col_types = cols(id = "c"))
-	
-}
+# Spatial join bikeways with ksi keeping ids
+sjoin <- bike_merge_buff25 %>%
+	st_join(ksi_tunits %>% select(ksi_city, ksi_id)) %>%
+	as_tibble %>%
+	select(-geometry)
 
 ```
 
@@ -2120,7 +2098,11 @@ bike_sjoin <- bike_merge %>%
 	))) %>%
 	summarize(
 		across(everything(), ~ paste0(unique(.x), collapse = ",")),
-		`ksi_count` = n()
+		ksi_count = n()
+	) %>%
+	mutate( # correct for no ksi joined
+		ksi_id = if_else(ksi_id == "NA", NA, ksi_id),
+		ksi_count = if_else(is.na(ksi_id), 0, ksi_count)
 	)
 
 # Create combination of all id and time unit combos
@@ -2330,7 +2312,7 @@ model_data <- bike_ksi %>%
 	)
 
 # Export model data and time ids to folder
-model_data %>% filter(bike_city == "toronto") %>% write_csv("../data/recovr-eval-toronto-2024-09-11.csv")
+model_data %>% write_csv("../data/recovr-eval-2024-09-11.csv")
 ```
 
 ### Details

@@ -1480,6 +1480,8 @@ For bikeways, determine the temporal resolution (unit of time) finer than yearly
 * **Half** (low): refers to verified post-2011 installs and upgrades occurring approximately in a half (1/2) of a year
 * **Semester** (low): refers to verified post-2011 installs and upgrades occurring approximately in a half (1/2) of a year with the first half (1) being November (same year) to April (next year) and the second half being May to October (next year)
 
+The `year` was selected as the time unit.
+
 ```{r}
 
 plot_time_units <- function(
@@ -1489,13 +1491,9 @@ plot_time_units <- function(
 		third_col = "_install_time_third",
 		half_col = "_install_time_half",
 		semester_col = "_install_time_semester",
+		year_col = "_install_time_year",
 		title = "% of Verified Post-2011 Installs by Unit of Time",
-		overlap_eq_lag = 3,
-		overlap_eq_lead = 3,
-		overlap_small_lag = 2,
-		overlap_small_lead = 2,
-		overlap_lag = 1.5,
-		overlap_lead = 1.5,
+		overlap_gap = 10.5,
 		expand = c(0.18, 0),
 		city_nudge_x = 0.25
 ) {
@@ -1508,7 +1506,8 @@ plot_time_units <- function(
 			`_time_quarter` = .data[[quarter_col]],
 			`_time_third` = .data[[third_col]],
 			`_time_half` = .data[[half_col]],
-			`_time_semester` = .data[[semester_col]]
+			`_time_semester` = .data[[semester_col]],
+			`_time_year` = .data[[year_col]]
 		) %>%
 		group_by(city) %>%
 		summarize( # calc installs/upgrades for each time unit
@@ -1516,7 +1515,8 @@ plot_time_units <- function(
 			Quarter = sum(!is.na(`_time_quarter`)),
 			Third = sum(!is.na(`_time_third`)),
 			Half = sum(!is.na(`_time_half`)),
-			Semester = sum(!is.na(`_time_semester`))
+			Semester = sum(!is.na(`_time_semester`)),
+			Year = sum(!is.na(`_time_year`))
 		) %>%
 		pivot_longer(
 			cols = -city,
@@ -1535,7 +1535,7 @@ plot_time_units <- function(
 		) %>%
 		ungroup %>%
 	    mutate( # calc percentages and add labels
-	        type = factor(type, levels = c("Month", "Quarter", "Third", "Half", "Semester")),
+	        type = factor(type, levels = c("Month", "Quarter", "Third", "Half", "Semester", "Year")),
 	        city = factor(str_to_title(city), levels = c("Vancouver", "Calgary", "Toronto")),
 	        perc = n / total * 100,
 	        perc_label = glue(
@@ -1545,21 +1545,22 @@ plot_time_units <- function(
 	    ) %>%
 	    group_by(type) %>% # adjust overlapping labels
 	    arrange(desc(perc)) %>% 
+		mutate(
+	        perc_before = lag(perc),
+	        perc_after = lead(perc),
+	        perc_order = 0:(length(perc) - 1)
+	    ) %>%
 	    mutate( # detect overlap labels and shift down and up
 	        perc_label_y = case_when(
-	        	lag(perc) == perc ~ perc - overlap_eq_lag,
-	            lead(perc) == perc ~ perc + overlap_eq_lead,
-	        	lag(perc) - perc < 2 ~ perc - overlap_small_lag,
-	            lag(perc) - perc < 7 ~ perc - overlap_lag,
-	            lead(perc) - perc > -2 ~ perc + overlap_small_lead,
-	        	lead(perc) - perc > -7 ~ perc + overlap_lead,
+	            lag(perc) == perc | lead(perc) == perc ~ max(perc) - (perc_order * overlap_gap),
+	            lag(perc) - perc < 10 ~ max(perc) - (perc_order * overlap_gap),
 	            .default = perc
 	        )
 	    ) %>%
 		group_by(city) %>%
 		mutate( # add city labels at end of lines
 			city_label = if_else(
-				type == "Semester",
+				type == "Year",
 				glue(
 					"{city}\n",
 					"(n={format(total, big.mark = ',', scientific = F)})"
@@ -1603,7 +1604,10 @@ plot_time_units <- function(
 			hjust = 0,
 			nudge_x = city_nudge_x
 		) +
-		scale_y_continuous(labels = function(x) paste0(x, "%")) +
+		scale_y_continuous(
+			limits = c(0, 100),
+			labels = function(x) paste0(x, "%")
+		) +
 		scale_x_discrete(
 			limits = levels(plot_data$type),
 			position = "top",
@@ -1627,6 +1631,9 @@ plot_time_units <- function(
 		)
 	return(out)
 }
+
+# Select time unit
+tunit <- "year"
 
 ```
 
@@ -1661,6 +1668,7 @@ plot_time_units(
 	third_col = "_upgrade1_time_third",
 	half_col = "_upgrade1_time_half",
 	semester_col = "_upgrade1_time_semester",
+	year_col = "_upgrade1_time_year",
 	title = "% of Verified Post-2011 1st Upgrades by Unit of Time"
 )
 ```
@@ -1689,13 +1697,8 @@ plot_time_units(
 	third_col = "_upgrade2_time_third",
 	half_col = "_upgrade2_time_half",
 	semester_col = "_upgrade2_time_semester",
+	year_col = "_upgrade2_time_year",
 	title = "% of Verified Post-2011 2nd Upgrades by Unit of Time",
-	overlap_eq_lag = 6.25,
-	overlap_eq_lead = -1.75,
-	overlap_small_lag = 1.75,
-	overlap_small_lead = 1.75,
-	overlap_lag = 1,
-	overlap_lead = 1,
 	expand = c(0.2, 0),
 	city_nudge_x = 0.35
 )
@@ -1713,16 +1716,16 @@ bike_tunits %>%
 	mutate(perc = round(n / sum(n) * 100, 2))
 ```
 
-## Filter Semester Bikeways {.tabset}
+## Filter Timed Bikeways {.tabset}
 
-Filter for bikeways with semesters that were installed/upgraded post-2011.
+Filter for bikeways with time unit values that were installed/upgraded post-2011.
 
 ```{r}
-bike_sem <- bike_tunits %>%
+bike_tfilter <- bike_tunits %>%
 	filter(
-		(verify_install_year > 2011 & !is.na(`_install_time_semester`)) |
-		(verify_upgrade1_year > 2011 & !is.na(`_upgrade1_time_semester`)) |
-		(verify_upgrade2_year > 2011 & !is.na(`_upgrade1_time_semester`)) 
+		(verify_install_year > 2011 & !is.na(.data[[glue("_install_time_{tunit}")]])) |
+		(verify_upgrade1_year > 2011 & !is.na(.data[[glue("_upgrade1_time_{tunit}")]])) |
+		(verify_upgrade2_year > 2011 & !is.na(.data[[glue("_upgrade1_time_{tunit}")]])) 
 	)
 ```
 
@@ -1736,12 +1739,12 @@ cat(glue(
 	"\n* Rows: ", bike_tunits %>% nrow,
 	"\n* Columns: ", bike_tunits %>% ncol,
 	"\n\nAfter\n",
-	"\n* Rows: ", bike_sem%>% nrow,
-	"\n* Columns: ", bike_sem %>% ncol
+	"\n* Rows: ", bike_tfilter %>% nrow,
+	"\n* Columns: ", bike_tfilter %>% ncol
 ))
 
 # Display counts
-bike_sem_counts <- bike_sem %>%
+bike_sem_counts <- bike_tfilter %>%
     as_tibble %>%
 	pivot_longer(
 		c(
@@ -1770,7 +1773,7 @@ bike_sem_counts
 ```{r}
 
 # Display merged bike segments
-bike_sem %>%
+bike_tfilter %>%
 	as_tibble %>%
 	select(-geometry) %>%
 	head
@@ -1780,8 +1783,6 @@ bike_sem %>%
 ## Merge Bikeways {.tabset}
 
 Merge bikeway segments if they are within the same infrastructure type, time unit, and known status (e.g. install, 1st upgrade, 2nd upgrade).
-
-As `semester` seemed to have the most available data, it was chosen as the time unit.
 
 The known status is the most recent change **with a known time unit** for a segment with one of the following values:
 
@@ -1804,11 +1805,8 @@ Other merge related columns start with `_merge_...`.
 
 ```{r}
 
-# Select time unit
-tunit <- "semester"
-
 # Determine adjacent segments if they are within same status, type, and time unit
-bike_adj <- bike_sem %>%
+bike_adj <- bike_tfilter %>%
 	filter( # remove segments that do not have the time unit
 		!is.na(.data[[glue("_upgrade2_time_{tunit}")]]) |
 		!is.na(.data[[glue("_upgrade1_time_{tunit}")]]) |
@@ -1913,16 +1911,16 @@ bike_merge <- bike_adj %>%
 # Display rows and cols
 cat(glue(
 	"\nBefore\n",
-	"\n* Rows: ", bike_sem %>% nrow,
-	"\n* Columns: ", bike_sem %>% ncol,
+	"\n* Rows: ", bike_tfilter %>% nrow,
+	"\n* Columns: ", bike_tfilter %>% ncol,
 	"\n\nAfter\n",
 	"\n* Rows: ", bike_merge %>% nrow,
 	"\n* Columns: ", bike_merge %>% ncol,
-	"\n\nNew Columns (", bike_merge %>% ncol - bike_sem %>% ncol, ")\n",
+	"\n\nNew Columns (", bike_merge %>% ncol - bike_tfilter %>% ncol, ")\n",
 	paste0(
 		"\n* ",
 		colnames(bike_merge) %>%
-			.[!. %in% colnames(bike_sem)],
+			.[!. %in% colnames(bike_tfilter)],
 		collapse = ""
 	)
 ))
@@ -2132,7 +2130,11 @@ tunit_combo <- expand_grid(
     time_value = unique(ksi_tunits[[glue("_ksi_time_{tunit}")]])
 ) %>%
     mutate(
-    	!!tunit_col := glue("{year}_{time_value}")
+    	year = as.character(year),
+    	!!tunit_col := case_when(
+            tunit != "year" ~ glue("{year}_{time_value}"),
+            .default = year
+        )
     ) %>%
     select(-year, -time_value)
 
@@ -2194,29 +2196,59 @@ bike_ksi %>%
 
 ```
 
-## Prepare Semester Model Data
+## Prepare Model Data {.tabset}
 
 ```{r}
 
-# Extract year and semester for time ids
-tid_data <- bike_ksi %>%
-	separate(
-		`_ksi_time_semester_group`,
-		c("year", "semester"),
-		sep = "_"
-	) %>%
-	select(year, semester)
+# Extract year and time unit for time ids
+if (tunit != "year") {
+	
+	# Time units more fine than a year
+	tid_data <- bike_ksi %>%
+		separate(
+			glue("_ksi_time_{tunit}_group"),
+			c("year", tunit),
+			sep = "_"
+		) %>%
+		select(year, time_value)
+	
+} else {
+	
+	# Time unit as year
+	tid_data <- bike_ksi %>%
+		mutate(time_value = year) %>%
+		select(year, time_value)
+	
+}
+
 
 # Assign time ids using ordered levels
-tid <- expand_grid(
-	time_year = min(tid_data$year):max(tid_data$year),
-	time_semester = unique(tid_data$semester)
-) %>%
-    arrange(time_year, time_semester) %>%
-    mutate(
-    	time_orig = glue("{time_year}_{time_semester}"),
-    	time = factor(time_orig) %>% as.integer
-    )
+if (tunit != "year") {
+	
+	# Get uniq combinations as ids
+	tid <- expand_grid(
+		time_year = min(tid_data$year):max(tid_data$year),
+		time_value = unique(tid_data$time_value)
+	) %>%
+	    arrange(time_year, time_value) %>%
+	    mutate(
+	    	time_orig = glue("{time_year}_{time_value}"),
+	    	time = factor(time_orig) %>% as.integer
+	    )
+	
+} else {
+	
+	# Get year as ids
+	tid <- data.frame(
+		time_year = min(tid_data$year):max(tid_data$year)
+	) %>%
+		mutate(
+			time_value = time_year,
+			time_orig = time_value %>% as.character,
+			time = factor(time_orig) %>% as.integer
+		)
+	
+}
 
 # Prepare model data
 model_data <- bike_ksi %>%
@@ -2228,18 +2260,27 @@ model_data <- bike_ksi %>%
 		bike_len_meters = geometry_len_meters,
 		bike_time_orig = time_group,
 		bike_year = year,
-		bike_semester = time_value,
-		ksi_time_orig = `_ksi_time_semester_group`,
+		bike_time = time_value,
+		ksi_time_orig = .data[[glue("_ksi_time_{tunit}_group")]],
 		ksi = `ksi_count`
 	) %>%
-	separate( # get year and semester
+	separate( # get year and time value
 		ksi_time_orig,
-		c("ksi_year", "ksi_semester"),
+		c("ksi_year", "ksi_time"),
 		sep = "_",
 		remove = F
 	) %>%
-	mutate( # assign ids
-		id = factor(bike_merge_id) %>% as.integer
+	mutate( # fill in as year if unit is year
+		ksi_time = case_when(
+			tunit == "year" ~ ksi_year,
+			.default = ksi_time
+		),
+		ksi_time_unit = tunit
+	) %>%
+	mutate( # assign ids and add time units
+		id = factor(bike_merge_id) %>% as.integer,
+		bike_time_unit = tunit,
+		ksi_time_unit = tunit
 	) %>%
 	left_join( # assign ksi time ids
 		tid %>%
@@ -2260,7 +2301,10 @@ model_data <- bike_ksi %>%
 	mutate( # assign cohort based on pl, ct, and upgrade
 		cohort_pl = if_else(bike_type %in% c("PL", "BUF"), cohort, NA),
 		cohort_ct = if_else(bike_type == "PBL", cohort, NA),
-		cohort_upgrade = if_else(str_starts(bike_status, "upgrade"), cohort, NA)
+		cohort_install = if_else(bike_status == "install", cohort, NA),
+		cohort_upgrade = if_else(str_starts(bike_status, "upgrade"), cohort, NA),
+		cohort_upgrade1 = if_else(bike_status == "upgrade1", cohort, NA),
+		cohort_upgrade2 = if_else(bike_status == "upgrade2", cohort, NA)
 	) %>%
 	mutate( # assign post based on whether it is greater than bike time
 		post = as.integer(time >= cohort),
@@ -2286,7 +2330,7 @@ model_data <- bike_ksi %>%
 	)
 
 # Export model data and time ids to folder
-model_data %>% write_csv("../data/recovr-eval-data-2024-08-12.csv")
+model_data %>% filter(bike_city == "toronto") %>% write_csv("../data/recovr-eval-toronto-2024-09-11.csv")
 ```
 
 ### Details
@@ -2322,7 +2366,7 @@ model_data %>%
 
 ```
 
-### Flow Chart
+## Flow Chart
 
 ```{r}
 
@@ -2343,7 +2387,7 @@ toronbike_raw_km <- calc_total_km(toronbike_raw)
 toronbike_verify_km <- calc_total_km(bike_verify %>% filter(city == "toronto"))
 toronbike_itypes_km <- calc_total_km(bike_itypes %>% filter(city == "toronto"))
 toronbike_p2011_km <- calc_total_km(bike_p2011 %>% filter(city == "toronto"))
-toronbike_sem_km <- calc_total_km(bike_sem %>% filter(city == "toronto"))
+toronbike_tfilter_km <- calc_total_km(bike_tfilter %>% filter(city == "toronto"))
 toronbike_merge_km <- calc_total_km(bike_merge %>% filter(city == "toronto"))
 
 # Create flow chart
@@ -2360,14 +2404,14 @@ digraph {
 	toronbike_verify[label="Verified Bikeways Only\n(n=@@2, @@12 km)", pos="3,0!"]
 	toronbike_itypes[label="Painted Lanes and\nCycle Tracks Only\n(n=@@3, @@13 km)", pos="6,0!"]
 	toronbike_p2011[label="Post-2011 Installs\nor Upgrades Only\n(n=@@4, @@14 km)", pos="0,-1.5!"]
-	toronbike_sem[label="Installs or Upgrades\nwith Semesters Only\n(n=@@5, @@15 km)", pos="3,-1.5!"]
-	toronbike_merge[label="Spatially Merged Bikeways\nby Status, Type, and Semester\n(n=@@6, @@16 km)", pos="6,-1.5!"]
+	toronbike_tfilter[label="Installs or Upgrades\nwith @@17s Only\n(n=@@5, @@15 km)", pos="3,-1.5!"]
+	toronbike_merge[label="Spatially Merged Bikeways\nby Status, Type, and @@17\n(n=@@6, @@16 km)", pos="6,-1.5!"]
 	
 	toronksi_raw[width=2, shape=cylinder, label="Toronto KSI\n(n=@@7)", pos="0,-3!"]
 	toronksi_y2009to2023[label="From 2009 to 2023 Only\n(n=@@8)", pos="3,-3!"]
 	toronksi_sjoin[label="Spatially Joined to\nMerged Bikeways\n(n_bike=@@6, n_ksi=@@9)", pos="6,-3!"]
 	
-	toronbike_raw -> toronbike_verify -> toronbike_itypes -> toronbike_p2011 -> toronbike_sem -> toronbike_merge
+	toronbike_raw -> toronbike_verify -> toronbike_itypes -> toronbike_p2011 -> toronbike_tfilter -> toronbike_merge
 
 	toronbike_merge -> toronksi_sjoin
 	toronksi_raw -> toronksi_y2009to2023 [minlen=3]
@@ -2378,7 +2422,7 @@ digraph {
 [2]: bike_verify %>% filter(city == "toronto") %>% nrow
 [3]: bike_itypes %>% filter(city == "toronto") %>% nrow
 [4]: bike_p2011 %>% filter(city == "toronto") %>% nrow
-[5]: bike_sem %>% filter(city == "toronto") %>% nrow
+[5]: bike_tfilter %>% filter(city == "toronto") %>% nrow
 [6]: bike_merge %>% filter(city == "toronto") %>% nrow
 [7]: ksi_combine %>% filter(ksi_city == "toronto") %>% nrow %>% format(big.mark = ",")
 [8]: ksi_y2009to2023 %>% filter(ksi_city == "toronto") %>% nrow %>% format(big.mark = ",")
@@ -2388,8 +2432,9 @@ digraph {
 [12]: toronbike_verify_km
 [13]: toronbike_itypes_km
 [14]: toronbike_p2011_km
-[15]: toronbike_sem_km
+[15]: toronbike_tfilter_km
 [16]: toronbike_merge_km
+[17]: tunit %>% str_to_title
 
 ')
 

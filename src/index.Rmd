@@ -1796,7 +1796,7 @@ This also adds an additional column `_merge_group` specifying the merge group in
 * `<STATUS>`: the status of the segment, one of `install`, `upgrade1`, or `upgrade2`
 * `<TYPE>`: the infrastructure type of the segment
 * `<YEAR>`: the year of the segment status
-* `<TIME>`: the value of the time unit
+* `<TIME>`: the value of the time unit if not the same as year
 * `<ADJID>`: the adjacency id, if the ids are the same, they are adjacent in space
 
 Other merge related columns start with `_merge_...`.
@@ -2106,19 +2106,30 @@ bike_sjoin <- bike_merge %>%
 	)
 
 # Create combination of all id and time unit combos
-tunit_combo <- expand_grid(
-    `_merge_group` = unique(bike_merge$`_merge_group`),
-    year = min(year(ksi_tunits$ksi_date)):max(year(ksi_tunits$ksi_date)),
-    time_value = unique(ksi_tunits[[glue("_ksi_time_{tunit}")]])
-) %>%
-    mutate(
-    	year = as.character(year),
-    	!!tunit_col := case_when(
-            tunit != "year" ~ glue("{year}_{time_value}"),
-            .default = year
-        )
-    ) %>%
-    select(-year, -time_value)
+if (tunit != "year") {
+	
+	# Create time unit combos for finer than a year
+	tunit_combo <- expand_grid(
+	    `_merge_group` = unique(bike_merge$`_merge_group`),
+	    year = min(year(ksi_tunits$ksi_date)):max(year(ksi_tunits$ksi_date)),
+	    time_value = unique(ksi_tunits[[glue("_ksi_time_{tunit}")]])
+	) %>%
+	    mutate(
+	    	!!tunit_col := glue("{year}_{time_value}")
+	    ) %>%
+	    select(-year, -time_value)
+	
+} else {
+	
+	# Create time unit combos for year
+	tunit_combo <- expand_grid(
+	    `_merge_group` = unique(bike_merge$`_merge_group`),
+	    !!tunit_col := min(year(ksi_tunits$ksi_date)):max(year(ksi_tunits$ksi_date))
+	) %>%
+		mutate(!!tunit_col := .data[[tunit_col]] %>% as.character)
+	
+}
+
 
 # Fill in missing time units as zero
 bike_ksi <- tunit_combo %>%

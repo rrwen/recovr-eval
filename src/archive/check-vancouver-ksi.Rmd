@@ -1,0 +1,370 @@
+---
+title: "Vancouver KSI: Data Check"
+subtitle: "R Code"
+author:
+- "Richard Wen richard.wen@utoronto.ca"
+- "Brice Batomen brice.kuimi@utoronto.ca"
+- "Linda Rothman linda.rothman@torontomu.ca"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+knit: |
+    (function(input_rmd, ...) {
+    rmarkdown::render(
+        input_rmd,
+        rmarkdown::html_document(
+            toc = TRUE,
+            toc_float = TRUE,
+            highlight = "zenburn",
+            code_folding = "hide",
+            df_print = "paged",
+            self_contained = FALSE
+        ),
+        output_dir = "../../docs/archive/check-vancouver-ksi",
+        output_file = "index", ...)
+    })
+---
+
+```{r include = FALSE, echo = FALSE}
+knitr::opts_chunk$set(
+	warning = FALSE,
+	message = FALSE
+)
+```
+
+# Libraries
+
+Install R packages if needed.
+
+```{r, results = FALSE}
+
+# Required packages
+required_packages <- c(
+	"rmarkdown",
+	"bookdown",
+	"knitr",
+	"lubridate",
+	"tidyverse",
+	"purrr",
+	"glue",
+	"lubridate",
+	"sf",
+	"tmap",
+	"leaflet",
+	"leaflet.extras"
+)
+
+# Try to install packages if not installed
+default_options <- options()
+tryCatch(
+	{
+		# Disable interactivity
+		options(install.packages.compile.from.source = "always")
+		
+		# Install package if not installed
+		for (package in required_packages) {
+			is_package_installed <- require(package, character.only = TRUE)
+			if (!is_package_installed) {
+				cat(paste0("Installing package: ", package, "\n"))
+				install.packages(package)
+			} else {
+				cat(paste0("Package already installed: ", package, "\n"))
+			}
+		}
+	},
+	error = function(cond) {
+		stop(cond)
+	},
+	finally = {
+		options(default_options) # reset interactivity
+	}
+)
+```
+
+Load R libraries.
+
+```{r}
+library(ggplot2)
+library(glue)
+library(leaflet)
+library(leaflet.extras)
+library(lubridate)
+library(sf)
+library(tidyverse)
+library(tmap)
+```
+
+# Data {.tabset}
+
+* `vancksi_raw1`: is the file received from Brice Batomen <brice.kuimi@utoronto.ca> on July 3, 2024 via email, which was originally obtained directly from ICBC
+* `vancksi_raw2`: is the file downloaded [here](https://public.tableau.com/app/profile/icbc/viz/ICBCReportedCrashes/ICBCReportedCrashes-LowerMainland) with the documentation provided at ICBC's Tableau website [here](https://public.tableau.com/app/profile/icbc/viz/ICBCReportedCrashes/ICBCReportedCrashes) on September 13, 2024
+
+```{r}
+vancksi_raw1 <- read.table("../../tmp/vanc-test.dat", sep = "|", header = T)
+vancksi_raw2 <- read_delim("../../tmp/vanc-ksi-lowermainland-2024-09-13.csv", delim = "\t", locale = locale(encoding="UTF-16"))
+vancbounds_raw <- read_sf("../../tmp/vanc-localareabound-2024-09-13.geojson")
+```
+
+## ICBC (Direct)
+
+```{r}
+vancksi_raw1 %>% head
+```
+
+## ICBC (Tableau)
+
+```{r}
+vancksi_raw2 %>% head
+```
+
+## Vancouver Bounds
+
+Use the local area boundary as the City of Vancouver boundaries obtained from the open data portal [here](https://opendata.vancouver.ca/explore/dataset/local-area-boundary/information/?disjunctive.name&location=12,49.2474,-123.12402).
+
+```{r}
+vancbounds_raw %>% head
+```
+
+# Cleaning
+
+## Vancouver Bounds
+
+Buffer boundaries by 100 meters to capture errorneous points.
+
+```{r}
+vancbounds <- vancbounds_raw %>% st_buffer(100)
+```
+
+## ICBC (Direct)
+
+### Convert to Spatial Data {.tabset}
+
+```{r}
+vancksi1 <- st_as_sf(
+	vancksi_raw1 %>% filter(!is.na(LATITUDE) & !is.na(LONGITUDE)),
+	coords = c("LONGITUDE", "LATITUDE"),
+	crs = 4326
+)
+```
+
+There are missing coordinates in the data.
+
+```{r}
+cat(
+	"\nICBC (Direct) Missing Coordinates: ", vancksi_raw1 %>% filter(is.na(LATITUDE) | is.na(LONGITUDE)) %>% nrow,
+	"\nICBC (Direct) Missing Longitudes: ", vancksi_raw1 %>% filter(is.na(LONGITUDE)) %>% nrow,
+	"\nICBC (Direct) Missing Latitudes: ", vancksi_raw1 %>% filter(is.na(LATITUDE)) %>% nrow
+)
+```
+
+### Crop to City Bounds
+
+```{r}
+before_crop <- vancksi1 %>% nrow
+vancksi1 <- vancksi1 %>%
+	st_crop(vancbounds)
+after_crop <- vancksi1 %>% nrow
+cat("Rows cropped: ", before_crop - after_crop)
+```
+
+### Killed or Serious Injuries Only {.tabset}
+
+Injuries only (`Fatal injury`, `Serious injury - Overnight at hospital`) for column `INJURY_TYPE`:
+
+```{r}
+vancksi1 <- vancksi1 %>%
+	filter(INJURY_TYPE %in% c(
+		"Fatal injury",
+		"Serious injury - Overnight at hospital"
+	))
+```
+
+#### Preview
+
+```{r}
+vancksi1 %>% as_tibble %>% select(-geometry) %>% head
+```
+
+#### Details
+
+```{r}
+vancksi_raw1 %>%
+	group_by(INJURY_TYPE) %>%
+	count %>%
+	mutate(
+		perc = n / nrow(vancksi_raw1) * 100
+	)
+```
+
+## ICBC (Tableau)
+
+### Convert to Spatial Data
+
+```{r}
+vancksi2 <- st_as_sf(
+	vancksi_raw2 %>% filter(!is.na(Latitude) & !is.na(Longitude)),
+	coords = c("Longitude", "Latitude"),
+	crs = 4326
+)
+```
+
+There are missing coordinates in the data.
+
+```{r}
+cat(
+	"\nICBC (Tableau) Missing Coordinates: ", vancksi_raw2 %>% filter(is.na(Latitude) | is.na(Longitude)) %>% nrow,
+	"\nICBC (Tableau) Missing Longitudes: ", vancksi_raw2 %>% filter(is.na(Longitude)) %>% nrow,
+	"\nICBC (Tableau) Missing Latitudes: ", vancksi_raw2 %>% filter(is.na(Latitude)) %>% nrow
+)
+```
+
+### Crop to City Bounds
+
+```{r}
+before_crop <- vancksi2 %>% nrow
+vancksi2 <- vancksi2 %>%
+	st_crop(st_bbox(vancbounds))
+after_crop <- vancksi2 %>% nrow
+cat("Rows cropped: ", before_crop - after_crop)
+```
+
+### Killed or Serious Injuries Only {.tabset}
+
+Only collisions with `CASUALTY CRASH` according to the data dictionary [here](https://public.tableau.com/app/profile/icbc/viz/ICBCReportedCrashes/ICBCReportedCrashes) for column `Crash Severity`:
+
+```{r}
+vancksi2 <- vancksi2 %>%
+	filter(`Crash Severity` == "CASUALTY CRASH")
+```
+
+#### Preview
+
+```{r}
+vancksi2 %>% as_tibble %>% select(-geometry) %>% head
+```
+
+#### Details
+
+```{r}
+vancksi_raw2 %>%
+	group_by(`Crash Severity`) %>%
+	count %>%
+	mutate(
+		perc = n / nrow(vancksi_raw2) * 100
+	)
+```
+
+# Exploration
+
+## Column Differences {.tabset}
+
+The Tableau data has 11 more columns that the direct data with more temporal details.
+
+### Details
+
+```{r}
+
+cat(
+	"\nColumns in ICBC (Direct): ", ncol(vancksi1),
+	"\nColumns in ICBC (Tableau): ", ncol(vancksi2),
+	"\nColumns difference: ", ncol(vancksi2) - ncol(vancksi1)
+)
+
+```
+
+### Columns
+
+Time, day, month, and year are all given in the Tableau data, while the direct data only contains the month and year.
+
+ICBC (Direct):
+
+```{r}
+vancksi1 %>% colnames
+```
+
+ICBC (Tableau):
+
+```{r}
+vancksi2 %>% colnames
+```
+
+## Row Differences
+
+The Tableau data has more records than the direct data.
+
+### Details
+
+```{r}
+
+cat(
+	"\nRows in ICBC (Direct): ", nrow(vancksi1),
+	"\nRows in ICBC (Tableau): ", nrow(vancksi2),
+	"\nRows difference: ", nrow(vancksi2) - nrow(vancksi1)
+)
+
+```
+
+### Rows
+
+ICBC (Direct):
+
+```{r}
+vancksi1 %>% as_tibble %>% select(-geometry) %>% head
+```
+
+ICBC (Tableau):
+
+```{r}
+vancksi2 %>% as_tibble %>% select(-geometry) %>% head
+```
+
+### Temporal
+
+The direct data covers a longer time span (2010 to 2021) than the tableau data (2019 to 2023).
+
+```{r}
+cat(
+	"\nICBC (Direct) Years: ", min(vancksi1$YEAR), "to", max(vancksi1$YEAR),
+	"\nICBC (Tableau) Years: ", min(vancksi2$`Date Of Loss Year`), "to", max(vancksi2$`Date Of Loss Year`)
+)
+```
+
+ICBC (Direct):
+
+```{r}
+vancksi1 %>%
+	group_by(YEAR) %>%
+	count
+```
+
+ICBC (Tableau):
+
+```{r}
+vancksi2 %>%
+	group_by(`Date Of Loss Year`) %>%
+	count
+```
+
+## Location {.tabset}
+
+Each record seems to represent collision locations as there are victim counts for each row in both datasets.
+
+### Map
+
+```{r}
+tmap_mode("view")
+tm_basemap("CartoDB.Positron") +
+	tm_shape(
+		vancksi2 %>% filter(`Date Of Loss Year` == 2019),
+		name = "ICBC (Tableau)"
+	) +
+	tm_dots(
+		popup.vars = T
+	) +
+	tm_shape(
+		vancksi1 %>% filter(YEAR == 2019),
+		name = "ICBC (Direct)"
+	) +
+	tm_dots(
+		col = "red",
+		popup.vars = T
+	)
+```

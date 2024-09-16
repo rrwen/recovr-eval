@@ -448,6 +448,18 @@ The data files are available below:
 - [toronto-ksi-2024-06-13.csv](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-ksi-2024-06-13.csv)
 - [toronto-ksi-2024-06-13-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-ksi-2024-06-13-datadict.csv)
 
+## Vancouver KSI
+
+```{r}
+vancksi_raw <- read.table("../tmp/TAS persons involved in crashes in Vancouver 2010-2021.dat", sep = "|", header = T)
+```
+
+## Calgary KSI
+
+```{r}
+calgksi_raw <- read.csv("../tmp/Combined Collision Data for Calgary (2016 - 2021).csv")
+```
+
 # Cleaning
 
 ## Combine Bikeways {.tabset}
@@ -462,11 +474,20 @@ Combine bikeway data across all cities using common columns.
 
 # List of city bikeway data
 bike_list <- list(
-	vancouver = vancbike_raw,
+	vancouver = vancbike_raw %>%
+		mutate(
+			build_status = "EXISTING"
+		),
 	calgary = calgbike_raw %>%
-		mutate(no_verify_install_type = NA),
+		mutate(
+			no_verify_install_type = NA,
+			build_status = str_to_upper(status)
+		),
 	toronto = toronbike_raw %>%
-		mutate(no_verify_install_type = NA)
+		mutate(
+			no_verify_install_type = NA,
+			build_status = "EXISTING"
+		)
 )
 
 # Get common columns across all city bikeways
@@ -520,21 +541,73 @@ bike_combine %>% as_tibble %>% head
 
 ```
 
-## Combine KSI
+## Combine KSI {.tabset}
 
 Combine KSI data across cities using common columns.
 
-**Note**: Only Toronto KSI was included currently.
+**Note**: For Vancouver, columns were duplicated to represent individuals injured or killed.
+
+**Note 2**: KSI records for Vancouver only had month and year - thus the day was set to the first of each month to be consistent with Toronto and Calgary data.
 
 ```{r}
 
-# Combine KSI data
-ksi_combine <- toronksi_raw %>%
+# Vancouver ksi
+vancksi <- vancksi_raw %>%
+	uncount(VICTIM_COUNT) %>%
+	st_as_sf(
+		coords = c("LONGITUDE", "LATITUDE"),
+		crs = 4326,
+		na.fail = F
+	) %>%
+	mutate(
+		ksi_city = "vancouver",
+		ksi_id = 1:nrow(.) %>% as.character,
+		ksi_date = as_date(glue("{YEAR}-{MONTH}-01")), # assume first day
+		ksi_severity = INJURY_TYPE %>% as.character
+	) %>% select(
+		ksi_city,
+		ksi_id,
+		ksi_date,
+		ksi_severity
+	)
+
+# Calgary ksi
+calgksi <- calgksi_raw %>%
+	st_as_sf(
+		coords = c("LOC_GPS_LONG", "LOC_GPS_LAT"),
+		crs = 4326,
+		na.fail = F
+	) %>%
+	mutate(
+		ksi_city = "calgary",
+		ksi_id = 1:nrow(.)  %>% as.character,
+		ksi_date = as.Date(OCCURENCE_TIMESTAMP, origin = "1899-12-30"), # excel date serial numbers
+		ksi_severity = INJURY_SEVERITY %>% as.character
+	) %>% select(
+		ksi_city,
+		ksi_id,
+		ksi_date,
+		ksi_severity
+	)
+
+# Toronto ksi
+toronksi <- toronksi_raw %>%
 	mutate(
 		ksi_city = "toronto",
-		ksi_id = INDEX,
-		ksi_date = DATE
+		ksi_id = INDEX %>% as.character,
+		ksi_date = DATE %>% as_date,
+		ksi_severity = ACCLASS %>% as.character
+	) %>% select(
+		ksi_city,
+		ksi_id,
+		ksi_date,
+		ksi_severity
 	)
+
+# Combine KSI data
+ksi_combine <- calgksi %>%
+	add_row(vancksi) %>%
+	add_row(toronksi)
 
 ```
 
@@ -562,24 +635,151 @@ ksi_combine_counts
 ```{r}
 
 # Display combined ksi data
-ksi_combine %>% as_tibble %>% head
+ksi_combine %>% as_tibble %>% select(-geometry) %>% head
 
 ```
 
-## Filter Verified Bikeways
+## Filter KSI with Coordinates {.tabset}
 
-Filter for bikeways with a verified installations or upgrades.
+Filter KSI data with coordinates only.
 
 ```{r}
 
-# Filter bikeways for post2011
-bike_verify <- bike_combine %>%
-	filter(
-		!is.na(verify_install_year) |
-		!is.na(verify_upgrade1_year) |
-		!is.na(verify_upgrade2_year) &
-		is.na(no_verify_install_type)
+# Filter for ksi with coords
+ksi_coords <- ksi_combine %>%
+	filter(!st_is_empty(geometry))
+
+```
+
+### Details
+
+```{r}
+
+# Display rows and cols
+cat(glue(
+	"\nBefore\n",
+	"\n* Rows: ", ksi_combine %>% nrow,
+	"\n* Columns: ", ksi_combine %>% ncol,
+	"\n\nAfter\n",
+	"\n* Rows: ", ksi_coords %>% nrow,
+	"\n* Columns: ", ksi_coords %>% ncol
+))
+
+# Display missing coordinates per city
+ksi_coords_counts <- ksi_combine %>%
+	as_tibble %>%
+	group_by(ksi_city) %>%
+	count %>%
+	left_join(
+		ksi_coords %>%
+			as_tibble %>%
+			group_by(ksi_city) %>%
+			count(name = "n_coords"),
+		by = "ksi_city"
+	) %>%
+	mutate(
+		n_miss_coords = n - n_coords,
+		perc_coords = n_coords / n * 100,
+		perc_miss_coords = n_miss_coords / n * 100
 	)
+ksi_coords_counts
+
+```
+
+### Preview
+
+```{r}
+
+# Display filtered rows
+ksi_coords %>% as_tibble %>% select(-geometry) %>% head
+
+```
+
+## Filter KSI Severity {.tabset}
+
+Filter KSI data for fatal and serious injuries only.
+
+```{r}
+
+# Filter for fatal or serious injuries only
+ksi_injury <- ksi_coords %>%
+	filter(ksi_severity %in% c(
+		"Major Injuries",
+		"Fatality",
+		"Non-Fatal Injury",
+		"Fatal",
+		"Fatal injury",
+		"Serious injury - Overnight at hospital"
+	))
+
+```
+
+### Details
+
+```{r}
+
+# Display rows and cols
+cat(glue(
+	"\nBefore\n",
+	"\n* Rows: ", ksi_coords %>% nrow,
+	"\n* Columns: ", ksi_coords %>% ncol,
+	"\n\nAfter\n",
+	"\n* Rows: ", ksi_injury %>% nrow,
+	"\n* Columns: ", ksi_injury %>% ncol
+))
+
+# Display counts
+ksi_injury_counts <- ksi_coords %>%
+	as_tibble %>%
+	group_by(ksi_city, ksi_severity) %>%
+	count
+ksi_injury_counts
+
+```
+
+### Preview
+
+```{r}
+
+# Display filtered rows
+ksi_injury %>% as_tibble %>% select(-geometry) %>% head
+
+```
+
+## Filter Verified Bikeways {.tabset}
+
+Filter for bikeways with verified installations or upgrades.
+
+```{r}
+
+# Filter verified bikeways
+bike_verify <- bike_combine %>%
+	filter(!city %in% c("calgary", "vancouver")) %>%
+	add_row( # calgary filters appendix 2
+		bike_combine %>%
+			filter(
+				city == "calgary" &
+				install_type %in% c("Bicycle Lane", "Cycle Track") &
+				!build_status %in% c("INACTIVE", "PLANNED")
+			)
+	) %>%
+	add_row( # vancouver filters appendix 2
+		bike_combine %>%
+	    filter(
+	        city == "vancouver" &
+	            install_type %in% c("Painted Lanes", "Protected Bike Lanes", "Local Street") &
+	            road_type != "Off-street"
+	    )
+	) %>%
+	filter(
+		(!is.na(verify_install_year) |
+		!is.na(verify_upgrade1_year) |
+		!is.na(verify_upgrade2_year)) &
+		is.na(no_verify_install_type) &
+		is.na(verify_misclass) &
+		!st_is_empty(geometry)
+	) %>%
+	distinct(geometry, .keep_all = TRUE) # remove duplicate geoms
 
 ```
 
@@ -641,7 +841,7 @@ bike_verify %>%
 
 ```
 
-## Filter Infrastructure Types
+## Filter Infrastructure Types {.tabset}
 
 Filter for painted lanes (`PL` and `BUF`) and cycle tracks (`PBL`) only in any of `verify_install_type`, `verify_upgrade1_type`, and `verify_upgrade2_type`.
 
@@ -723,7 +923,7 @@ bike_itypes %>% as_tibble %>% head
 
 ```
 
-## Filter Post-2011 Bikeways
+## Filter Post-2011 Bikeways {.tabset}
 
 Filter for bikeways with a verified installations or upgrades after 2011.
 
@@ -796,14 +996,14 @@ bike_p2011 %>%
 
 ```
 
-## Filter 2009-2023 KSI
+## Filter 2009-2023 KSI {.tabset}
 
 Filter for KSI records between 2009 and 2023 inclusively.
 
 ```{r}
 
 # Filter ksi for post2011
-ksi_y2009to2023 <- ksi_combine %>%
+ksi_y2009to2023 <- ksi_injury %>%
 	filter(year(ksi_date) >= 2009 & year(ksi_date) <= 2023)
 
 ```
@@ -815,8 +1015,8 @@ ksi_y2009to2023 <- ksi_combine %>%
 # Display rows and cols
 cat(glue(
 	"\nBefore\n",
-	"\n* Rows: ", ksi_combine %>% nrow,
-	"\n* Columns: ", ksi_combine %>% ncol,
+	"\n* Rows: ", ksi_injury %>% nrow,
+	"\n* Columns: ", ksi_injury %>% ncol,
 	"\n\nAfter\n",
 	"\n* Rows: ", ksi_y2009to2023 %>% nrow,
 	"\n* Columns: ", ksi_y2009to2023 %>% ncol
@@ -847,7 +1047,7 @@ ksi_y2009to2023 %>%
 
 ```
 
-## Add Bikeway Dates
+## Add Bikeway Dates {.tabset}
 
 Join ambiguous verified install/upgrade dates (e.g. Jan 1/2022, 2022/02, Fall 2020) to manually cleaned dates with structured time units (e.g. days, months, quarters, semesters, ranges) and date formats (e.g. 2022-01-01, 2022-02-01).
 
@@ -1427,7 +1627,7 @@ cat(glue(
 	paste0(
 		"\n* ",
 		colnames(ksi_tunits) %>%
-			.[!. %in% colnames(ksi_combine)],
+			.[!. %in% colnames(ksi_injury)],
 		collapse = ""
 	)
 ))
@@ -2310,7 +2510,6 @@ model_data <- bike_ksi %>%
 		.after = bike_len_meters
 	) %>%
 	arrange(id, time) %>%
-	filter(bike_city == "toronto") %>%
 	select(
 		starts_with("bike_"),
 		starts_with("ksi_"),
@@ -2323,7 +2522,7 @@ model_data <- bike_ksi %>%
 	)
 
 # Export model data and time ids to folder
-model_data %>% write_csv("../data/recovr-eval-2024-09-11.csv")
+model_data %>% write_csv("../data/recovr-eval-2024-09-16.csv")
 ```
 
 ### Details
@@ -2375,68 +2574,258 @@ calc_total_km <- function(df, places = 0) {
 	return(out)
 }
 
-# Calculate vars
-toronbike_raw_km <- calc_total_km(toronbike_raw)
-toronbike_verify_km <- calc_total_km(bike_verify %>% filter(city == "toronto"))
-toronbike_itypes_km <- calc_total_km(bike_itypes %>% filter(city == "toronto"))
-toronbike_p2011_km <- calc_total_km(bike_p2011 %>% filter(city == "toronto"))
-toronbike_tfilter_km <- calc_total_km(bike_tfilter %>% filter(city == "toronto"))
-toronbike_merge_km <- calc_total_km(bike_merge %>% filter(city == "toronto"))
+# Calculate vancbike vars
+vancbike_stats <- list(
+	raw = vancbike_raw %>% nrow,
+	verify = bike_verify %>% filter(city == "vancouver") %>% nrow,
+	itypes = bike_itypes %>% filter(city == "vancouver") %>% nrow,
+	p2011 = bike_p2011 %>% filter(city == "vancouver") %>% nrow,
+	tfilter = bike_tfilter %>% filter(city == "vancouver") %>% nrow,
+	merge = bike_merge %>% filter(city == "vancouver") %>% nrow,
+	sjoin = sjoin %>% filter(ksi_city == "vancouver" & !is.na(ksi_id)) %>% pull(ksi_id) %>% unique %>% length,
+	raw_km = calc_total_km(vancbike_raw),
+	verify_km = calc_total_km(bike_verify %>% filter(city == "vancouver")),
+	itypes_km = calc_total_km(bike_itypes %>% filter(city == "vancouver")),
+	p2011_km = calc_total_km(bike_p2011 %>% filter(city == "vancouver")),
+	tfilter_km = calc_total_km(bike_tfilter %>% filter(city == "vancouver")),
+	merge_km = calc_total_km(bike_merge %>% filter(city == "vancouver")),
+	years = vancbike_raw$install_year %>% range(na.rm = T) %>% paste0(., collapse = "-")
+)
+
+# Calculate vancksi vars
+vancksi_stats <- list(
+	raw = ksi_combine %>% filter(ksi_city == "vancouver") %>% nrow %>% format(big.mark = ","),
+	coords = ksi_coords %>% filter(ksi_city == "vancouver") %>% nrow %>% format(big.mark = ","),
+	injury = ksi_injury %>% filter(ksi_city == "vancouver") %>% nrow %>% format(big.mark = ","),
+	y2009to2023 = ksi_y2009to2023 %>% filter(ksi_city == "vancouver") %>% nrow %>% format(big.mark = ","),
+	years = vancksi %>% mutate(x = year(ksi_date)) %>% pull(x) %>% range(na.rm = T) %>% paste0(., collapse = "-")
+)
+
+# Calculate calgbike vars
+calgbike_stats <- list(
+	raw = calgbike_raw %>% nrow,
+	verify = bike_verify %>% filter(city == "calgary") %>% nrow,
+	itypes = bike_itypes %>% filter(city == "calgary") %>% nrow,
+	p2011 = bike_p2011 %>% filter(city == "calgary") %>% nrow,
+	tfilter = bike_tfilter %>% filter(city == "calgary") %>% nrow,
+	merge = bike_merge %>% filter(city == "calgary") %>% nrow,
+	sjoin = sjoin %>% filter(ksi_city == "calgary" & !is.na(ksi_id)) %>% pull(ksi_id) %>% unique %>% length,
+	raw_km = calc_total_km(calgbike_raw),
+	verify_km = calc_total_km(bike_verify %>% filter(city == "calgary")),
+	itypes_km = calc_total_km(bike_itypes %>% filter(city == "calgary")),
+	p2011_km = calc_total_km(bike_p2011 %>% filter(city == "calgary")),
+	tfilter_km = calc_total_km(bike_tfilter %>% filter(city == "calgary")),
+	merge_km = calc_total_km(bike_merge %>% filter(city == "calgary")),
+	years = calgbike_raw$install_year %>% range(na.rm = T) %>% paste0(., collapse = "-")
+)
+
+# Calculate calgksi vars
+calgksi_stats <- list(
+	raw = ksi_combine %>% filter(ksi_city == "calgary") %>% nrow %>% format(big.mark = ","),
+	coords = ksi_coords %>% filter(ksi_city == "calgary") %>% nrow %>% format(big.mark = ","),
+	injury = ksi_injury %>% filter(ksi_city == "calgary") %>% nrow %>% format(big.mark = ","),
+	y2009to2023 = ksi_y2009to2023 %>% filter(ksi_city == "calgary") %>% nrow %>% format(big.mark = ","),
+	years = calgksi %>% mutate(x = year(ksi_date)) %>% pull(x) %>% range(na.rm = T) %>% paste0(., collapse = "-")
+)
+
+# Calculate toronbike n vars
+toronbike_stats <- list(
+	raw = toronbike_raw %>% nrow,
+	verify = bike_verify %>% filter(city == "toronto") %>% nrow,
+	itypes = bike_itypes %>% filter(city == "toronto") %>% nrow,
+	p2011 = bike_p2011 %>% filter(city == "toronto") %>% nrow,
+	tfilter = bike_tfilter %>% filter(city == "toronto") %>% nrow,
+	merge = bike_merge %>% filter(city == "toronto") %>% nrow,
+	sjoin = sjoin %>% filter(ksi_city == "toronto" & !is.na(ksi_id)) %>% pull(ksi_id) %>% unique %>% length,
+	raw_km = calc_total_km(toronbike_raw),
+	verify_km = calc_total_km(bike_verify %>% filter(city == "toronto")),
+	itypes_km = calc_total_km(bike_itypes %>% filter(city == "toronto")),
+	p2011_km = calc_total_km(bike_p2011 %>% filter(city == "toronto")),
+	tfilter_km = calc_total_km(bike_tfilter %>% filter(city == "toronto")),
+	merge_km = calc_total_km(bike_merge %>% filter(city == "toronto")),
+	years = toronbike_raw$install_year %>% range(na.rm = T) %>% paste0(., collapse = "-")
+)
+
+# Calculate toronksi n vars
+toronksi_stats <- list(
+	raw = ksi_combine %>% filter(ksi_city == "toronto") %>% nrow %>% format(big.mark = ","),
+	coords = ksi_coords %>% filter(ksi_city == "toronto") %>% nrow %>% format(big.mark = ","),
+	injury = ksi_injury %>% filter(ksi_city == "toronto") %>% nrow %>% format(big.mark = ","),
+	y2009to2023 = ksi_y2009to2023 %>% filter(ksi_city == "toronto") %>% nrow %>% format(big.mark = ","),
+	years = toronksi %>% mutate(x = year(ksi_date)) %>% pull(x) %>% range(na.rm = T) %>% paste0(., collapse = "-")
+)
+
+# Other vars for flow chart
+tunit_title <- tunit %>% str_to_title
 
 # Create flow chart
-fig_flowchart <- grViz('
+fig_flowchart <- grViz(glue('
 
 digraph {
-
+	
+	// Settings
 	layout=neato
 	splines=ortho
+	node [shape="box", width=2.75, height=1.75, margin=0.1]
 	
-	node [shape="box", width=2.75, height=1 margin=0.1]
+	// Raw bikeways
+	bike_raw[
+		width=2,
+		shape=cylinder,
+		label=<
+			<br/><b>Bikeways*</b><br/><br/>
+			Vancouver: {{vancbike_stats$raw_km}} km (n={{vancbike_stats$raw}}) <br/>
+			Calgary: {{calgbike_stats$raw_km}} km (n={{calgbike_stats$raw}})<br/>
+			Toronto: {{toronbike_stats$raw_km}} km (n={{toronbike_stats$raw}})
+		>,
+		pos="0,0!"
+	]
 	
-	toronbike_raw[width=2, shape=cylinder, label="Toronto Bikeways\n(n=@@1, @@11 km)", pos="0,0!"]
-	toronbike_verify[label="Verified Bikeways Only\n(n=@@2, @@12 km)", pos="3,0!"]
-	toronbike_itypes[label="Painted Lanes and\nCycle Tracks Only\n(n=@@3, @@13 km)", pos="6,0!"]
-	toronbike_p2011[label="Post-2011 Installs\nor Upgrades Only\n(n=@@4, @@14 km)", pos="0,-1.5!"]
-	toronbike_tfilter[label="Installs or Upgrades\nwith @@17s Only\n(n=@@5, @@15 km)", pos="3,-1.5!"]
-	toronbike_merge[label="Spatially Merged Bikeways\nby Status, Type, and @@17\n(n=@@6, @@16 km)", pos="6,-1.5!"]
+	// Verified bikeways
+	bike_verify[
+		label=<
+			<b>Verified Bikeways Only</b><br/><br/>
+			Vancouver: {{vancbike_stats$verify_km}} km (n={{vancbike_stats$verify}}) <br/>
+			Calgary: {{calgbike_stats$verify_km}} km (n={{calgbike_stats$verify}})<br/>
+			Toronto: {{toronbike_stats$verify_km}} km (n={{toronbike_stats$verify}})
+		>,
+		pos="3,0!"
+	]
 	
-	toronksi_raw[width=2, shape=cylinder, label="Toronto KSI\n(n=@@7)", pos="0,-3!"]
-	toronksi_y2009to2023[label="From 2009 to 2023 Only\n(n=@@8)", pos="3,-3!"]
-	toronksi_sjoin[label="Spatially Joined to\nMerged Bikeways\n(n_bike=@@6, n_ksi=@@9)", pos="6,-3!"]
+	// PL and CT bikeways
+	bike_itypes[
+		label=<
+			<b>Painted Lanes and<br/>
+			Cycle Tracks Only</b><br/><br/>
+			Vancouver: {{vancbike_stats$itypes_km}} km (n={{vancbike_stats$itypes}}) <br/>
+			Calgary: {{calgbike_stats$itypes_km}} km (n={{calgbike_stats$itypes}})<br/>
+			Toronto: {{toronbike_stats$itypes_km}} km (n={{toronbike_stats$itypes}})
+		>,
+		pos="6,0!"
+	]
 	
-	toronbike_raw -> toronbike_verify -> toronbike_itypes -> toronbike_p2011 -> toronbike_tfilter -> toronbike_merge
-
-	toronbike_merge -> toronksi_sjoin
-	toronksi_raw -> toronksi_y2009to2023 [minlen=3]
-	toronksi_y2009to2023 -> toronksi_sjoin [minlen=3]
+	// Post-2011 bikeways
+	bike_p2011[
+		label=<
+			<b>Post-2011 Installs<br/>
+			or Upgrades Only</b><br/><br/>
+			Vancouver: {{vancbike_stats$p2011_km}} km (n={{vancbike_stats$p2011}}) <br/>
+			Calgary: {{calgbike_stats$p2011_km}} km (n={{calgbike_stats$p2011}})<br/>
+			Toronto: {{toronbike_stats$p2011_km}} km (n={{toronbike_stats$p2011}})
+		>,
+		pos="9,0!"
+	]
+	
+	// Within time unit
+	bike_tfilter[
+		label=<
+			<b>Installs or Upgrades<br/>
+			with {{tunit_title}}s</b><br/><br/>
+			Vancouver: {{vancbike_stats$tfilter_km}} km (n={{vancbike_stats$tfilter}}) <br/>
+			Calgary: {{calgbike_stats$tfilter_km}} km (n={{calgbike_stats$tfilter}})<br/>
+			Toronto: {{toronbike_stats$tfilter_km}} km (n={{toronbike_stats$tfilter}})
+		>,
+		pos="3,-2.25!"
+	]
+	
+	// Spatial merge
+	bike_merge[
+		label=<
+			<b>Spatially Merged Bikeways<br/>
+			by Status, Type, and {{tunit_title}}</b><br/><br/>
+			Vancouver: {{vancbike_stats$merge_km}} km (n={{vancbike_stats$merge}}) <br/>
+			Calgary: {{calgbike_stats$merge_km}} km (n={{calgbike_stats$merge}})<br/>
+			Toronto: {{toronbike_stats$merge_km}} km (n={{toronbike_stats$merge}})
+		>,
+		pos="6,-2.25!"
+	]
+	
+	// Raw KSI
+	ksi_raw[
+		width=2,
+		shape=cylinder,
+		label=<
+			<br/><b>KSI**</b><br/><br/>
+			Vancouver: {{vancksi_stats$raw}} KSI<br/>
+			Calgary: {{calgksi_stats$raw}} KSI<br/>
+			Toronto: {{toronksi_stats$raw}} KSI
+		>,
+		pos="0,-4.5!"
+	]
+	
+	// KSI with coordinates
+	ksi_coords[
+		label=<
+			<b>With Coordinates</b><br/><br/>
+			Vancouver: {{vancksi_stats$coords}} KSI<br/>
+			Calgary: {{calgksi_stats$coords}} KSI<br/>
+			Toronto: {{toronksi_stats$coords}} KSI
+		>,
+		pos="3,-4.5!"
+	]
+	
+	// KSI with fatal or serious injury only
+	ksi_injury[
+		label=<
+			<b>Fatal or Serious<br/>Injuries Only</b><br/><br/>
+			Vancouver: {{vancksi_stats$injury}} KSI<br/>
+			Calgary: {{calgksi_stats$injury}} KSI<br/>
+			Toronto: {{toronksi_stats$injury}} KSI
+		>,
+		pos="6,-4.5!"
+	]
+	
+	// Post-2011 KSI
+	ksi_y2009to2023[
+		label=<
+			<b>From 2009 to 2023</b><br/><br/>
+			Vancouver: {{vancksi_stats$y2009to2023}} KSI<br/>
+			Calgary: {{calgksi_stats$y2009to2023}} KSI<br/>
+			Toronto: {{toronksi_stats$y2009to2023}} KSI
+		>,
+		pos="9,-4.5!"
+	]
+	
+	// Spatial Joined KSI
+	ksi_sjoin[
+		label=<
+			<b>KSI Spatially Joined to<br/>
+			Merged Bikeways</b><br/><br/>
+			Vancouver: {{vancbike_stats$sjoin}} KSI (n={{vancbike_stats$tfilter}}) <br/>
+			Calgary: {{calgbike_stats$sjoin}} KSI (n={{calgbike_stats$tfilter}})<br/>
+			Toronto: {{toronbike_stats$sjoin}} KSI (n={{toronbike_stats$tfilter}})
+		>,
+		pos="9,-2.25!"
+	]
+	
+	// Footer
+	foot[
+		shape="none",
+		fontsize="10",
+		height=0.65,
+		width=1,
+		labeljust="r",
+		label="*Bikeway Data Year Ranges: Vancouver ({{vancbike_stats$years}}), Calgary ({{calgbike_stats$years}}), Toronto ({{toronbike_stats$years}})\n**KSI Data Year Ranges: Vancouver ({{vancksi_stats$years}}), Calgary ({{calgksi_stats$years}}), Toronto ({{toronksi_stats$years}})",
+		pos="5,-5.85!"
+	]
+	
+	
+	
+	// Bikeway process
+	bike_raw -> bike_verify -> bike_itypes -> bike_p2011 -> bike_tfilter -> bike_merge -> ksi_sjoin
+	
+	// KSI process
+	ksi_raw -> ksi_coords -> ksi_injury -> ksi_y2009to2023 -> ksi_sjoin
 }
 
-[1]: toronbike_raw %>% nrow
-[2]: bike_verify %>% filter(city == "toronto") %>% nrow
-[3]: bike_itypes %>% filter(city == "toronto") %>% nrow
-[4]: bike_p2011 %>% filter(city == "toronto") %>% nrow
-[5]: bike_tfilter %>% filter(city == "toronto") %>% nrow
-[6]: bike_merge %>% filter(city == "toronto") %>% nrow
-[7]: ksi_combine %>% filter(ksi_city == "toronto") %>% nrow %>% format(big.mark = ",")
-[8]: ksi_y2009to2023 %>% filter(ksi_city == "toronto") %>% nrow %>% format(big.mark = ",")
-[9]: sjoin %>% filter(ksi_city == "toronto" & !is.na(ksi_id)) %>% pull(ksi_id) %>% unique %>% length
-
-[11]: toronbike_raw_km
-[12]: toronbike_verify_km
-[13]: toronbike_itypes_km
-[14]: toronbike_p2011_km
-[15]: toronbike_tfilter_km
-[16]: toronbike_merge_km
-[17]: tunit %>% str_to_title
-
-')
+', .open = "{{", .close = "}}"))
 
 # Export flowchart
 fig_flowchart %>%
     export_svg %>%
     charToRaw %>%
     rsvg_png(
-    	"../figures/fig-methods-toronto.png",
+    	"../figures/fig-methods.png",
     	width = 1920
     )
 

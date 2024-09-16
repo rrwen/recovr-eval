@@ -783,7 +783,7 @@ bike_verify <- bike_combine %>%
 
 ```
 
-#### Details
+### Details
 
 ```{r}
 
@@ -822,7 +822,7 @@ bike_verify_counts
 
 ```
 
-#### Preview
+### Preview
 
 ```{r}
 
@@ -939,7 +939,7 @@ bike_p2011 <- bike_itypes %>%
 
 ```
 
-#### Details
+### Details
 
 ```{r}
 
@@ -978,7 +978,7 @@ bike_p2011_counts
 
 ```
 
-#### Preview
+### Preview
 
 ```{r}
 
@@ -1008,7 +1008,7 @@ ksi_y2009to2023 <- ksi_injury %>%
 
 ```
 
-#### Details
+### Details
 
 ```{r}
 
@@ -1031,7 +1031,7 @@ ksi_y2009to2023_counts
 
 ```
 
-#### Preview
+### Preview
 
 ```{r}
 
@@ -2192,7 +2192,7 @@ sjoin <- bike_merge_buff25 %>%
 
 ```
 
-#### Details
+### Details
 
 ```{r}
 
@@ -2239,7 +2239,7 @@ sjoin_counts
 
 ```
 
-#### Preview
+### Preview
 
 ```{r}
 
@@ -2791,9 +2791,9 @@ digraph {
 		label=<
 			<b>KSI Spatially Joined to<br/>
 			Merged Bikeways</b><br/><br/>
-			Vancouver: {{vancbike_stats$sjoin}} KSI (n={{vancbike_stats$tfilter}}) <br/>
-			Calgary: {{calgbike_stats$sjoin}} KSI (n={{calgbike_stats$tfilter}})<br/>
-			Toronto: {{toronbike_stats$sjoin}} KSI (n={{toronbike_stats$tfilter}})
+			Vancouver: {{vancbike_stats$sjoin}} KSI (n={{vancbike_stats$merge}}) <br/>
+			Calgary: {{calgbike_stats$sjoin}} KSI (n={{calgbike_stats$merge}})<br/>
+			Toronto: {{toronbike_stats$sjoin}} KSI (n={{toronbike_stats$merge}})
 		>,
 		pos="9,-2.25!"
 	]

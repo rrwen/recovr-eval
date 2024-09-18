@@ -2409,8 +2409,8 @@ if (tunit != "year") {
 	
 	# Time unit as year
 	tid_data <- bike_ksi %>%
-		mutate(time_value = year) %>%
-		select(year, time_value)
+		mutate(time_value = .data[[glue("_ksi_time_{tunit}")]]) %>%
+		select(year = .data[[glue("_ksi_time_{tunit}")]], time_value)
 	
 }
 
@@ -2420,7 +2420,7 @@ if (tunit != "year") {
 	
 	# Get uniq combinations as ids
 	tid <- expand_grid(
-		time_year = min(tid_data$year):max(tid_data$year),
+		time_year = min(tid_data$year, na.rm = T):max(tid_data$year, na.rm = T),
 		time_value = unique(tid_data$time_value)
 	) %>%
 	    arrange(time_year, time_value) %>%
@@ -2433,7 +2433,7 @@ if (tunit != "year") {
 	
 	# Get year as ids
 	tid <- data.frame(
-		time_year = min(tid_data$year):max(tid_data$year)
+		time_year = min(tid_data$year, na.rm = T):max(tid_data$year, na.rm = T)
 	) %>%
 		mutate(
 			time_value = time_year,
@@ -2457,11 +2457,28 @@ model_data <- bike_ksi %>%
 		ksi_time_orig = .data[[glue("_ksi_time_{tunit}_group")]],
 		ksi = `ksi_count`
 	) %>%
+	left_join( # add data about range of data
+		ksi_y2009to2023 %>%
+			as_tibble() %>%
+			group_by(ksi_city) %>%
+			summarize(
+				ksi_year_min = min(year(ksi_date)),
+				ksi_year_max = max(year(ksi_date))
+			),
+		by = join_by(bike_city == ksi_city)
+	) %>%
 	separate( # get year and time value
 		ksi_time_orig,
 		c("ksi_year", "ksi_time"),
 		sep = "_",
 		remove = F
+	) %>%
+	mutate( # set ksi count to na if not within data year range
+		ksi = if_else(
+			ksi_year < ksi_year_min | ksi_year > ksi_year_max,
+			NA,
+			ksi
+		)
 	) %>%
 	mutate( # fill in as year if unit is year
 		ksi_time = case_when(
@@ -2789,7 +2806,7 @@ digraph {
 	// Spatial Joined KSI
 	ksi_sjoin[
 		label=<
-			<b>KSI Spatially Joined to<br/>
+			<b>KSI Within 25 Meters of<br/>
 			Merged Bikeways</b><br/><br/>
 			Vancouver: {{vancbike_stats$sjoin}} KSI (n={{vancbike_stats$merge}}) <br/>
 			Calgary: {{calgbike_stats$sjoin}} KSI (n={{calgbike_stats$merge}})<br/>

@@ -451,13 +451,21 @@ The data files are available below:
 ## Vancouver KSI
 
 ```{r}
-vancksi_raw <- read.table("../tmp/TAS persons involved in crashes in Vancouver 2010-2021.dat", sep = "|", header = T)
+vancksi_raw <- read.csv("../tmp/TAS persons involved in crashes in Vancouver 2010-2021.csv")
 ```
 
 ## Calgary KSI
 
 ```{r}
-calgksi_raw <- read.csv("../tmp/Combined Collision Data for Calgary (2016 - 2021).csv")
+calgksi_raw <- read.csv("../tmp/Combined Collision Data for Calgary (2016 - 2021).csv") %>%
+	filter(CASE_YEAR < 2021) %>%
+	mutate(
+		OCCURENCE_TIMESTAMP = as.Date(OCCURENCE_TIMESTAMP, origin = "1899-12-30") # excel date serial numbers
+	) %>%
+	add_row(
+		read.csv("../tmp/Collision Data for Calgary (2021 - 2022).csv") %>%
+			mutate(OCCURENCE_TIMESTAMP = OCCURENCE_TIMESTAMP %>% as_datetime)
+	)
 ```
 
 # Cleaning
@@ -581,7 +589,7 @@ calgksi <- calgksi_raw %>%
 	mutate(
 		ksi_city = "calgary",
 		ksi_id = 1:nrow(.)  %>% as.character,
-		ksi_date = as.Date(OCCURENCE_TIMESTAMP, origin = "1899-12-30"), # excel date serial numbers
+		ksi_date = OCCURENCE_TIMESTAMP,
 		ksi_severity = INJURY_SEVERITY %>% as.character
 	) %>% select(
 		ksi_city,
@@ -923,18 +931,18 @@ bike_itypes %>% as_tibble %>% head
 
 ```
 
-## Filter Post-2011 Bikeways {.tabset}
+## Filter Post-2010 Bikeways {.tabset}
 
-Filter for bikeways with a verified installations or upgrades after 2011.
+Filter for bikeways with a verified installations or upgrades after 2010.
 
 ```{r}
 
-# Filter bikeways for post2011
-bike_p2011 <- bike_itypes %>%
+# Filter bikeways for post2010
+bike_p2010 <- bike_itypes %>%
 	filter(
-		verify_install_year > 2011 |
-		verify_upgrade1_year > 2011 |
-		verify_upgrade2_year > 2011
+		verify_install_year > 2010 |
+		verify_upgrade1_year > 2010 |
+		verify_upgrade2_year > 2010
 	)
 
 ```
@@ -949,12 +957,12 @@ cat(glue(
 	"\n* Rows: ", bike_itypes %>% nrow,
 	"\n* Columns: ", bike_itypes %>% ncol,
 	"\n\nAfter\n",
-	"\n* Rows: ", bike_p2011 %>% nrow,
-	"\n* Columns: ", bike_p2011 %>% ncol
+	"\n* Rows: ", bike_p2010 %>% nrow,
+	"\n* Columns: ", bike_p2010 %>% ncol
 ))
 
 # Display counts
-bike_p2011_counts <- bike_p2011 %>%
+bike_p2010_counts <- bike_p2010 %>%
 	as_tibble %>%
 	pivot_longer(
 		c(
@@ -974,7 +982,7 @@ bike_p2011_counts <- bike_p2011 %>%
 	) %>%
 	group_by(status, value) %>%
 	count
-bike_p2011_counts
+bike_p2010_counts
 
 ```
 
@@ -983,7 +991,7 @@ bike_p2011_counts
 ```{r}
 
 # Display filtered rows
-bike_p2011 %>%
+bike_p2010 %>%
 	as_tibble %>%
 	select(
 		verify_install_year,
@@ -1002,7 +1010,7 @@ Filter for KSI records between 2009 and 2023 inclusively.
 
 ```{r}
 
-# Filter ksi for post2011
+# Filter ksi for post2010
 ksi_y2009to2023 <- ksi_injury %>%
 	filter(year(ksi_date) >= 2009 & year(ksi_date) <= 2023)
 
@@ -1054,7 +1062,7 @@ Join ambiguous verified install/upgrade dates (e.g. Jan 1/2022, 2022/02, Fall 20
 ```{r}
 
 # Join clean dates to include structured date formats
-bike_dates <- bike_p2011 %>%
+bike_dates <- bike_p2010 %>%
 	left_join( # install dates
 		vdates_raw %>%
 			rename_with(~ paste0("_install_", .x)),
@@ -1080,16 +1088,16 @@ bike_dates <- bike_p2011 %>%
 # Display rows and cols
 cat(glue(
 	"\nBefore\n",
-	"\n* Rows: ", bike_p2011 %>% nrow,
-	"\n* Columns: ", bike_p2011 %>% ncol,
+	"\n* Rows: ", bike_p2010 %>% nrow,
+	"\n* Columns: ", bike_p2010 %>% ncol,
 	"\n\nAfter\n",
 	"\n* Rows: ", bike_dates %>% nrow,
 	"\n* Columns: ", bike_dates %>% ncol,
-	"\n\nNew Columns (", bike_dates %>% ncol - bike_p2011 %>% ncol, ")\n",
+	"\n\nNew Columns (", bike_dates %>% ncol - bike_p2010 %>% ncol, ")\n",
 	paste0(
 		"\n* ",
 		colnames(bike_dates) %>%
-			.[!. %in% colnames(bike_p2011)],
+			.[!. %in% colnames(bike_p2010)],
 		collapse = ""
 	)
 ))
@@ -1674,11 +1682,11 @@ ksi_tunits %>%
 
 For bikeways, determine the temporal resolution (unit of time) finer than yearly based on the amount of data available per time unit (sorted from the highest resolution time unit to the lowest resolution time unit):
 
-* **Month** (high): refers to verified post-2011 installs and upgrades occurring approximately in a month (1/12) of a year
-* **Quarter**: refers to verified post-2011 installs and upgrades occurring approximately in a quarter (1/4) of a year
-* **Third**: refers to verified post-2011 installs and upgrades occurring approximately in a third (1/3) of a year
-* **Half** (low): refers to verified post-2011 installs and upgrades occurring approximately in a half (1/2) of a year
-* **Semester** (low): refers to verified post-2011 installs and upgrades occurring approximately in a half (1/2) of a year with the first half (1) being November (same year) to April (next year) and the second half being May to October (next year)
+* **Month** (high): refers to verified post-2010 installs and upgrades occurring approximately in a month (1/12) of a year
+* **Quarter**: refers to verified post-2010 installs and upgrades occurring approximately in a quarter (1/4) of a year
+* **Third**: refers to verified post-2010 installs and upgrades occurring approximately in a third (1/3) of a year
+* **Half** (low): refers to verified post-2010 installs and upgrades occurring approximately in a half (1/2) of a year
+* **Semester** (low): refers to verified post-2010 installs and upgrades occurring approximately in a half (1/2) of a year with the first half (1) being November (same year) to April (next year) and the second half being May to October (next year)
 
 The `year` was selected as the time unit.
 
@@ -1692,7 +1700,7 @@ plot_time_units <- function(
 		half_col = "_install_time_half",
 		semester_col = "_install_time_semester",
 		year_col = "_install_time_year",
-		title = "% of Verified Post-2011 Installs by Unit of Time",
+		title = "% of Verified Post-2010 Installs by Unit of Time",
 		overlap_gap = 10.5,
 		expand = c(0.18, 0),
 		city_nudge_x = 0.25
@@ -1869,7 +1877,7 @@ plot_time_units(
 	half_col = "_upgrade1_time_half",
 	semester_col = "_upgrade1_time_semester",
 	year_col = "_upgrade1_time_year",
-	title = "% of Verified Post-2011 1st Upgrades by Unit of Time"
+	title = "% of Verified Post-2010 1st Upgrades by Unit of Time"
 )
 ```
 
@@ -1898,7 +1906,7 @@ plot_time_units(
 	half_col = "_upgrade2_time_half",
 	semester_col = "_upgrade2_time_semester",
 	year_col = "_upgrade2_time_year",
-	title = "% of Verified Post-2011 2nd Upgrades by Unit of Time",
+	title = "% of Verified Post-2010 2nd Upgrades by Unit of Time",
 	expand = c(0.2, 0),
 	city_nudge_x = 0.35
 )
@@ -1918,14 +1926,14 @@ bike_tunits %>%
 
 ## Filter Timed Bikeways {.tabset}
 
-Filter for bikeways with time unit values that were installed/upgraded post-2011.
+Filter for bikeways with time unit values that were installed/upgraded post-2010.
 
 ```{r}
 bike_tfilter <- bike_tunits %>%
 	filter(
-		(verify_install_year > 2011 & !is.na(.data[[glue("_install_time_{tunit}")]])) |
-		(verify_upgrade1_year > 2011 & !is.na(.data[[glue("_upgrade1_time_{tunit}")]])) |
-		(verify_upgrade2_year > 2011 & !is.na(.data[[glue("_upgrade1_time_{tunit}")]])) 
+		(verify_install_year > 2010 & !is.na(.data[[glue("_install_time_{tunit}")]])) |
+		(verify_upgrade1_year > 2010 & !is.na(.data[[glue("_upgrade1_time_{tunit}")]])) |
+		(verify_upgrade2_year > 2010 & !is.na(.data[[glue("_upgrade1_time_{tunit}")]])) 
 	)
 ```
 
@@ -2539,7 +2547,7 @@ model_data <- bike_ksi %>%
 	)
 
 # Export model data and time ids to folder
-model_data %>% write_csv("../data/recovr-eval-2024-09-16.csv")
+model_data %>% write_csv("../data/recovr-eval-2024-09-18.csv", na = "")
 ```
 
 ### Details
@@ -2596,14 +2604,14 @@ vancbike_stats <- list(
 	raw = vancbike_raw %>% nrow,
 	verify = bike_verify %>% filter(city == "vancouver") %>% nrow,
 	itypes = bike_itypes %>% filter(city == "vancouver") %>% nrow,
-	p2011 = bike_p2011 %>% filter(city == "vancouver") %>% nrow,
+	p2010 = bike_p2010 %>% filter(city == "vancouver") %>% nrow,
 	tfilter = bike_tfilter %>% filter(city == "vancouver") %>% nrow,
 	merge = bike_merge %>% filter(city == "vancouver") %>% nrow,
 	sjoin = sjoin %>% filter(ksi_city == "vancouver" & !is.na(ksi_id)) %>% pull(ksi_id) %>% unique %>% length,
 	raw_km = calc_total_km(vancbike_raw),
 	verify_km = calc_total_km(bike_verify %>% filter(city == "vancouver")),
 	itypes_km = calc_total_km(bike_itypes %>% filter(city == "vancouver")),
-	p2011_km = calc_total_km(bike_p2011 %>% filter(city == "vancouver")),
+	p2010_km = calc_total_km(bike_p2010 %>% filter(city == "vancouver")),
 	tfilter_km = calc_total_km(bike_tfilter %>% filter(city == "vancouver")),
 	merge_km = calc_total_km(bike_merge %>% filter(city == "vancouver")),
 	years = vancbike_raw$install_year %>% range(na.rm = T) %>% paste0(., collapse = "-")
@@ -2623,14 +2631,14 @@ calgbike_stats <- list(
 	raw = calgbike_raw %>% nrow,
 	verify = bike_verify %>% filter(city == "calgary") %>% nrow,
 	itypes = bike_itypes %>% filter(city == "calgary") %>% nrow,
-	p2011 = bike_p2011 %>% filter(city == "calgary") %>% nrow,
+	p2010 = bike_p2010 %>% filter(city == "calgary") %>% nrow,
 	tfilter = bike_tfilter %>% filter(city == "calgary") %>% nrow,
 	merge = bike_merge %>% filter(city == "calgary") %>% nrow,
 	sjoin = sjoin %>% filter(ksi_city == "calgary" & !is.na(ksi_id)) %>% pull(ksi_id) %>% unique %>% length,
 	raw_km = calc_total_km(calgbike_raw),
 	verify_km = calc_total_km(bike_verify %>% filter(city == "calgary")),
 	itypes_km = calc_total_km(bike_itypes %>% filter(city == "calgary")),
-	p2011_km = calc_total_km(bike_p2011 %>% filter(city == "calgary")),
+	p2010_km = calc_total_km(bike_p2010 %>% filter(city == "calgary")),
 	tfilter_km = calc_total_km(bike_tfilter %>% filter(city == "calgary")),
 	merge_km = calc_total_km(bike_merge %>% filter(city == "calgary")),
 	years = calgbike_raw$install_year %>% range(na.rm = T) %>% paste0(., collapse = "-")
@@ -2650,14 +2658,14 @@ toronbike_stats <- list(
 	raw = toronbike_raw %>% nrow,
 	verify = bike_verify %>% filter(city == "toronto") %>% nrow,
 	itypes = bike_itypes %>% filter(city == "toronto") %>% nrow,
-	p2011 = bike_p2011 %>% filter(city == "toronto") %>% nrow,
+	p2010 = bike_p2010 %>% filter(city == "toronto") %>% nrow,
 	tfilter = bike_tfilter %>% filter(city == "toronto") %>% nrow,
 	merge = bike_merge %>% filter(city == "toronto") %>% nrow,
 	sjoin = sjoin %>% filter(ksi_city == "toronto" & !is.na(ksi_id)) %>% pull(ksi_id) %>% unique %>% length,
 	raw_km = calc_total_km(toronbike_raw),
 	verify_km = calc_total_km(bike_verify %>% filter(city == "toronto")),
 	itypes_km = calc_total_km(bike_itypes %>% filter(city == "toronto")),
-	p2011_km = calc_total_km(bike_p2011 %>% filter(city == "toronto")),
+	p2010_km = calc_total_km(bike_p2010 %>% filter(city == "toronto")),
 	tfilter_km = calc_total_km(bike_tfilter %>% filter(city == "toronto")),
 	merge_km = calc_total_km(bike_merge %>% filter(city == "toronto")),
 	years = toronbike_raw$install_year %>% range(na.rm = T) %>% paste0(., collapse = "-")
@@ -2721,14 +2729,14 @@ digraph {
 		pos="6,0!"
 	]
 	
-	// Post-2011 bikeways
-	bike_p2011[
+	// Post-2010 bikeways
+	bike_p2010[
 		label=<
-			<b>Post-2011 Installs<br/>
+			<b>Post-2010 Installs<br/>
 			or Upgrades Only</b><br/><br/>
-			Vancouver: {{vancbike_stats$p2011_km}} km (n={{vancbike_stats$p2011}}) <br/>
-			Calgary: {{calgbike_stats$p2011_km}} km (n={{calgbike_stats$p2011}})<br/>
-			Toronto: {{toronbike_stats$p2011_km}} km (n={{toronbike_stats$p2011}})
+			Vancouver: {{vancbike_stats$p2010_km}} km (n={{vancbike_stats$p2010}}) <br/>
+			Calgary: {{calgbike_stats$p2010_km}} km (n={{calgbike_stats$p2010}})<br/>
+			Toronto: {{toronbike_stats$p2010_km}} km (n={{toronbike_stats$p2010}})
 		>,
 		pos="9,0!"
 	]
@@ -2792,7 +2800,7 @@ digraph {
 		pos="6,-4.5!"
 	]
 	
-	// Post-2011 KSI
+	// Post-2010 KSI
 	ksi_y2009to2023[
 		label=<
 			<b>From 2009 to 2023</b><br/><br/>
@@ -2829,7 +2837,7 @@ digraph {
 	
 	
 	// Bikeway process
-	bike_raw -> bike_verify -> bike_itypes -> bike_p2011 -> bike_tfilter -> bike_merge -> ksi_sjoin
+	bike_raw -> bike_verify -> bike_itypes -> bike_p2010 -> bike_tfilter -> bike_merge -> ksi_sjoin
 	
 	// KSI process
 	ksi_raw -> ksi_coords -> ksi_injury -> ksi_y2009to2023 -> ksi_sjoin

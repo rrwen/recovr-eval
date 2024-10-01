@@ -138,21 +138,21 @@ ddesc
 
 ## Vancouver Bikeways {.tabset}
 
-`r ddesc %>% filter(file == "vancouver-bikeways-2024-06-02.geojson") %>% pull(description)`
+`r ddesc %>% filter(file == "vancouver-bikeways-2024-10-01.geojson") %>% pull(description)`
 
-* **Download Link**: `r ddesc %>% filter(file == "vancouver-bikeways-2024-06-02.geojson") %>% pull(url)`
-* **Download Date**: `r format(ddesc %>% filter(file == "vancouver-bikeways-2024-06-02.geojson") %>% pull(download_date), '%B %d, %Y')`
-* **Data Updated**: `r format(ddesc %>% filter(file == "vancouver-bikeways-2024-06-02.geojson") %>% pull(update_date), '%B %d, %Y')`
-* **Notes**: `r ddesc %>% filter(file == "vancouver-bikeways-2024-06-02.geojson") %>% pull(notes)`
+* **Download Link**: `r ddesc %>% filter(file == "vancouver-bikeways-2024-10-01.geojson") %>% pull(url)`
+* **Download Date**: `r format(ddesc %>% filter(file == "vancouver-bikeways-2024-10-01.geojson") %>% pull(download_date), '%B %d, %Y')`
+* **Data Updated**: `r format(ddesc %>% filter(file == "vancouver-bikeways-2024-10-01.geojson") %>% pull(update_date), '%B %d, %Y')`
+* **Notes**: `r ddesc %>% filter(file == "vancouver-bikeways-2024-10-01.geojson") %>% pull(notes)`
 
 ```{r}
 
 # Read data
-vancbike_raw <- read_sf("../data/vancouver-bikeways-2024-06-02.geojson")
+vancbike_raw <- read_sf("../data/vancouver-bikeways-2024-10-01.geojson")
 
 # Get download date
 vancbike_dldate <- ddesc %>% filter(
-	file == "vancouver-bikeways-2024-06-02.geojson"
+	file == "vancouver-bikeways-2024-10-01.geojson"
 ) %>% pull(download_date)
 ```
 
@@ -184,7 +184,7 @@ vancbike_raw %>% as_tibble
 The data contains the following columns:
 
 ```{r, cols.print = 3}
-vancbike_ddict <- read_csv("../data/vancouver-bikeways-2024-06-02-datadict.csv")
+vancbike_ddict <- read_csv("../data/vancouver-bikeways-2024-10-01-datadict.csv")
 vancbike_ddict
 ```
 
@@ -198,26 +198,26 @@ print(vancbike_raw)
 
 The data files are available below:
 
-- [vancouver-bikeways-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/vancouver-bikeways-2024-06-02.geojson)
-- [vancouver-bikeways-2024-06-02-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/vancouver-bikeways-2024-06-02-datadict.csv)
+- [vancouver-bikeways-2024-10-01.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/vancouver-bikeways-2024-10-01.geojson)
+- [vancouver-bikeways-2024-10-01-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/vancouver-bikeways-2024-10-01-datadict.csv)
 
 ## Calgary Bikeways {.tabset}
 
-`r ddesc %>% filter(file == "calgary-bikeways-2024-06-05.geojson") %>% pull(description)`
+`r ddesc %>% filter(file == "calgary-bikeways-2024-10-01.geojson") %>% pull(description)`
 
-* **Download Link**: `r ddesc %>% filter(file == "calgary-bikeways-2024-06-05.geojson") %>% pull(url)`
-* **Download Date**: `r format(ddesc %>% filter(file == "calgary-bikeways-2024-06-05.geojson") %>% pull(download_date), '%B %d, %Y')`
-* **Data Updated**: `r format(ddesc %>% filter(file == "calgary-bikeways-2024-06-05.geojson") %>% pull(update_date), '%B %d, %Y')`
-* **Notes**: `r ddesc %>% filter(file == "calgary-bikeways-2024-06-05.geojson") %>% pull(notes)`
+* **Download Link**: `r ddesc %>% filter(file == "calgary-bikeways-2024-10-01.geojson") %>% pull(url)`
+* **Download Date**: `r format(ddesc %>% filter(file == "calgary-bikeways-2024-10-01.geojson") %>% pull(download_date), '%B %d, %Y')`
+* **Data Updated**: `r format(ddesc %>% filter(file == "calgary-bikeways-2024-10-01.geojson") %>% pull(update_date), '%B %d, %Y')`
+* **Notes**: `r ddesc %>% filter(file == "calgary-bikeways-2024-10-01.geojson") %>% pull(notes)`
 
 ```{r}
 
 # Read data
-calgbike_raw <- read_sf("../data/calgary-bikeways-2024-06-05.geojson")
+calgbike_raw <- read_sf("../data/calgary-bikeways-2024-10-01.geojson")
 
 # Get download date
 calgbike_dldate <- ddesc %>% filter(
-	file == "calgary-bikeways-2024-06-05.geojson"
+	file == "calgary-bikeways-2024-10-01.geojson"
 ) %>% pull(download_date)
 ```
 
@@ -249,7 +249,7 @@ calgbike_raw %>% as_tibble
 The data contains the following columns:
 
 ```{r, cols.print = 3}
-calgbike_ddict <- read_csv("../data/calgary-bikeways-2024-06-05-datadict.csv")
+calgbike_ddict <- read_csv("../data/calgary-bikeways-2024-10-01-datadict.csv")
 calgbike_ddict
 ```
 
@@ -263,26 +263,26 @@ print(calgbike_raw)
 
 The data files are available below:
 
-- [calgary-bikeways-2024-06-05.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/calgary-bikeways-2024-06-05.geojson)
-- [calgary-bikeways-2024-06-05-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/calgary-bikeways-2024-06-05-datadict.csv)
+- [calgary-bikeways-2024-10-01.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/calgary-bikeways-2024-10-01.geojson)
+- [calgary-bikeways-2024-10-01-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/calgary-bikeways-2024-10-01-datadict.csv)
 
 ## Toronto Bikeways {.tabset}
 
-`r ddesc %>% filter(file == "toronto-bikeways-2024-06-02.geojson") %>% pull(description)`
+`r ddesc %>% filter(file == "toronto-bikeways-2024-10-01.geojson") %>% pull(description)`
 
-* **Download Link**: `r ddesc %>% filter(file == "toronto-bikeways-2024-06-02.geojson") %>% pull(url)`
-* **Download Date**: `r format(ddesc %>% filter(file == "toronto-bikeways-2024-06-02.geojson") %>% pull(download_date), '%B %d, %Y')`
-* **Data Updated**: `r format(ddesc %>% filter(file == "toronto-bikeways-2024-06-02.geojson") %>% pull(update_date), '%B %d, %Y')`
-* **Notes**: `r ddesc %>% filter(file == "toronto-bikeways-2024-06-02.geojson") %>% pull(notes)`
+* **Download Link**: `r ddesc %>% filter(file == "toronto-bikeways-2024-10-01.geojson") %>% pull(url)`
+* **Download Date**: `r format(ddesc %>% filter(file == "toronto-bikeways-2024-10-01.geojson") %>% pull(download_date), '%B %d, %Y')`
+* **Data Updated**: `r format(ddesc %>% filter(file == "toronto-bikeways-2024-10-01.geojson") %>% pull(update_date), '%B %d, %Y')`
+* **Notes**: `r ddesc %>% filter(file == "toronto-bikeways-2024-10-01.geojson") %>% pull(notes)`
 
 ```{r}
 
 # Read data
-toronbike_raw <- read_sf("../data/toronto-bikeways-2024-06-02.geojson")
+toronbike_raw <- read_sf("../data/toronto-bikeways-2024-10-01.geojson")
 
 # Get download date
 toronbike_dldate <- ddesc %>% filter(
-	file == "toronto-bikeways-2024-06-02.geojson"
+	file == "toronto-bikeways-2024-10-01.geojson"
 ) %>% pull(download_date)
 
 ```
@@ -315,7 +315,7 @@ toronbike_raw %>% as_tibble
 The data contains the following columns:
 
 ```{r, cols.print = 3}
-toronbike_ddict <- read_csv("../data/toronto-bikeways-2024-06-02-datadict.csv")
+toronbike_ddict <- read_csv("../data/toronto-bikeways-2024-10-01-datadict.csv")
 toronbike_ddict
 ```
 
@@ -329,8 +329,8 @@ print(toronbike_raw)
 
 The data files are available below:
 
-- [toronto-bikeways-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-bikeways-2024-06-02.geojson)
-- [toronto-bikeways-2024-06-02-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-bikeways-2024-06-02-datadict.csv)
+- [toronto-bikeways-2024-10-01.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-bikeways-2024-10-01.geojson)
+- [toronto-bikeways-2024-10-01-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-bikeways-2024-10-01-datadict.csv)
 
 ## Verified Dates {.tabset}
 

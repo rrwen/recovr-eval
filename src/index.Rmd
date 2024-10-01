@@ -69,6 +69,7 @@ required_packages <- c(
 	"patchwork",
 	"DiagrammeR",
 	"DiagrammeRsvg",
+	"DT",
 	"webshot2",
 	"magick",
 	"rsvg",
@@ -754,6 +755,96 @@ ksi_injury %>% as_tibble %>% select(-geometry) %>% head
 
 ```
 
+## Remove Same Type Upgrades {.tabset}
+
+Set upgrades to `NA` if they are the same infrastructure type as the previous install or upgrade.
+
+```{r}
+
+# Remove same type upgrades
+bike_removeup <- bike_combine %>%
+	mutate(
+		verify_upgrade2_year = if_else(
+			verify_upgrade1_type == verify_upgrade2_type,
+			NA,
+			verify_upgrade2_year
+		),
+		verify_upgrade2_type = if_else(
+			verify_upgrade1_type == verify_upgrade2_type,
+			NA,
+			verify_upgrade2_type
+		),
+		verify_upgrade1_year = if_else(
+			verify_install_type == verify_upgrade1_type,
+			NA,
+			verify_upgrade1_year
+		),
+		verify_upgrade1_type = if_else(
+			verify_install_type == verify_upgrade1_type,
+			NA,
+			verify_upgrade1_type
+		)
+	)
+
+```
+
+### Details
+
+```{r}
+
+# Display rows and cols
+cat(glue(
+	"\nBefore\n",
+	"\n* Rows: ", bike_combine %>% nrow,
+	"\n* Columns: ", bike_combine %>% ncol,
+	"\n\nAfter\n",
+	"\n* Rows: ", bike_removeup %>% nrow,
+	"\n* Columns: ", bike_removeup %>% ncol
+))
+
+# Display same type counts
+bike_removeup_counts <- bike_combine %>%
+	as_tibble %>%
+	select(-geometry) %>%
+	filter( # only with an install or upgrade
+		!is.na(verify_install_type) &
+		!is.na(verify_upgrade1_type) &
+		!is.na(verify_upgrade2_type)
+	) %>%
+	filter( # only with same upgrades
+		verify_install_type == verify_upgrade1_type |
+		verify_upgrade1_type == verify_upgrade2_type
+	) %>%
+	mutate(
+		verify_upgrades = paste0(
+			verify_install_type, " -> ",
+			verify_upgrade1_type, " -> ",
+			verify_upgrade2_type
+		)
+	) %>%
+	group_by(verify_upgrades) %>%
+	count
+bike_removeup_counts
+
+```
+
+### Preview
+
+```{r}
+
+# Display filtered rows
+bike_removeup %>%
+	as_tibble %>%
+	select(
+		verify_install_type,
+		verify_upgrade1_type,
+		verify_upgrade2_type,
+		everything()
+	) %>%
+	head
+
+```
+
 ## Filter Verified Bikeways {.tabset}
 
 Filter for bikeways with verified installations or upgrades.
@@ -761,10 +852,10 @@ Filter for bikeways with verified installations or upgrades.
 ```{r}
 
 # Filter verified bikeways
-bike_verify <- bike_combine %>%
+bike_verify <- bike_removeup %>%
 	filter(!city %in% c("calgary", "vancouver")) %>%
 	add_row( # calgary filters appendix 2
-		bike_combine %>%
+		bike_removeup %>%
 			filter(
 				city == "calgary" &
 				install_type %in% c("Bicycle Lane", "Cycle Track") &
@@ -772,7 +863,7 @@ bike_verify <- bike_combine %>%
 			)
 	) %>%
 	add_row( # vancouver filters appendix 2
-		bike_combine %>%
+		bike_removeup %>%
 	    filter(
 	        city == "vancouver" &
 	            install_type %in% c("Painted Lanes", "Protected Bike Lanes", "Local Street") &
@@ -798,8 +889,8 @@ bike_verify <- bike_combine %>%
 # Display rows and cols
 cat(glue(
 	"\nBefore\n",
-	"\n* Rows: ", bike_combine %>% nrow,
-	"\n* Columns: ", bike_combine %>% ncol,
+	"\n* Rows: ", bike_removeup %>% nrow,
+	"\n* Columns: ", bike_removeup %>% ncol,
 	"\n\nAfter\n",
 	"\n* Rows: ", bike_verify %>% nrow,
 	"\n* Columns: ", bike_verify %>% ncol

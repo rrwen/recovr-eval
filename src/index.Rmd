@@ -755,96 +755,6 @@ ksi_injury %>% as_tibble %>% select(-geometry) %>% head
 
 ```
 
-## Remove Same Type Upgrades {.tabset}
-
-Set upgrades to `NA` if they are the same infrastructure type as the previous install or upgrade.
-
-```{r}
-
-# Remove same type upgrades
-bike_removeup <- bike_combine %>%
-	mutate(
-		verify_upgrade2_year = if_else(
-			verify_upgrade1_type == verify_upgrade2_type,
-			NA,
-			verify_upgrade2_year
-		),
-		verify_upgrade2_type = if_else(
-			verify_upgrade1_type == verify_upgrade2_type,
-			NA,
-			verify_upgrade2_type
-		),
-		verify_upgrade1_year = if_else(
-			verify_install_type == verify_upgrade1_type,
-			NA,
-			verify_upgrade1_year
-		),
-		verify_upgrade1_type = if_else(
-			verify_install_type == verify_upgrade1_type,
-			NA,
-			verify_upgrade1_type
-		)
-	)
-
-```
-
-### Details
-
-```{r}
-
-# Display rows and cols
-cat(glue(
-	"\nBefore\n",
-	"\n* Rows: ", bike_combine %>% nrow,
-	"\n* Columns: ", bike_combine %>% ncol,
-	"\n\nAfter\n",
-	"\n* Rows: ", bike_removeup %>% nrow,
-	"\n* Columns: ", bike_removeup %>% ncol
-))
-
-# Display same type counts
-bike_removeup_counts <- bike_combine %>%
-	as_tibble %>%
-	select(-geometry) %>%
-	filter( # only with an install or upgrade
-		!is.na(verify_install_type) &
-		!is.na(verify_upgrade1_type) &
-		!is.na(verify_upgrade2_type)
-	) %>%
-	filter( # only with same upgrades
-		verify_install_type == verify_upgrade1_type |
-		verify_upgrade1_type == verify_upgrade2_type
-	) %>%
-	mutate(
-		verify_upgrades = paste0(
-			verify_install_type, " -> ",
-			verify_upgrade1_type, " -> ",
-			verify_upgrade2_type
-		)
-	) %>%
-	group_by(verify_upgrades) %>%
-	count
-bike_removeup_counts
-
-```
-
-### Preview
-
-```{r}
-
-# Display filtered rows
-bike_removeup %>%
-	as_tibble %>%
-	select(
-		verify_install_type,
-		verify_upgrade1_type,
-		verify_upgrade2_type,
-		everything()
-	) %>%
-	head
-
-```
-
 ## Filter Verified Bikeways {.tabset}
 
 Filter for bikeways with verified installations or upgrades.
@@ -852,10 +762,10 @@ Filter for bikeways with verified installations or upgrades.
 ```{r}
 
 # Filter verified bikeways
-bike_verify <- bike_removeup %>%
+bike_verify <- bike_combine %>%
 	filter(!city %in% c("calgary", "vancouver")) %>%
 	add_row( # calgary filters appendix 2
-		bike_removeup %>%
+		bike_combine %>%
 			filter(
 				city == "calgary" &
 				install_type %in% c("Bicycle Lane", "Cycle Track") &
@@ -863,7 +773,7 @@ bike_verify <- bike_removeup %>%
 			)
 	) %>%
 	add_row( # vancouver filters appendix 2
-		bike_removeup %>%
+		bike_combine %>%
 	    filter(
 	        city == "vancouver" &
 	            install_type %in% c("Painted Lanes", "Protected Bike Lanes", "Local Street") &
@@ -889,8 +799,8 @@ bike_verify <- bike_removeup %>%
 # Display rows and cols
 cat(glue(
 	"\nBefore\n",
-	"\n* Rows: ", bike_removeup %>% nrow,
-	"\n* Columns: ", bike_removeup %>% ncol,
+	"\n* Rows: ", bike_combine %>% nrow,
+	"\n* Columns: ", bike_combine %>% ncol,
 	"\n\nAfter\n",
 	"\n* Rows: ", bike_verify %>% nrow,
 	"\n* Columns: ", bike_verify %>% ncol
@@ -2100,7 +2010,9 @@ This also adds an additional column `_merge_group` specifying the merge group in
 
 Other merge related columns start with `_merge_...`.
 
-**Note**: This also re-calculates the bikeway lengths after merging segments.
+**Note 1**: Only infrastructure with different types are considered an upgrade.
+
+**Note 2**: This also re-calculates the bikeway lengths after merging segments.
 
 ```{r}
 
@@ -2113,8 +2025,13 @@ bike_adj <- bike_tfilter %>%
 	) %>%
 	mutate( # add column to store status, type, and time unit
 		`_merge_status` = case_when(
-			!is.na(.data[[glue("_upgrade2_time_{tunit}")]]) ~ "upgrade2",
-			!is.na(.data[[glue("_upgrade1_time_{tunit}")]])~ "upgrade1",
+			!is.na(.data[[glue("_upgrade2_time_{tunit}")]]) &
+				verify_upgrade2_type != verify_upgrade1_type & # up2 == up1
+				verify_upgrade2_type != verify_install_type ~ # up2 == inst
+				"upgrade2",
+			!is.na(.data[[glue("_upgrade1_time_{tunit}")]]) &
+				verify_upgrade1_type != verify_install_type ~ # up1 == inst
+				"upgrade1",
 			!is.na(.data[[glue("_install_time_{tunit}")]]) ~ "install"
 		),
 		`_merge_type` = case_when(
@@ -2195,7 +2112,8 @@ bike_merge <- bike_adj %>%
 			length(unique(`_merge_time_group`)) == 1,
 			unique(`_merge_time_group`) %>% as.character, # single time
 			paste(unique(`_merge_time_group`), collapse = ",") # multiple times
-		)
+		),
+		across(everything(), ~ paste0(unique(.x), collapse = ","))
 	) %>%
 	mutate(
 		geometry_len_meters = st_length(geometry) %>% as.numeric
@@ -2544,6 +2462,29 @@ if (tunit != "year") {
 
 # Prepare model data
 model_data <- bike_ksi %>%
+	mutate( # Add whether segments were improved or not
+		verify_improve1 = if_else(
+			status == "install" & verify_upgrade1_type != "NA",
+			T,
+			F
+		),
+		verify_improve1_year = if_else(
+			verify_upgrade1_year == "NA",
+			NA,
+			str_remove_all(verify_upgrade1_year, "NA,|,NA")
+		),
+		verify_improve2 = if_else(
+			status == "install" & verify_upgrade2_type != "NA",
+			T,
+			F
+		),
+		verify_improve2_year = if_else(
+			verify_upgrade2_year == "NA",
+			NA,
+			str_remove_all(verify_upgrade2_year, "NA,|,NA")
+		),
+		verify_improve = verify_improve1 | verify_improve2
+	) %>%
 	select(
 		bike_merge_id = `_merge_group`,
 		bike_city = city,
@@ -2553,6 +2494,11 @@ model_data <- bike_ksi %>%
 		bike_time_orig = time_group,
 		bike_year = year,
 		bike_time = time_value,
+		bike_improve = verify_improve,
+		bike_improve1 = verify_improve1,
+		bike_improve1_year = verify_improve1_year,
+		bike_improve2 = verify_improve2,
+		bike_improve2_year = verify_improve2_year,
 		ksi_time_orig = .data[[glue("_ksi_time_{tunit}_group")]],
 		ksi = `ksi_count`
 	) %>%

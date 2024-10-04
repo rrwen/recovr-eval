@@ -572,12 +572,15 @@ vancksi <- vancksi_raw %>%
 		ksi_city = "vancouver",
 		ksi_id = 1:nrow(.) %>% as.character,
 		ksi_date = as_date(glue("{YEAR}-{MONTH}-01")), # assume first day
-		ksi_severity = INJURY_TYPE %>% as.character
-	) %>% select(
+		ksi_severity = INJURY_TYPE %>% as.character,
+		ksi_user = ROLE %>% as.character
+	) %>%
+	select(
 		ksi_city,
 		ksi_id,
 		ksi_date,
-		ksi_severity
+		ksi_severity,
+		ksi_user
 	)
 
 # Calgary ksi
@@ -591,12 +594,21 @@ calgksi <- calgksi_raw %>%
 		ksi_city = "calgary",
 		ksi_id = 1:nrow(.)  %>% as.character,
 		ksi_date = OCCURENCE_TIMESTAMP,
-		ksi_severity = INJURY_SEVERITY %>% as.character
-	) %>% select(
+		ksi_severity = INJURY_SEVERITY %>% as.character,
+		ksi_user = Object.Type %>% as.character
+	) %>%
+	mutate(
+		ksi_user = case_when(
+			ksi_user == "Bicyclist" ~ "Cyclist",
+			.default = ksi_user
+		),
+	) %>%
+	select(
 		ksi_city,
 		ksi_id,
 		ksi_date,
-		ksi_severity
+		ksi_severity,
+		ksi_user
 	)
 
 # Toronto ksi
@@ -605,12 +617,15 @@ toronksi <- toronksi_raw %>%
 		ksi_city = "toronto",
 		ksi_id = INDEX %>% as.character,
 		ksi_date = DATE %>% as_date,
-		ksi_severity = ACCLASS %>% as.character
-	) %>% select(
+		ksi_severity = ACCLASS %>% as.character,
+		ksi_user = INVTYPE %>% as.character
+	) %>%
+	select(
 		ksi_city,
 		ksi_id,
 		ksi_date,
-		ksi_severity
+		ksi_severity,
+		ksi_user
 	)
 
 # Combine KSI data
@@ -2298,15 +2313,20 @@ bike_sjoin <- bike_merge %>%
 	mutate(
 		id = as.character(id)
 	) %>%
-	full_join(
+	full_join( # add spatial joins
 		sjoin,
 		by = join_by(city, id)
 	) %>%
-	full_join(
+	full_join( # add ksi
 		ksi_tunits %>%
 			as_tibble %>%
 			select(-geometry),
 		by = join_by(ksi_city, ksi_id)
+	) %>%
+	mutate( # add ksi aggregates
+		ksi_user_driver = if_else(ksi_user %in% c("Driver", "Passenger", "Truck Driver"), 1, 0),
+		ksi_user_pedestrian = if_else(ksi_user == "Pedestrian", 1, 0),
+		ksi_user_cyclist = if_else(ksi_user %in% c("Cyclist", "Cyclist Passenger"), 1, 0)
 	) %>%
 	group_by(across(c(
 		"city",
@@ -2314,12 +2334,21 @@ bike_sjoin <- bike_merge %>%
 		tunit_col
 	))) %>%
 	summarize(
-		across(everything(), ~ paste0(unique(.x), collapse = ",")),
-		ksi_count = n()
+		across(
+			-c("ksi_user_driver", "ksi_user_pedestrian", "ksi_user_cyclist"),
+			~ paste0(unique(.x), collapse = ",")
+		),
+		ksi_count = n(),
+		ksi_count_driver = sum(ksi_user_driver, na.rm = T),
+		ksi_count_pedestrian = sum(ksi_user_pedestrian, na.rm = T),
+		ksi_count_cyclist = sum(ksi_user_cyclist, na.rm = T)
 	) %>%
 	mutate( # correct for no ksi joined
 		ksi_id = if_else(ksi_id == "NA", NA, ksi_id),
-		ksi_count = if_else(is.na(ksi_id), 0, ksi_count)
+		ksi_count = if_else(is.na(ksi_id), 0, ksi_count),
+		ksi_count_driver = if_else(is.na(ksi_id), 0, ksi_count_driver),
+		ksi_count_pedestrian = if_else(is.na(ksi_id), 0, ksi_count_pedestrian),
+		ksi_count_cyclist = if_else(is.na(ksi_id), 0, ksi_count_cyclist)
 	)
 
 # Create combination of all id and time unit combos
@@ -2360,7 +2389,7 @@ bike_ksi <- tunit_combo %>%
 			select(c(
 				"_merge_group",
 				tunit_col,
-				"ksi_count",
+				starts_with("ksi_count"),
 				colnames(ksi_tunits)
 			)) %>%
 			select(-geometry),
@@ -2463,25 +2492,36 @@ if (tunit != "year") {
 # Prepare model data
 model_data <- bike_ksi %>%
 	mutate( # Add whether segments were improved or not
-		verify_improve1 = if_else(
-			status == "install" & verify_upgrade1_type != "NA",
-			T,
-			F
-		),
+		verify_improve1 = if_else(status == "install" & verify_upgrade1_type != "NA", T, F),
+		verify_improve1_type = if_else(
+			verify_upgrade1_type == "NA",
+			NA,
+			str_remove_all(verify_upgrade1_type, "NA,|,NA")),
 		verify_improve1_year = if_else(
 			verify_upgrade1_year == "NA",
 			NA,
 			str_remove_all(verify_upgrade1_year, "NA,|,NA")
 		),
-		verify_improve2 = if_else(
-			status == "install" & verify_upgrade2_type != "NA",
-			T,
-			F
+		verify_improve1_time = if_else(
+			.data[[glue("_upgrade1_time_{tunit}")]] == "NA",
+			NA,
+			str_remove_all(.data[[glue("_upgrade1_time_{tunit}")]], "NA,|,NA")
+		),
+		verify_improve2 = if_else(status == "install" & verify_upgrade2_type != "NA", T, F),
+		verify_improve2_type = if_else(
+			verify_upgrade2_type == "NA",
+			NA,
+			str_remove_all(verify_upgrade2_type, "NA,|,NA")
 		),
 		verify_improve2_year = if_else(
 			verify_upgrade2_year == "NA",
 			NA,
 			str_remove_all(verify_upgrade2_year, "NA,|,NA")
+		),
+		verify_improve2_time = if_else(
+			.data[[glue("_upgrade2_time_{tunit}")]] == "NA",
+			NA,
+			str_remove_all(.data[[glue("_upgrade2_time_{tunit}")]], "NA,|,NA")
 		),
 		verify_improve = verify_improve1 | verify_improve2
 	) %>%
@@ -2495,12 +2535,19 @@ model_data <- bike_ksi %>%
 		bike_year = year,
 		bike_time = time_value,
 		bike_improve = verify_improve,
+		bike_improve1_type = verify_improve1_type,
 		bike_improve1 = verify_improve1,
 		bike_improve1_year = verify_improve1_year,
+		bike_improve1_time = verify_improve1_time,
 		bike_improve2 = verify_improve2,
+		bike_improve2_type = verify_improve2_type,
 		bike_improve2_year = verify_improve2_year,
+		bike_improve2_time = verify_improve2_time,
 		ksi_time_orig = .data[[glue("_ksi_time_{tunit}_group")]],
-		ksi = `ksi_count`
+		ksi = ksi_count,
+		ksi_driver = ksi_count_driver,
+		ksi_pedestrian = ksi_count_pedestrian,
+		ksi_cyclist = ksi_count_cyclist,
 	) %>%
 	left_join( # add data about range of data
 		ksi_y2009to2023 %>%
@@ -2559,13 +2606,21 @@ model_data <- bike_ksi %>%
 		cohort_install = if_else(bike_status == "install", cohort, NA),
 		cohort_upgrade = if_else(str_starts(bike_status, "upgrade"), cohort, NA),
 		cohort_upgrade1 = if_else(bike_status == "upgrade1", cohort, NA),
-		cohort_upgrade2 = if_else(bike_status == "upgrade2", cohort, NA)
+		cohort_upgrade2 = if_else(bike_status == "upgrade2", cohort, NA),
+		cohort_improve = if_else(bike_improve, cohort, NA),
+		cohort_improve1 = if_else(bike_improve1, cohort, NA),
+		cohort_improve2 = if_else(bike_improve2, cohort, NA)
 	) %>%
 	mutate( # assign post based on whether it is greater than bike time
 		post = as.integer(time >= cohort),
 		post_pl = as.integer(time >= cohort_pl) %>% replace_na(0),
 		post_ct = as.integer(time >= cohort_ct) %>% replace_na(0),
-		post_upgrade = as.integer(time >= cohort_upgrade) %>% replace_na(0)
+		post_upgrade = as.integer(time >= cohort_upgrade) %>% replace_na(0),
+		post_upgrade1 = as.integer(time >= cohort_upgrade1) %>% replace_na(0),
+		post_upgrade2 = as.integer(time >= cohort_upgrade2) %>% replace_na(0),
+		post_improve = as.integer(time >= cohort_improve) %>% replace_na(0),
+		post_improve1 = as.integer(time >= cohort_improve1) %>% replace_na(0),
+		post_improve2 = as.integer(time >= cohort_improve2) %>% replace_na(0)
 	) %>%
 	mutate( # add length in km
 		bike_len_km = bike_len_meters / 1000,
@@ -2584,7 +2639,7 @@ model_data <- bike_ksi %>%
 	)
 
 # Export model data and time ids to folder
-model_data %>% write_csv("../data/recovr-eval-2024-10-01.csv", na = "")
+model_data %>% write_csv("../data/recovr-eval-2024-10-03.csv", na = "")
 ```
 
 ### Details

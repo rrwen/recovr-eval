@@ -2292,6 +2292,8 @@ This creates columns in the format of `_ksi_time_<UNIT>_<YEAR>_<VALUE>`, where:
 * `<YEAR>`: is the year for the unit of time
 * `<VALUE>`: is the number representing the portion of the time range for the unit of time with month being 1-12, quarter being 1-4, third being 1-3, half being 1-2 and semester being 1-2 (this is omitted if time unit is `year`)
 
+**Note**: KSI by road users will also be counted.
+
 ```{r}
 
 # Ensure ids are same data type
@@ -2324,9 +2326,16 @@ bike_sjoin <- bike_merge %>%
 		by = join_by(ksi_city, ksi_id)
 	) %>%
 	mutate( # add ksi aggregates
-		ksi_user_driver = if_else(ksi_user %in% c("Driver", "Passenger", "Truck Driver"), 1, 0),
-		ksi_user_pedestrian = if_else(ksi_user == "Pedestrian", 1, 0),
-		ksi_user_cyclist = if_else(ksi_user %in% c("Cyclist", "Cyclist Passenger"), 1, 0)
+		ksi_user_driver = if_else(
+			ksi_user %in% c("Driver", "Passenger", "Truck Driver"), 1, 0
+		),
+		ksi_user_pedestrian = if_else(
+			ksi_user == "Pedestrian", 1, 0
+		),
+		ksi_user_cyclist = if_else(
+			ksi_user %in% c("Cyclist", "Cyclist Passenger"), 1, 0
+		),
+		ksi_user_other = (!(ksi_user_driver | ksi_user_pedestrian | ksi_user_cyclist)) %>% as.integer
 	) %>%
 	group_by(across(c(
 		"city",
@@ -2335,20 +2344,22 @@ bike_sjoin <- bike_merge %>%
 	))) %>%
 	summarize(
 		across(
-			-c("ksi_user_driver", "ksi_user_pedestrian", "ksi_user_cyclist"),
+			-c("ksi_user_driver", "ksi_user_pedestrian", "ksi_user_cyclist", "ksi_user_other"),
 			~ paste0(unique(.x), collapse = ",")
 		),
 		ksi_count = n(),
 		ksi_count_driver = sum(ksi_user_driver, na.rm = T),
 		ksi_count_pedestrian = sum(ksi_user_pedestrian, na.rm = T),
-		ksi_count_cyclist = sum(ksi_user_cyclist, na.rm = T)
+		ksi_count_cyclist = sum(ksi_user_cyclist, na.rm = T),
+		ksi_count_other = sum(ksi_user_other, na.rm = T)
 	) %>%
 	mutate( # correct for no ksi joined
 		ksi_id = if_else(ksi_id == "NA", NA, ksi_id),
 		ksi_count = if_else(is.na(ksi_id), 0, ksi_count),
 		ksi_count_driver = if_else(is.na(ksi_id), 0, ksi_count_driver),
 		ksi_count_pedestrian = if_else(is.na(ksi_id), 0, ksi_count_pedestrian),
-		ksi_count_cyclist = if_else(is.na(ksi_id), 0, ksi_count_cyclist)
+		ksi_count_cyclist = if_else(is.na(ksi_id), 0, ksi_count_cyclist),
+		ksi_count_other = if_else(is.na(ksi_id), 0, ksi_count_other)
 	)
 
 # Create combination of all id and time unit combos
@@ -2396,7 +2407,11 @@ bike_ksi <- tunit_combo %>%
 		by = c("_merge_group", tunit_col)
 	) %>%
 	mutate(
-		ksi_count = replace_na(ksi_count, 0)
+		ksi_count = replace_na(ksi_count, 0),
+		ksi_count_driver = replace_na(ksi_count_driver, 0),
+		ksi_count_pedestrian = replace_na(ksi_count_pedestrian, 0),
+		ksi_count_cyclist = replace_na(ksi_count_cyclist, 0),
+		ksi_count_other = replace_na(ksi_count_other, 0)
 	)
 
 ```
@@ -2436,6 +2451,8 @@ bike_ksi %>%
 ```
 
 ## Prepare Model Data {.tabset}
+
+**Note**: Improvements can occur at different times for the same merged segment.
 
 ```{r}
 
@@ -2489,6 +2506,37 @@ if (tunit != "year") {
 	
 }
 
+# Create time id map list
+tid_map <- Map(reformulate, shQuote(tid$time), shQuote(tid$time_orig))
+
+# Rowwise func for assigning improve cohort
+get_cohort_improve <- function (improve_time, time_value) {
+	
+	# Ignore NAs
+	if (is.na(improve_time)) {
+		return(NA)
+	}
+	
+	# Convert times to time ids
+	improve_tid <- tibble(
+		time_orig = str_split(improve_time, ",") %>% unlist
+	) %>%
+		mutate(time_value = case_match(time_orig, !!!tid_map)) %>%
+		pull(time_value) %>%
+		as.integer
+	
+	# Get cohort for improve
+	time_value <- time_value %>% as.integer
+	if (time_value %in% improve_tid) { # time value is same as improve time
+		out <- time_value
+	} else if (any(improve_tid < time_value)) { # time value less than improve value
+		out <- improve_tid[improve_tid < time_value] %>% max(na.rm = T)
+	} else { # time value more than improve time
+		out <- NA
+	}
+	return(out)
+}
+
 # Prepare model data
 model_data <- bike_ksi %>%
 	mutate( # Add whether segments were improved or not
@@ -2502,12 +2550,12 @@ model_data <- bike_ksi %>%
 			NA,
 			str_remove_all(verify_upgrade1_year, "NA,|,NA")
 		),
-		verify_improve1_time = if_else(
-			.data[[glue("_upgrade1_time_{tunit}")]] == "NA",
+		verify_improve1_time_orig = if_else(
+			.data[[glue("_upgrade1_time_{tunit}_group")]] == "NA",
 			NA,
-			str_remove_all(.data[[glue("_upgrade1_time_{tunit}")]], "NA,|,NA")
+			str_remove_all(.data[[glue("_upgrade1_time_{tunit}_group")]], "NA,|,NA")
 		),
-		verify_improve2 = if_else(status == "install" & verify_upgrade2_type != "NA", T, F),
+		verify_improve2 = if_else(status %in% c("install", "upgrade1") & verify_upgrade2_type != "NA", T, F),
 		verify_improve2_type = if_else(
 			verify_upgrade2_type == "NA",
 			NA,
@@ -2518,10 +2566,10 @@ model_data <- bike_ksi %>%
 			NA,
 			str_remove_all(verify_upgrade2_year, "NA,|,NA")
 		),
-		verify_improve2_time = if_else(
-			.data[[glue("_upgrade2_time_{tunit}")]] == "NA",
+		verify_improve2_time_orig = if_else(
+			.data[[glue("_upgrade2_time_{tunit}_group")]] == "NA",
 			NA,
-			str_remove_all(.data[[glue("_upgrade2_time_{tunit}")]], "NA,|,NA")
+			str_remove_all(.data[[glue("_upgrade2_time_{tunit}_group")]], "NA,|,NA")
 		),
 		verify_improve = verify_improve1 | verify_improve2
 	) %>%
@@ -2538,16 +2586,17 @@ model_data <- bike_ksi %>%
 		bike_improve1_type = verify_improve1_type,
 		bike_improve1 = verify_improve1,
 		bike_improve1_year = verify_improve1_year,
-		bike_improve1_time = verify_improve1_time,
+		bike_improve1_time_orig = verify_improve1_time_orig,
 		bike_improve2 = verify_improve2,
 		bike_improve2_type = verify_improve2_type,
 		bike_improve2_year = verify_improve2_year,
-		bike_improve2_time = verify_improve2_time,
+		bike_improve2_time_orig = verify_improve2_time_orig,
 		ksi_time_orig = .data[[glue("_ksi_time_{tunit}_group")]],
 		ksi = ksi_count,
 		ksi_driver = ksi_count_driver,
 		ksi_pedestrian = ksi_count_pedestrian,
 		ksi_cyclist = ksi_count_cyclist,
+		ksi_other = ksi_count_other
 	) %>%
 	left_join( # add data about range of data
 		ksi_y2009to2023 %>%
@@ -2570,7 +2619,11 @@ model_data <- bike_ksi %>%
 			ksi_year < ksi_year_min | ksi_year > ksi_year_max,
 			NA,
 			ksi
-		)
+		),
+		ksi_driver = if_else(is.na(ksi), NA, ksi_driver),
+		ksi_pedestrian = if_else(is.na(ksi), NA, ksi_pedestrian),
+		ksi_cyclist = if_else(is.na(ksi), NA, ksi_cyclist),
+		ksi_other = if_else(is.na(ksi), NA, ksi_other)
 	) %>%
 	mutate( # fill in as year if unit is year
 		ksi_time = case_when(
@@ -2606,10 +2659,12 @@ model_data <- bike_ksi %>%
 		cohort_install = if_else(bike_status == "install", cohort, NA),
 		cohort_upgrade = if_else(str_starts(bike_status, "upgrade"), cohort, NA),
 		cohort_upgrade1 = if_else(bike_status == "upgrade1", cohort, NA),
-		cohort_upgrade2 = if_else(bike_status == "upgrade2", cohort, NA),
-		cohort_improve = if_else(bike_improve, cohort, NA),
-		cohort_improve1 = if_else(bike_improve1, cohort, NA),
-		cohort_improve2 = if_else(bike_improve2, cohort, NA)
+		cohort_upgrade2 = if_else(bike_status == "upgrade2", cohort, NA)
+	) %>%
+	rowwise %>%
+	mutate( # assign cohort based on improve
+		cohort_improve1 = get_cohort_improve(bike_improve1_time_orig, time),
+		cohort_improve2 = get_cohort_improve(bike_improve2_time_orig, time)
 	) %>%
 	mutate( # assign post based on whether it is greater than bike time
 		post = as.integer(time >= cohort),
@@ -2618,7 +2673,7 @@ model_data <- bike_ksi %>%
 		post_upgrade = as.integer(time >= cohort_upgrade) %>% replace_na(0),
 		post_upgrade1 = as.integer(time >= cohort_upgrade1) %>% replace_na(0),
 		post_upgrade2 = as.integer(time >= cohort_upgrade2) %>% replace_na(0),
-		post_improve = as.integer(time >= cohort_improve) %>% replace_na(0),
+		post_improve = as.integer(time >= cohort_improve1 | time >= cohort_improve2) %>% replace_na(0),
 		post_improve1 = as.integer(time >= cohort_improve1) %>% replace_na(0),
 		post_improve2 = as.integer(time >= cohort_improve2) %>% replace_na(0)
 	) %>%
@@ -2629,17 +2684,16 @@ model_data <- bike_ksi %>%
 	arrange(id, time) %>%
 	select(
 		starts_with("bike_"),
-		starts_with("ksi_"),
+		starts_with("ksi"),
 		id,
 		time,
 		starts_with("post"),
-		ksi,
 		starts_with("cohort"),
 		everything()
 	)
 
 # Export model data and time ids to folder
-model_data %>% write_csv("../data/recovr-eval-2024-10-03.csv", na = "")
+model_data %>% write_csv("../data/recovr-eval-2024-10-04.csv", na = "")
 ```
 
 ### Details

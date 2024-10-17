@@ -2047,7 +2047,8 @@ bike_adj <- bike_tfilter %>%
 			!is.na(.data[[glue("_upgrade1_time_{tunit}")]]) &
 				verify_upgrade1_type != verify_install_type ~ # up1 == inst
 				"upgrade1",
-			!is.na(.data[[glue("_install_time_{tunit}")]]) ~ "install"
+			!is.na(.data[[glue("_install_time_{tunit}")]]) ~
+				"install"
 		),
 		`_merge_type` = case_when(
 			`_merge_status` == "upgrade2" ~ verify_upgrade2_type,
@@ -2128,7 +2129,7 @@ bike_merge <- bike_adj %>%
 			unique(`_merge_time_group`) %>% as.character, # single time
 			paste(unique(`_merge_time_group`), collapse = ",") # multiple times
 		),
-		across(everything(), ~ paste0(unique(.x), collapse = ","))
+		across(everything(), ~ paste0(.x, collapse = ","))
 	) %>%
 	mutate(
 		geometry_len_meters = st_length(geometry) %>% as.numeric
@@ -2541,38 +2542,18 @@ get_cohort_improve <- function (improve_time, time_value) {
 model_data <- bike_ksi %>%
 	mutate( # Add whether segments were improved or not
 		verify_improve1 = if_else(status == "install" & verify_upgrade1_type != "NA", T, F),
-		verify_improve1_type = if_else(
-			verify_upgrade1_type == "NA",
-			NA,
-			str_remove_all(verify_upgrade1_type, "NA,|,NA")),
-		verify_improve1_year = if_else(
-			verify_upgrade1_year == "NA",
-			NA,
-			str_remove_all(verify_upgrade1_year, "NA,|,NA")
-		),
-		verify_improve1_time_orig = if_else(
-			.data[[glue("_upgrade1_time_{tunit}_group")]] == "NA",
-			NA,
-			str_remove_all(.data[[glue("_upgrade1_time_{tunit}_group")]], "NA,|,NA")
-		),
+		verify_improve1_type = str_remove_all(verify_upgrade1_type, "NA,|,NA"),
+		verify_improve1_year = str_remove_all(verify_upgrade1_year, "NA,|,NA"),
+		verify_improve1_time_orig = str_remove_all(.data[[glue("_upgrade1_time_{tunit}_group")]], "NA,|,NA"),
 		verify_improve2 = if_else(status %in% c("install", "upgrade1") & verify_upgrade2_type != "NA", T, F),
-		verify_improve2_type = if_else(
-			verify_upgrade2_type == "NA",
-			NA,
-			str_remove_all(verify_upgrade2_type, "NA,|,NA")
-		),
-		verify_improve2_year = if_else(
-			verify_upgrade2_year == "NA",
-			NA,
-			str_remove_all(verify_upgrade2_year, "NA,|,NA")
-		),
-		verify_improve2_time_orig = if_else(
-			.data[[glue("_upgrade2_time_{tunit}_group")]] == "NA",
-			NA,
-			str_remove_all(.data[[glue("_upgrade2_time_{tunit}_group")]], "NA,|,NA")
-		),
+		verify_improve2_type = str_remove_all(verify_upgrade2_type, "NA,|,NA"),
+		verify_improve2_year = str_remove_all(verify_upgrade2_year, "NA,|,NA"),
+		verify_improve2_time_orig = str_remove_all(.data[[glue("_upgrade2_time_{tunit}_group")]], "NA,|,NA"),
 		verify_improve = verify_improve1 | verify_improve2
 	) %>%
+	mutate(across( # Set str na to actual nas
+		starts_with("verify_improve"), ~ if_else(. %in% c("NA", ""), NA, .)
+	)) %>%
 	select(
 		bike_merge_id = `_merge_group`,
 		bike_city = city,

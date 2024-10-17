@@ -2453,7 +2453,7 @@ bike_ksi %>%
 
 ## Prepare Model Data {.tabset}
 
-**Note**: Improvements can occur at different times for the same merged segment.
+**Note**: Improvements and upgrades can occur at different times and parts of the same merged segment. Thus, although there is an improvement upgrade on a merged segment, it may not be present on the entire merged segment.
 
 ```{r}
 
@@ -2510,21 +2510,29 @@ if (tunit != "year") {
 # Create time id map list
 tid_map <- Map(reformulate, shQuote(tid$time), shQuote(tid$time_orig))
 
-# Rowwise func for assigning improve cohort
-get_cohort_improve <- function (improve_time, time_value) {
+# Rowwise func for assigning improve or upgrade cohort
+get_cohort_change <- function (
+		change_time,
+		time_value,
+		change_type = NULL,
+		change_value = NULL
+	) {
 	
 	# Ignore NAs
-	if (is.na(improve_time)) {
+	if (is.na(change_time)) {
 		return(NA)
 	}
 	
 	# Convert times to time ids
 	improve_tid <- tibble(
-		time_orig = str_split(improve_time, ",") %>% unlist
+		time_orig = str_split(change_time, ",") %>% unlist
 	) %>%
 		mutate(time_value = case_match(time_orig, !!!tid_map)) %>%
 		pull(time_value) %>%
 		as.integer
+	
+	# Include infra type if available
+	improve_tid$type <- 
 	
 	# Get cohort for improve
 	time_value <- time_value %>% as.integer
@@ -2644,8 +2652,8 @@ model_data <- bike_ksi %>%
 	) %>%
 	rowwise %>%
 	mutate( # assign cohort based on improve
-		cohort_improve1 = get_cohort_improve(bike_improve1_time_orig, time),
-		cohort_improve2 = get_cohort_improve(bike_improve2_time_orig, time)
+		cohort_improve1 = get_cohort_change(bike_improve1_time_orig, time),
+		cohort_improve2 = get_cohort_change(bike_improve2_time_orig, time)
 	) %>%
 	mutate( # assign post based on whether it is greater than bike time
 		post = as.integer(time >= cohort),
@@ -2674,7 +2682,7 @@ model_data <- bike_ksi %>%
 	)
 
 # Export model data and time ids to folder
-model_data %>% write_csv("../data/recovr-eval-2024-10-04.csv", na = "")
+model_data %>% write_csv("../data/recovr-eval-2024-10-17.csv", na = "")
 ```
 
 ### Details

@@ -2658,8 +2658,8 @@ get_cohort <- function (
 		out <- time_value
 	} else if (any(change_tid < time_value)) { # time value lt change value then use latest
 		out <- change_tid[change_tid < time_value] %>% max(na.rm = T)
-	} else { # time value more than improve time
-		out <- NA
+	} else if (any(change_tid > time_value)) { # time value gt change value then use earliest
+		out <- change_tid[change_tid > time_value] %>% max(na.rm = T)
 	}
 	return(out)
 	

@@ -2558,6 +2558,8 @@ bike_ksi %>%
 
 **Note**: Improvements and installs/upgrades can occur at different times and parts of the same merged segment. Although there is an improvement or previous install or upgrade on a merged segment, it may not be present on the entire merged segment.
 
+**Note 2**: If a time falls outside the range of the KSI data, the cohort will be considered `NA` and the post will be considered `0`.
+
 ```{r}
 
 # Extract year and time unit for time ids

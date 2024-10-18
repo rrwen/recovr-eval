@@ -2614,7 +2614,7 @@ if (tunit != "year") {
 tid_map <- Map(reformulate, shQuote(tid$time), shQuote(tid$time_orig))
 
 # Rowwise func for assigning improve or upgrade cohort
-get_cohort_change <- function (
+get_cohort <- function (
 		change_time,
 		change_type,
 		time_value,
@@ -2633,7 +2633,8 @@ get_cohort_change <- function (
 			type != "NA" &
 			!is.na(type) &
 			time_orig != "NA" &
-			!is.na(time_orig)
+			!is.na(time_orig) &
+			!is.na(time_value)
 		)
 	
 	# Include infra type only if avail
@@ -2653,9 +2654,9 @@ get_cohort_change <- function (
 	
 	# Get cohort for improve
 	time_value <- time_value %>% as.integer
-	if (time_value %in% change_tid) { # time value is same as improve time
+	if (time_value %in% change_tid) { # time value is same as change time
 		out <- time_value
-	} else if (any(change_tid < time_value)) { # time value lt improve value then use latest
+	} else if (any(change_tid < time_value)) { # time value lt change value then use latest
 		out <- change_tid[change_tid < time_value] %>% max(na.rm = T)
 	} else { # time value more than improve time
 		out <- NA
@@ -2667,15 +2668,15 @@ get_cohort_change <- function (
 # Prepare model data
 model_data <- bike_ksi %>%
 	mutate( # Add whether segments were improved or not
-		verify_improve1 = if_else("TRUE" %in% `_improve1`, T, F),
+		verify_improve1 = if_else(str_detect(`_improve1`, "TRUE"), T, F),
 		verify_improve1_type = if_else(verify_improve1, verify_upgrade1_type, NA),
 		verify_improve1_year = if_else(verify_improve1, verify_upgrade1_year, NA),
 		verify_improve1_time_orig = if_else(verify_improve1, .data[[glue("_upgrade1_time_{tunit}_group")]], NA),
-		verify_improve2 = if_else("TRUE" %in% `_improve1`, T, F),
+		verify_improve2 = if_else(str_detect(`_improve2`, "TRUE"), T, F),
 		verify_improve2_type = if_else(verify_improve2, verify_upgrade2_type, NA),
 		verify_improve2_year = if_else(verify_improve2, verify_upgrade2_year, NA),
 		verify_improve2_time_orig = if_else(verify_improve2, .data[[glue("_upgrade2_time_{tunit}_group")]], NA),
-		verify_improve = if_else("TRUE" %in% `_improve`, T, F)
+		verify_improve = if_else(str_detect(`_improve`, "TRUE"), T, F)
 	) %>%
 	select(
 		bike_merge_id = `_merge_group`,
@@ -2694,7 +2695,7 @@ model_data <- bike_ksi %>%
 		bike_upgrade1_time_orig = .data[[glue("_upgrade1_time_{tunit}_group")]],
 		bike_upgrade2_type = verify_upgrade2_type,
 		bike_upgrade2_year = verify_upgrade2_year,
-		bike_upgrade1_time_orig = .data[[glue("_upgrade2_time_{tunit}_group")]],
+		bike_upgrade2_time_orig = .data[[glue("_upgrade2_time_{tunit}_group")]],
 		bike_improve = verify_improve,
 		bike_improve1 = verify_improve1,
 		bike_improve1_type = verify_improve1_type,
@@ -2767,22 +2768,124 @@ model_data <- bike_ksi %>%
 		by = "bike_time_orig"
 	) %>%
 	rowwise %>%
-	mutate( # assign cohort based on improve
-		cohort_install = get_cohort_change(bike_install_time_orig, bike_install_type, time),
-		cohort_install_pl = get_cohort_change(bike_install_time_orig, bike_install_type, time, c("PL", "BUF")),
-		cohort_install_ct = get_cohort_change(bike_install_time_orig, bike_install_type, time, "PBL"),
-		cohort_upgrade1 = get_cohort_change(bike_upgrade1_time_orig, bike_upgrade1_type, time),
-		cohort_upgrade1_pl = get_cohort_change(bike_upgrade1_time_orig, bike_upgrade1_type, time, c("PL", "BUF")),
-		cohort_upgrade1_ct = get_cohort_change(bike_upgrade1_time_orig, bike_upgrade1_type, time, "PBL"),
-		cohort_upgrade2 = get_cohort_change(bike_upgrade2_time_orig, bike_upgrade2_type, time),
-		cohort_upgrade2_pl = get_cohort_change(bike_upgrade2_time_orig, bike_upgrade2_type, time, c("PL", "BUF")),
-		cohort_upgrade2_ct = get_cohort_change(bike_upgrade2_time_orig, bike_upgrade2_type, time, "PBL"),
-		cohort_improve1 = get_cohort_change(bike_improve1_time_orig, bike_improve1_type, time),
-		cohort_improve1_pl = get_cohort_change(bike_improve1_time_orig, bike_improve1_type, time, c("PL", "BUF")),
-		cohort_improve1_ct = get_cohort_change(bike_improve1_time_orig, bike_improve1_type, time, "PBL"),
-		cohort_improve2 = get_cohort_change(bike_improve2_time_orig, bike_improve1_type, time),
-		cohort_improve2_pl = get_cohort_change(bike_improve2_time_orig, bike_improve2_type, time, c("PL", "BUF")),
-		cohort_improve2_ct = get_cohort_change(bike_improve2_time_orig, bike_improve2_type, time, "PBL")
+	mutate( # assign cohort
+		cohort_pl = get_cohort(
+			paste(
+				bike_install_time_orig,
+				bike_upgrade1_time_orig,
+				bike_upgrade2_time_orig,
+				sep = ","
+			),
+			paste(
+				bike_install_type,
+				bike_upgrade1_type,
+				bike_upgrade2_type,
+				sep = ","
+			),
+			time,
+			c("PL", "BUF")
+		),
+		cohort_ct = get_cohort(
+			paste(
+				bike_install_time_orig,
+				bike_upgrade1_time_orig,
+				bike_upgrade2_time_orig,
+				sep = ","
+			),
+			paste(
+				bike_install_type,
+				bike_upgrade1_type,
+				bike_upgrade2_type,
+				sep = ","
+			),
+			time,
+			"PBL"
+		),
+		cohort_install = get_cohort(
+			bike_install_time_orig,
+			bike_install_type,
+			time
+		),
+		cohort_install_pl = get_cohort(
+			bike_install_time_orig,
+			bike_install_type,
+			time,
+			c("PL", "BUF")
+		),
+		cohort_install_ct = get_cohort(
+			bike_install_time_orig,
+			bike_install_type,
+			time,
+			"PBL"
+		),
+		cohort_upgrade1 = get_cohort(
+			bike_upgrade1_time_orig,
+			bike_upgrade1_type,
+			time
+		),
+		cohort_upgrade1_pl = get_cohort(
+			bike_upgrade1_time_orig,
+			bike_upgrade1_type,
+			time,
+			c("PL", "BUF")
+		),
+		cohort_upgrade1_ct = get_cohort(
+			bike_upgrade1_time_orig,
+			bike_upgrade1_type,
+			time,
+			"PBL"
+		),
+		cohort_upgrade2 = get_cohort(
+			bike_upgrade2_time_orig,
+			bike_upgrade2_type,
+			time
+		),
+		cohort_upgrade2_pl = get_cohort(
+			bike_upgrade2_time_orig,
+			bike_upgrade2_type,
+			time,
+			c("PL", "BUF")
+		),
+		cohort_upgrade2_ct = get_cohort(
+			bike_upgrade2_time_orig,
+			bike_upgrade2_type,
+			time,
+			"PBL"
+		),
+		cohort_improve1 = get_cohort(
+			bike_improve1_time_orig,
+			bike_improve1_type,
+			time
+		),
+		cohort_improve1_pl = get_cohort(
+			bike_improve1_time_orig,
+			bike_improve1_type,
+			time,
+			c("PL", "BUF")
+		),
+		cohort_improve1_ct = get_cohort(
+			bike_improve1_time_orig,
+			bike_improve1_type,
+			time,
+			"PBL"
+		),
+		cohort_improve2 = get_cohort(
+			bike_improve2_time_orig,
+			bike_improve1_type,
+			time
+		),
+		cohort_improve2_pl = get_cohort(
+			bike_improve2_time_orig,
+			bike_improve2_type,
+			time,
+			c("PL", "BUF")
+		),
+		cohort_improve2_ct = get_cohort(
+			bike_improve2_time_orig,
+			bike_improve2_type,
+			time,
+			"PBL"
+		)
 	) %>%
 	mutate( # assign post based on whether it is greater than bike time
 		post = as.integer(time >= cohort),

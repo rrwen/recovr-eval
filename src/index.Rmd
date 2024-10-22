@@ -2611,16 +2611,21 @@ if (tunit != "year") {
 	
 }
 
-# Create time id map list
-tid_map <- Map(reformulate, shQuote(tid$time), shQuote(tid$time_orig))
-
 # Rowwise func for assigning improve or upgrade cohort
 get_cohort <- function (
 		change_time,
 		change_type,
-		time_value,
-		type_value = NULL
+		time_val,
+		type_val = NULL,
+		tid_df = tid
 	) {
+	
+	# Create time id map list
+	tid_map <- Map(reformulate, shQuote(tid_df$time), shQuote(tid_df$time_orig))
+	
+	# Convert to char
+	change_time <- change_time %>% as.character
+	change_type <- change_type %>% as.character
 	
 	# Convert times to time ids
 	change_tid <- tibble(
@@ -2628,7 +2633,12 @@ get_cohort <- function (
 		type = str_split(change_type, ",") %>% unlist
 	) %>%
 		mutate(
-			time_value = case_match(time_orig, !!!tid_map)
+			time_value = case_match(time_orig, !!!tid_map),
+			time_value = if_else( # assign min if time outside range and lower
+				time_orig < min(time_value),
+				min(time_value),
+				time_value
+			)
 		) %>%
 		filter(
 			type != "NA" &
@@ -2639,11 +2649,11 @@ get_cohort <- function (
 		)
 	
 	# Include infra type only if avail
-	if (!is.null(type_value)) {
-		change_tid <- change_tid %>% filter(type %in% type_value)
+	if (!is.null(type_val)) {
+		change_tid <- change_tid %>% filter(type %in% type_val)
 	}
 	
-	# # Ignore if no data exists
+	# Ignore if no data exists
 	if (nrow(change_tid) < 1) {
 		return(NA)
 	}
@@ -2653,14 +2663,24 @@ get_cohort <- function (
 		pull(time_value) %>%
 		as.integer
 	
+	# Convert time to tid
+	class(time_val) <- class(tid_df$time_value)
+	if (time_val < min(tid_df$time_value)) { # time id below range then set to min id
+		time_val <- min(tid_df$time_value)
+	} else { # time id found
+		time_val <- tid_df %>% 
+			filter(time_orig == time_val) %>%
+			pull(time) %>%
+			head(1)
+	}
+	
 	# Get cohort for improve
-	time_value <- time_value %>% as.integer
-	if (time_value %in% change_tid) { # time value is same as change time
-		out <- time_value
-	} else if (any(change_tid < time_value)) { # time value lt change value then use latest
-		out <- change_tid[change_tid < time_value] %>% max(na.rm = T)
-	} else if (any(change_tid > time_value)) { # time value gt change value then use earliest
-		out <- change_tid[change_tid > time_value] %>% max(na.rm = T)
+	if (time_val %in% change_tid) { # time value is same as change time
+		out <- time_val
+	} else if (any(change_tid < time_val)) { # time value lt change value then use latest
+		out <- change_tid[change_tid < time_val] %>% max(na.rm = T)
+	} else { # if gt then does not exist at this time so NA
+		out <- NA
 	}
 	return(out)
 	
@@ -2768,6 +2788,13 @@ model_data <- bike_ksi %>%
 			),
 		by = "bike_time_orig"
 	) %>%
+	mutate( # fix cohort to min time id for times less than time range
+		cohort = if_else(
+			bike_time_orig < min(tid$time_value),
+			min(tid$time_value),
+			cohort
+		)
+	) %>%
 	rowwise %>%
 	mutate( # assign cohort
 		cohort_pl = get_cohort(
@@ -2819,39 +2846,63 @@ model_data <- bike_ksi %>%
 			time,
 			"PBL"
 		),
-		cohort_upgrade1 = get_cohort(
-			bike_upgrade1_time_orig,
-			bike_upgrade1_type,
-			time
+		cohort_upgrade1 = if_else(
+			!bike_improve1,
+			get_cohort(
+				bike_upgrade1_time_orig,
+				bike_upgrade1_type,
+				time
+			),
+			NA
 		),
-		cohort_upgrade1_pl = get_cohort(
-			bike_upgrade1_time_orig,
-			bike_upgrade1_type,
-			time,
-			c("PL", "BUF")
+		cohort_upgrade1_pl = if_else(
+			!bike_improve1,
+			get_cohort(
+				bike_upgrade1_time_orig,
+				bike_upgrade1_type,
+				time,
+				c("PL", "BUF")
+			),
+			NA
 		),
-		cohort_upgrade1_ct = get_cohort(
-			bike_upgrade1_time_orig,
-			bike_upgrade1_type,
-			time,
-			"PBL"
+		cohort_upgrade1_ct = if_else(
+			!bike_improve1,
+			get_cohort(
+				bike_upgrade1_time_orig,
+				bike_upgrade1_type,
+				time,
+				"PBL"
+			),
+			NA
 		),
-		cohort_upgrade2 = get_cohort(
-			bike_upgrade2_time_orig,
-			bike_upgrade2_type,
-			time
+		cohort_upgrade2 = if_else(
+			!bike_improve2,
+			get_cohort(
+				bike_upgrade2_time_orig,
+				bike_upgrade2_type,
+				time
+			),
+			NA
 		),
-		cohort_upgrade2_pl = get_cohort(
-			bike_upgrade2_time_orig,
-			bike_upgrade2_type,
-			time,
-			c("PL", "BUF")
+		cohort_upgrade2_pl = if_else(
+			!bike_improve2,
+			get_cohort(
+				bike_upgrade2_time_orig,
+				bike_upgrade2_type,
+				time,
+				c("PL", "BUF")
+			),
+			NA
 		),
-		cohort_upgrade2_ct = get_cohort(
-			bike_upgrade2_time_orig,
-			bike_upgrade2_type,
-			time,
-			"PBL"
+		cohort_upgrade2_ct = if_else(
+			!bike_improve2,
+			get_cohort(
+				bike_upgrade2_time_orig,
+				bike_upgrade2_type,
+				time,
+				"PBL"
+			),
+			NA
 		),
 		cohort_improve1 = get_cohort(
 			bike_improve1_time_orig,
@@ -2922,7 +2973,7 @@ model_data <- bike_ksi %>%
 	)
 
 # Export model data and time ids to folder
-model_data %>% write_csv("../data/recovr-eval-2024-10-18.csv", na = "")
+model_data %>% write_csv("../data/recovr-eval-2024-10-22.csv", na = "")
 ```
 
 ### Details

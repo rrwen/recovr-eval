@@ -512,7 +512,7 @@ bike_combine <- names(bike_list) %>%
 				all_of(bike_cols)
 			) %>%
 			mutate(
-				city = factor(city, levels = names(bike_list)),
+				city = city,
 				.before = 1
 			)
 	}) %>%
@@ -2107,136 +2107,72 @@ bike_improv %>%
 
 ```
 
-## Merge Bikeways {.tabset}
+## Group Adjacent Bikeways {.tabset}
 
-Merge bikeway segments if they are within the same infrastructure type, time unit, and known status (e.g. install, 1st upgrade, 2nd upgrade).
+Group bikeway segments together if they are spatially adjacent and are the same infrastructure type after all installs and upgrades.
 
-The known status is the most recent change **with a known time unit** for a segment with one of the following values:
+The known status is the most recent change with a known time unit for a segment with one of the following values:
 
-1. `install`: an installed segment with no upgrades
-2. `upgrade1` a segment upgraded once and was previously installed
-3. `upgrade2`: a segment upgraded twice and was previously upgrade once and installed
+* `install`: an installed segment with no upgrades
+* `upgrade1`: a segment upgraded once and was previously installed
+* `upgrade2`: a segment upgraded twice and was previously upgrade once and installed
 
-This also adds an additional column `_merge_group` specifying the merge group in the format of `<CITYNUM>_<STATUS>_<TYPE>_<YEAR>_<TIME>_<ADJID>`, where:
+This also adds an additional column `_merge_group` specifying the merge group in the format of `<CITY>_<STATUS>_<TYPE>_<ADJID>`, where:
 
-* `<CITYNUM>`: is the numeric id of the city, 1 is vancouver, 2 is calgary, and 3 is toronto
-* `<STATUS>`: the status of the segment, one of `install`, `upgrade1`, or `upgrade2`
+* `<CITY>`: is the city name
+* `<STATUS>`: the status of the segment, one of install, upgrade1, or upgrade2
 * `<TYPE>`: the infrastructure type of the segment
-* `<YEAR>`: the year of the segment status
-* `<TIME>`: the value of the time unit if not the same as year
 * `<ADJID>`: the adjacency id, if the ids are the same, they are adjacent in space
 
-Other merge related columns start with `_merge_...`.
+Other merge related columns start with `_merge_....`
 
-**Note 1**: Only infrastructure with different types are considered an upgrade.
-
-**Note 2**: This also re-calculates the bikeway lengths after merging segments.
+**Note**: Only infrastructure with different types are considered an upgrade. Infrastructure with the same type are considered improvements and do not affect the known status.
 
 ```{r}
 
 # Determine adjacent segments if they are within same status, type, and time unit
 bike_adj <- bike_improv %>%
-	filter( # remove segments that do not have the time unit
-		!is.na(.data[[glue("_upgrade2_time_{tunit}")]]) |
-		!is.na(.data[[glue("_upgrade1_time_{tunit}")]]) |
-		!is.na(.data[[glue("_install_time_{tunit}")]])
-	) %>%
-	mutate( # add column to store status, type, and time unit
-		`_merge_status` = case_when(
-			!is.na(.data[[glue("_upgrade2_time_{tunit}")]]) &
-				verify_upgrade2_type != verify_upgrade1_type & # up2 == up1
-				verify_upgrade2_type != verify_install_type ~ # up2 == inst
-				"upgrade2",
-			!is.na(.data[[glue("_upgrade1_time_{tunit}")]]) &
-				verify_upgrade1_type != verify_install_type ~ # up1 == inst
-				"upgrade1",
-			!is.na(.data[[glue("_install_time_{tunit}")]]) ~
-				"install"
-		),
-		`_merge_type` = case_when(
-			`_merge_status` == "upgrade2" ~ verify_upgrade2_type,
-			`_merge_status` == "upgrade1" ~ verify_upgrade1_type,
-			`_merge_status` == "install" ~ verify_install_type
-		),
-		`_merge_time_unit` = tunit,
-		`_merge_time` = case_when(
-			`_merge_status` == "upgrade2" ~ .data[[glue("_upgrade2_time_{tunit}")]],
-			`_merge_status` == "upgrade1" ~ .data[[glue("_upgrade1_time_{tunit}")]],
-			`_merge_status` == "install" ~ .data[[glue("_install_time_{tunit}")]]
-		),
-		`_merge_time_group` = case_when(
-			`_merge_status` == "upgrade2" ~ .data[[glue("_upgrade2_time_{tunit}_group")]],
-			`_merge_status` == "upgrade1" ~ .data[[glue("_upgrade1_time_{tunit}_group")]],
-			`_merge_status` == "install" ~ .data[[glue("_install_time_{tunit}_group")]]
-		),
-		`_merge_year` = case_when(
-			`_merge_status` == "upgrade2" ~ `_upgrade2_time_year`,
-			`_merge_status` == "upgrade1" ~ `_upgrade1_time_year`,
-			`_merge_status` == "install" ~ `_install_time_year`
-		)
-	) %>%
-	group_by(city, `_merge_status`, `_merge_type`, `_merge_time_group`) %>%
-	group_map(~ {
-		
-		# Assign group id as group_by values separated by underscore
-		group_id <- .y[1,] %>%
-			as.character %>%
-			paste0(., collapse = "_") %>%
-			str_to_lower(.)
-		
-		# Find adjacent segments and group them together using a group id
-		adj_group <- .x %>%
-			st_touches %>%
-			graph_from_adj_list %>%
-			components %>%
-			.$membership %>%
-			paste0(group_id, "_", .)
-		
-		# Assign adj group to data in order
-		out <- .x %>% mutate(`_merge_group` = adj_group)
-		return(out)
-		
-	}, .keep = T) %>%
-	reduce(add_row)
-
-# Merge bike segments by adjacency
-bike_merge <- bike_adj %>%
-	group_by(`_merge_group`) %>%
-	summarize(
-		id = paste0(id, collapse = ","),
-		city = paste0(unique(city), collapse = ","),
-		status = case_when( # assign single status if possible
-			all(unique(`_merge_status`) == "upgrade2") ~ "upgrade2",
-			all(unique(`_merge_status`) == "upgrade1") ~ "upgrade1",
-			all(unique(`_merge_status`) == "install") ~ "install",
-			.default = paste(unique(`_merge_status`), collapse = ",") # multiple status
-		),
-		type = if_else( # assign single type if possible
-			length(unique(`_merge_type`)) == 1,
-			unique(`_merge_type`) %>% as.character, # single type
-			paste(unique(`_merge_type`), collapse = ",") # multiple types
-		),
-		year = if_else( # assign single year if possible
-			length(unique(`_merge_year`)) == 1,
-			unique(`_merge_year`) %>% as.character, # single year
-			paste(unique(`_merge_year`), collapse = ",") # multiple years
-		),
-		time_unit = tunit,
-		time_value = if_else( # assign single time if possible
-			length(unique(`_merge_time`)) == 1,
-			unique(`_merge_time`) %>% as.character, # single time
-			paste(unique(`_merge_time`), collapse = ",") # multiple times
-		),
-		time_group = if_else( # assign single time if possible
-			length(unique(`_merge_time_group`)) == 1,
-			unique(`_merge_time_group`) %>% as.character, # single time
-			paste(unique(`_merge_time_group`), collapse = ",") # multiple times
-		),
-		across(everything(), ~ paste0(.x, collapse = ","))
-	) %>%
-	mutate(
-		geometry_len_meters = st_length(geometry) %>% as.numeric
-	)
+    mutate( # add column to store status, type, and time unit
+        `_adj_status` = case_when(
+            !is.na(.data[[glue("_upgrade2_time_{tunit}")]]) &
+                verify_upgrade2_type != verify_upgrade1_type & # up2 == up1
+                verify_upgrade2_type != verify_install_type ~ # up2 == inst
+                "upgrade2",
+            !is.na(.data[[glue("_upgrade1_time_{tunit}")]]) &
+                verify_upgrade1_type != verify_install_type ~ # up1 == inst
+                "upgrade1",
+            !is.na(.data[[glue("_install_time_{tunit}")]]) ~
+                "install"
+        ),
+        `_adj_type` = case_when(
+            `_adj_status` == "upgrade2" ~ verify_upgrade2_type,
+            `_adj_status` == "upgrade1" ~ verify_upgrade1_type,
+            `_adj_status` == "install" ~ verify_install_type
+        )
+    ) %>%
+    group_by(city, `_adj_type`) %>%
+    group_map(~ {
+        
+        # Assign group id as group_by values separated by underscore
+        group_id <- .y[1,] %>%
+            as.character %>%
+            paste0(., collapse = "_") %>%
+            str_to_lower(.)
+        
+        # Find adjacent segments and group them together using a group id
+        adj_group <- .x %>%
+            st_touches %>%
+            graph_from_adj_list %>%
+            components %>%
+            .$membership %>%
+            paste0(group_id, "_", .)
+        
+        # Assign adj group to data in order
+        out <- .x %>% mutate(`_adj_group` = adj_group)
+        return(out)
+        
+    }, .keep = T) %>%
+    reduce(add_row)
 
 ```
 
@@ -2250,23 +2186,23 @@ cat(glue(
 	"\n* Rows: ", bike_improv %>% nrow,
 	"\n* Columns: ", bike_improv %>% ncol,
 	"\n\nAfter\n",
-	"\n* Rows: ", bike_merge %>% nrow,
-	"\n* Columns: ", bike_merge %>% ncol,
-	"\n\nNew Columns (", bike_merge %>% ncol - bike_improv %>% ncol, ")\n",
+	"\n* Rows: ", bike_adj %>% nrow,
+	"\n* Columns: ", bike_adj %>% ncol,
+	"\n\nNew Columns (", bike_adj %>% ncol - bike_improv %>% ncol, ")\n",
 	paste0(
 		"\n* ",
-		colnames(bike_merge) %>%
+		colnames(bike_adj) %>%
 			.[!. %in% colnames(bike_improv)],
 		collapse = ""
 	)
 ))
 
 # Display counts
-bike_merge_counts <- bike_merge %>%
+bike_adj_counts <- bike_adj %>%
     as_tibble %>%
-	group_by(city, status) %>%
+	group_by(`_adj_group`) %>%
 	count
-bike_merge_counts
+bike_adj_counts
 
 ```
 
@@ -2275,9 +2211,9 @@ bike_merge_counts
 ```{r}
 
 # Display merged bike segments
-bike_merge %>%
+bike_adj %>%
 	as_tibble %>%
-	select(-geometry) %>%
+	select(starts_with("_adj"), everything(), -geometry) %>%
 	head
 
 ```
@@ -2286,7 +2222,7 @@ bike_merge %>%
 
 ```{r}
 tmap_mode("view")
-tm_shape(bike_merge %>% st_buffer(25)) +
+tm_shape(bike_adj %>% st_buffer(25)) +
     tm_polygons(
     	group = "Merged (Black)",
     	col = "black",
@@ -2316,12 +2252,12 @@ Each KSI point is joined to a bikeway if they are within 25 meters of the neares
 ```{r}
 
 # Buffer bikeways and keep ids
-bike_merge_buff25 <- bike_merge %>%
+bike_adj_buff25 <- bike_adj %>%
 	select(city, id) %>%
 	st_buffer(25)
 
 # Spatial join bikeways with ksi keeping ids
-sjoin <- bike_merge_buff25 %>%
+sjoin <- bike_adj_buff25 %>%
 	st_join(ksi_tunits %>% select(ksi_city, ksi_id)) %>%
 	as_tibble %>%
 	select(-geometry)
@@ -2335,8 +2271,8 @@ sjoin <- bike_merge_buff25 %>%
 # Display rows and cols
 cat(glue(
 	"\nBikeways\n",
-	"\n* Rows: ", bike_merge %>% nrow,
-	"\n* Columns: ", bike_merge %>% ncol,
+	"\n* Rows: ", bike_adj %>% nrow,
+	"\n* Columns: ", bike_adj %>% ncol,
 	"\n\nKSI\n",
 	"\n* Rows: ", ksi_tunits %>% nrow,
 	"\n* Columns: ", ksi_tunits %>% ncol,
@@ -2415,7 +2351,7 @@ ksi_tunits <- ksi_tunits %>%
 tunit_col <- glue("_ksi_time_{tunit}_group")
 
 # Count ksi spatially joined to bike
-bike_sjoin <- bike_merge %>%
+bike_sjoin <- bike_adj %>%
 	mutate(
 		id = as.character(id)
 	) %>%
@@ -2471,7 +2407,7 @@ if (tunit != "year") {
 	
 	# Create time unit combos for finer than a year
 	tunit_combo <- expand_grid(
-	    `_merge_group` = unique(bike_merge$`_merge_group`),
+	    `_cluster_group` = unique(bike_adj$`_cluster_group`),
 	    year = min(year(ksi_tunits$ksi_date)):max(year(ksi_tunits$ksi_date)),
 	    time_value = unique(ksi_tunits[[glue("_ksi_time_{tunit}")]])
 	) %>%
@@ -2484,7 +2420,7 @@ if (tunit != "year") {
 	
 	# Create time unit combos for year
 	tunit_combo <- expand_grid(
-	    `_merge_group` = unique(bike_merge$`_merge_group`),
+	    `_cluster_group` = unique(bike_adj$`_cluster_group`),
 	    !!tunit_col := min(year(ksi_tunits$ksi_date)):max(year(ksi_tunits$ksi_date))
 	) %>%
 		mutate(!!tunit_col := .data[[tunit_col]] %>% as.character)
@@ -2495,20 +2431,20 @@ if (tunit != "year") {
 # Fill in missing time units as zero
 bike_ksi <- tunit_combo %>%
 	left_join(
-		bike_merge,
-		by = c("_merge_group")
+		bike_adj,
+		by = c("_cluster_group")
 	) %>%
 	left_join(
 		bike_sjoin %>%
 			as_tibble %>%
 			select(c(
-				"_merge_group",
+				"_cluster_group",
 				tunit_col,
 				starts_with("ksi_count"),
 				colnames(ksi_tunits)
 			)) %>%
 			select(-geometry),
-		by = c("_merge_group", tunit_col)
+		by = c("_cluster_group", tunit_col)
 	) %>%
 	mutate(
 		ksi_count = replace_na(ksi_count, 0),
@@ -2527,16 +2463,16 @@ bike_ksi <- tunit_combo %>%
 # Display rows and cols
 cat(glue(
 	"\nBefore\n",
-	"\n* Rows: ", bike_merge %>% nrow,
-	"\n* Columns: ", bike_merge %>% ncol,
+	"\n* Rows: ", bike_adj %>% nrow,
+	"\n* Columns: ", bike_adj %>% ncol,
 	"\n\nAfter\n",
 	"\n* Rows: ", bike_ksi %>% nrow,
 	"\n* Columns: ", bike_ksi %>% ncol,
-	"\n\nNew Columns (", bike_ksi %>% ncol - bike_merge %>% ncol, ")\n",
+	"\n\nNew Columns (", bike_ksi %>% ncol - bike_adj %>% ncol, ")\n",
 	paste0(
 		"\n* ",
 		colnames(bike_ksi) %>%
-			.[!. %in% colnames(bike_merge)],
+			.[!. %in% colnames(bike_adj)],
 		collapse = ""
 	)
 ))
@@ -2709,7 +2645,7 @@ model_data <- bike_ksi %>%
 	) %>%
 	select(
 		bike_id = id,
-		bike_merge_id = `_merge_group`,
+		bike_adj_id = `_cluster_group`,
 		bike_city = city,
 		bike_status = status,
 		bike_type = type,
@@ -2778,7 +2714,7 @@ model_data <- bike_ksi %>%
 		ksi_time_unit = tunit
 	) %>%
 	mutate( # assign ids and add time units
-		id = factor(bike_merge_id) %>% as.integer,
+		id = factor(bike_adj_id) %>% as.integer,
 		bike_time_unit = tunit,
 		ksi_time_unit = tunit
 	) %>%
@@ -3062,14 +2998,14 @@ vancbike_stats <- list(
 	itypes = bike_itypes %>% filter(city == "vancouver") %>% nrow,
 	p2010 = bike_p2010 %>% filter(city == "vancouver") %>% nrow,
 	tfilter = bike_tfilter %>% filter(city == "vancouver") %>% nrow,
-	merge = bike_merge %>% filter(city == "vancouver") %>% nrow,
+	merge = bike_adj %>% filter(city == "vancouver") %>% nrow,
 	sjoin = sjoin %>% filter(ksi_city == "vancouver" & !is.na(ksi_id)) %>% pull(ksi_id) %>% unique %>% length,
 	raw_km = calc_total_km(vancbike_raw),
 	verify_km = calc_total_km(bike_verify %>% filter(city == "vancouver")),
 	itypes_km = calc_total_km(bike_itypes %>% filter(city == "vancouver")),
 	p2010_km = calc_total_km(bike_p2010 %>% filter(city == "vancouver")),
 	tfilter_km = calc_total_km(bike_tfilter %>% filter(city == "vancouver")),
-	merge_km = calc_total_km(bike_merge %>% filter(city == "vancouver")),
+	merge_km = calc_total_km(bike_adj %>% filter(city == "vancouver")),
 	years = vancbike_raw$install_year %>% range(na.rm = T) %>% paste0(., collapse = "-")
 )
 
@@ -3089,14 +3025,14 @@ calgbike_stats <- list(
 	itypes = bike_itypes %>% filter(city == "calgary") %>% nrow,
 	p2010 = bike_p2010 %>% filter(city == "calgary") %>% nrow,
 	tfilter = bike_tfilter %>% filter(city == "calgary") %>% nrow,
-	merge = bike_merge %>% filter(city == "calgary") %>% nrow,
+	merge = bike_adj %>% filter(city == "calgary") %>% nrow,
 	sjoin = sjoin %>% filter(ksi_city == "calgary" & !is.na(ksi_id)) %>% pull(ksi_id) %>% unique %>% length,
 	raw_km = calc_total_km(calgbike_raw),
 	verify_km = calc_total_km(bike_verify %>% filter(city == "calgary")),
 	itypes_km = calc_total_km(bike_itypes %>% filter(city == "calgary")),
 	p2010_km = calc_total_km(bike_p2010 %>% filter(city == "calgary")),
 	tfilter_km = calc_total_km(bike_tfilter %>% filter(city == "calgary")),
-	merge_km = calc_total_km(bike_merge %>% filter(city == "calgary")),
+	merge_km = calc_total_km(bike_adj %>% filter(city == "calgary")),
 	years = calgbike_raw$install_year %>% range(na.rm = T) %>% paste0(., collapse = "-")
 )
 
@@ -3116,14 +3052,14 @@ toronbike_stats <- list(
 	itypes = bike_itypes %>% filter(city == "toronto") %>% nrow,
 	p2010 = bike_p2010 %>% filter(city == "toronto") %>% nrow,
 	tfilter = bike_tfilter %>% filter(city == "toronto") %>% nrow,
-	merge = bike_merge %>% filter(city == "toronto") %>% nrow,
+	merge = bike_adj %>% filter(city == "toronto") %>% nrow,
 	sjoin = sjoin %>% filter(ksi_city == "toronto" & !is.na(ksi_id)) %>% pull(ksi_id) %>% unique %>% length,
 	raw_km = calc_total_km(toronbike_raw),
 	verify_km = calc_total_km(bike_verify %>% filter(city == "toronto")),
 	itypes_km = calc_total_km(bike_itypes %>% filter(city == "toronto")),
 	p2010_km = calc_total_km(bike_p2010 %>% filter(city == "toronto")),
 	tfilter_km = calc_total_km(bike_tfilter %>% filter(city == "toronto")),
-	merge_km = calc_total_km(bike_merge %>% filter(city == "toronto")),
+	merge_km = calc_total_km(bike_adj %>% filter(city == "toronto")),
 	years = toronbike_raw$install_year %>% range(na.rm = T) %>% paste0(., collapse = "-")
 )
 
@@ -3210,7 +3146,7 @@ digraph {
 	]
 	
 	// Spatial merge
-	bike_merge[
+	bike_adj[
 		label=<
 			<b>Spatially Merged Bikeways<br/>
 			by Status, Type, and {{tunit_title}}</b><br/><br/>
@@ -3293,7 +3229,7 @@ digraph {
 	
 	
 	// Bikeway process
-	bike_raw -> bike_verify -> bike_itypes -> bike_p2010 -> bike_tfilter -> bike_merge -> ksi_sjoin
+	bike_raw -> bike_verify -> bike_itypes -> bike_p2010 -> bike_tfilter -> bike_adj -> ksi_sjoin
 	
 	// KSI process
 	ksi_raw -> ksi_coords -> ksi_injury -> ksi_y2009to2023 -> ksi_sjoin

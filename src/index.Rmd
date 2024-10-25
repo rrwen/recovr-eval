@@ -2666,7 +2666,7 @@ model_data <- bike_ksi %>%
 		ksi_time_unit = tunit
 	) %>%
 	mutate( # assign ksi time ids
-		time = case_match(ksi_time_orig, !!!tid_map)
+		time = case_match(ksi_time_orig, !!!tid_map) %>% as.integer
 	) %>%
 	mutate( # assign cohort based on bike time ids
 		cohort = case_match(bike_time_orig, !!!tid_map),
@@ -2791,7 +2791,7 @@ model_data <- bike_ksi %>%
 		)
 	) %>%
 	mutate( # assign post based on whether it is greater than bike time
-		post = as.integer(time >= cohort),
+		post = as.integer(time >= cohort) %>% replace_na(0),
 		post_install = as.integer(time >= cohort_install) %>% replace_na(0),
 		post_install_pl = as.integer(time >= cohort_install_pl) %>% replace_na(0),
 		post_install_ct = as.integer(time >= cohort_install_ct) %>% replace_na(0),
@@ -2833,9 +2833,6 @@ model_data <- bike_ksi %>%
 			1,
 			0
 		)
-	) %>%
-	mutate( # adjust data types
-		time = time %>% as.integer
 	) %>%
 	arrange(id, time) %>%
 	select(

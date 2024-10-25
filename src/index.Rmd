@@ -2122,20 +2122,13 @@ bike_improv %>%
 
 Group bikeway segments together if they are spatially adjacent and are the same infrastructure type after all installs and upgrades.
 
-The known status is the most recent change with a known time unit for a segment with one of the following values:
-
-* `install`: an installed segment with no upgrades
-* `upgrade1`: a segment upgraded once and was previously installed
-* `upgrade2`: a segment upgraded twice and was previously upgrade once and installed
-
-This also adds an additional column `_merge_group` specifying the merge group in the format of `<CITY>_<STATUS>_<TYPE>_<ADJID>`, where:
+This also adds an additional column `_adj_group` specifying the adjacency group in the format of `<CITY>_<TYPE>_<ADJID>`, where:
 
 * `<CITY>`: is the city name
-* `<STATUS>`: the status of the segment, one of install, upgrade1, or upgrade2
-* `<TYPE>`: the infrastructure type of the segment
+* `<TYPE>`: the latest infrastructure type of the segment
 * `<ADJID>`: the adjacency id, if the ids are the same, they are adjacent in space
 
-Other merge related columns start with `_merge_....`
+Other merge related columns start with `_adj_....`
 
 **Note**: Only infrastructure with different types are considered an upgrade. Infrastructure with the same type are considered improvements and do not affect the known status.
 
@@ -2154,6 +2147,16 @@ bike_adj <- bike_improv %>%
                 "upgrade1",
             !is.na(.data[[glue("_install_time_{tunit}")]]) ~
                 "install"
+        ),
+        `_adj_status_time_group` = case_when(
+        	`_adj_status` == "upgrade2" ~ .data[[glue("_upgrade2_time_{tunit}_group")]],
+            `_adj_status` == "upgrade1" ~ .data[[glue("_upgrade1_time_{tunit}_group")]],
+            `_adj_status` == "install" ~ .data[[glue("_install_time_{tunit}_group")]]
+        ),
+        `_adj_status_time_year` = str_split_i(`_adj_status_time_group`, "_", 1) %>% as.integer,
+        `_adj_status_time_value` = coalesce(
+        	str_split_i(`_adj_status_time_group`, "_", 2) %>% as.integer,
+        	`_adj_status_time_year`
         ),
         `_adj_type` = case_when(
             `_adj_status` == "upgrade2" ~ verify_upgrade2_type,
@@ -2555,6 +2558,9 @@ if (tunit != "year") {
 	
 }
 
+# Create time id map list
+tid_map <- Map(reformulate, shQuote(tid$time), shQuote(tid$time_orig))
+
 # Prepare model data
 model_data <- bike_ksi %>%
 	mutate( # add bike history in format of inst_type(year) -> upgr_type(year) -> upgr2_type(year)
@@ -2579,12 +2585,12 @@ model_data <- bike_ksi %>%
 		bike_id = id,
 		bike_adj_group = `_adj_group`,
 		bike_city = city,
-		bike_status = status,
-		bike_type = type,
+		bike_status = `_adj_status`,
+		bike_type = `_adj_type`,
 		bike_len_meters = geometry_len_meters,
-		bike_time_orig = time_group,
-		bike_year = year,
-		bike_time = time_value,
+		bike_time_orig = `_adj_status_time_group`,
+		bike_year = `_adj_status_time_year`,
+		bike_time = `_adj_status_time_value`,
 		bike_history = verify_history,
 		bike_install_type = verify_install_type,
 		bike_install_year = verify_install_year,
@@ -2646,175 +2652,141 @@ model_data <- bike_ksi %>%
 		ksi_time_unit = tunit
 	) %>%
 	mutate( # assign ids and add time units
-		id = factor(id) %>% as.integer,
+		id = factor(bike_id) %>% as.integer,
 		bike_time_unit = tunit,
 		ksi_time_unit = tunit
 	) %>%
-	left_join( # assign ksi time ids
-		tid %>%
-			select(
-				ksi_time_orig = time_orig,
-				time
-			),
-		by = "ksi_time_orig"
+	mutate( # assign ksi time ids
+		time = case_match(ksi_time_orig, !!!tid_map)
 	) %>%
-	left_join( # assign cohort based on bike time ids
-		tid %>%
-			select(
-				bike_time_orig = time_orig,
-				cohort = time
-			),
-		by = "bike_time_orig"
-	) %>%
-	mutate( # fix cohort to min time id for times less than time range
-		cohort = if_else(
-			as.integer(bike_time_orig) < min(tid$time_value),
-			min(tid$time),
-			cohort
-		)
-	) %>%
-	rowwise %>%
-	mutate( # assign cohort
-		cohort_pl = get_cohort(
-			paste(
-				bike_install_time_orig,
-				bike_upgrade1_time_orig,
-				bike_upgrade2_time_orig,
-				sep = ","
-			),
-			paste(
-				bike_install_type,
-				bike_upgrade1_type,
-				bike_upgrade2_type,
-				sep = ","
-			),
-			time,
-			c("PL", "BUF")
-		),
-		cohort_ct = get_cohort(
-			paste(
-				bike_install_time_orig,
-				bike_upgrade1_time_orig,
-				bike_upgrade2_time_orig,
-				sep = ","
-			),
-			paste(
-				bike_install_type,
-				bike_upgrade1_type,
-				bike_upgrade2_type,
-				sep = ","
-			),
-			time,
-			"PBL"
-		),
-		cohort_install = get_cohort(
-			bike_install_time_orig,
-			bike_install_type,
-			time
-		),
-		cohort_install_pl = get_cohort(
-			bike_install_time_orig,
-			bike_install_type,
-			time,
-			c("PL", "BUF")
-		),
-		cohort_install_ct = get_cohort(
-			bike_install_time_orig,
-			bike_install_type,
-			time,
-			"PBL"
+	mutate( # assign cohort based on bike time ids
+		cohort = case_match(bike_time_orig, !!!tid_map),
+		cohort_install = if_else(
+			!bike_improve,
+			case_match(bike_install_time_orig, !!!tid_map),
+			NA
 		),
 		cohort_upgrade1 = if_else(
-			!bike_improve1,
-			get_cohort(
-				bike_upgrade1_time_orig,
-				bike_upgrade1_type,
-				time
-			),
-			NA
-		),
-		cohort_upgrade1_pl = if_else(
-			!bike_improve1,
-			get_cohort(
-				bike_upgrade1_time_orig,
-				bike_upgrade1_type,
-				time,
-				c("PL", "BUF")
-			),
-			NA
-		),
-		cohort_upgrade1_ct = if_else(
-			!bike_improve1,
-			get_cohort(
-				bike_upgrade1_time_orig,
-				bike_upgrade1_type,
-				time,
-				"PBL"
-			),
+			!bike_improve,
+			case_match(bike_upgrade1_time_orig, !!!tid_map),
 			NA
 		),
 		cohort_upgrade2 = if_else(
-			!bike_improve2,
-			get_cohort(
-				bike_upgrade2_time_orig,
-				bike_upgrade2_type,
-				time
-			),
+			!bike_improve,
+			case_match(bike_upgrade2_time_orig, !!!tid_map),
+			NA
+		),
+		cohort_improve1 = if_else(
+			bike_improve1,
+			case_match(bike_improve1_time_orig, !!!tid_map),
+			NA
+		),
+		cohort_improve2 = if_else(
+			bike_improve2,
+			case_match(bike_improve2_time_orig, !!!tid_map),
+			NA
+		)
+	) %>%
+	mutate(across( # convert cohort to integers
+		starts_with("cohort"),
+		~ as.integer(.)
+	)) %>%
+	mutate( # fix cohort to min time id for times less than time range
+		cohort = if_else(
+			bike_year < min(tid$time_year),
+			min(tid$time),
+			cohort
+		),
+		cohort_install = if_else(
+			!bike_improve & bike_install_year < min(tid$time_year),
+			min(tid$time),
+			cohort_install
+		),
+		cohort_upgrade1 = if_else(
+			!bike_improve & bike_upgrade1_year < min(tid$time_year),
+			min(tid$time),
+			cohort_upgrade1
+		),
+		cohort_upgrade2 = if_else(
+			!bike_improve & bike_upgrade2_year < min(tid$time_year),
+			min(tid$time),
+			cohort_upgrade2
+		),
+		cohort_improve1 = if_else(
+			bike_improve1 & bike_improve1_year < min(tid$time_year),
+			min(tid$time),
+			cohort_improve1
+		),
+		cohort_improve2 = if_else(
+			bike_improve2 & bike_improve2_year < min(tid$time_year),
+			min(tid$time),
+			cohort_improve2
+		)
+	) %>%
+	mutate( # assign cohort for infra types
+		cohort_install_pl = if_else(
+			bike_install_type %in% c("PL", "BUF"),
+			cohort_install,
+			NA
+		),
+		cohort_install_ct = if_else(
+			bike_install_type == "PBL",
+			cohort_install,
+			NA
+		),
+		cohort_upgrade1_pl = if_else(
+			bike_upgrade1_type %in% c("PL", "BUF"),
+			cohort_upgrade1,
+			NA
+		),
+		cohort_upgrade1_ct = if_else(
+			bike_upgrade1_type == "PBL",
+			cohort_upgrade1,
 			NA
 		),
 		cohort_upgrade2_pl = if_else(
-			!bike_improve2,
-			get_cohort(
-				bike_upgrade2_time_orig,
-				bike_upgrade2_type,
-				time,
-				c("PL", "BUF")
-			),
+			bike_upgrade2_type %in% c("PL", "BUF"),
+			cohort_upgrade2,
 			NA
 		),
 		cohort_upgrade2_ct = if_else(
-			!bike_improve2,
-			get_cohort(
-				bike_upgrade2_time_orig,
-				bike_upgrade2_type,
-				time,
-				"PBL"
-			),
+			bike_upgrade2_type == "PBL",
+			cohort_upgrade2,
 			NA
 		),
-		cohort_improve1 = get_cohort(
-			bike_improve1_time_orig,
-			bike_improve1_type,
-			time
+		cohort_improve1_pl = if_else(
+			bike_improve1_type %in% c("PL", "BUF"),
+			cohort_improve1,
+			NA
 		),
-		cohort_improve1_pl = get_cohort(
-			bike_improve1_time_orig,
-			bike_improve1_type,
-			time,
-			c("PL", "BUF")
+		cohort_improve1_ct = if_else(
+			bike_improve1_type == "PBL",
+			cohort_improve1,
+			NA
 		),
-		cohort_improve1_ct = get_cohort(
-			bike_improve1_time_orig,
-			bike_improve1_type,
-			time,
-			"PBL"
+		cohort_improve2_pl = if_else(
+			bike_improve2_type %in% c("PL", "BUF"),
+			cohort_improve2,
+			NA
 		),
-		cohort_improve2 = get_cohort(
-			bike_improve2_time_orig,
-			bike_improve1_type,
-			time
+		cohort_improve2_ct = if_else(
+			bike_improve2_type == "PBL",
+			cohort_improve2,
+			NA
 		),
-		cohort_improve2_pl = get_cohort(
-			bike_improve2_time_orig,
-			bike_improve2_type,
-			time,
-			c("PL", "BUF")
+		cohort_pl = coalesce(
+			cohort_improve2_pl,
+			cohort_improve1_pl,
+			cohort_upgrade2_pl,
+			cohort_upgrade1_pl,
+			cohort_install_pl
 		),
-		cohort_improve2_ct = get_cohort(
-			bike_improve2_time_orig,
-			bike_improve2_type,
-			time,
-			"PBL"
+		cohort_ct = coalesce(
+			cohort_improve2_ct,
+			cohort_improve1_ct,
+			cohort_upgrade2_ct,
+			cohort_upgrade1_ct,
+			cohort_install_ct
 		)
 	) %>%
 	mutate( # assign post based on whether it is greater than bike time
@@ -2851,8 +2823,11 @@ model_data <- bike_ksi %>%
 		flag_issue1 = if_else(
 			flag_issue1_data %in% c(
 				"PL -> CT -> PL",
+				"BUF -> CT -> BUF",
 				"NA -> CT -> PL",
-				"CT -> PL -> NA"
+				"NA -> CT -> BUF",
+				"CT -> PL -> NA",
+				"CT -> BUF -> NA"
 			),
 			1,
 			0
@@ -2860,13 +2835,13 @@ model_data <- bike_ksi %>%
 	) %>%
 	arrange(id, time) %>%
 	select(
-		starts_with("flag"),
 		starts_with("bike"),
 		starts_with("ksi"),
 		id,
 		time,
 		starts_with("post"),
 		starts_with("cohort"),
+		starts_with("flag"),
 		everything()
 	)
 

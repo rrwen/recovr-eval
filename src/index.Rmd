@@ -2120,9 +2120,9 @@ bike_improv %>%
 
 ## Group Adjacent Bikeways {.tabset}
 
-Group bikeway segments together if they are spatially adjacent and are the same infrastructure type after all installs and upgrades.
+Group bikeway segments together if they are spatially adjacent and are the same latest infrastructure type after all installs and upgrades.
 
-This also adds an additional column `_adj_group` specifying the adjacency group in the format of `<CITY>_<TYPE>_<ADJID>`, where:
+This also adds an additional columns `_adj_group1` (considering spatial adjacency only) and `_adj_group2` (considering spatial adjacency and latest type) specifying the adjacency group in the format of `<CITY>_<ADJID>` and `<CITY>_<TYPE>_<ADJID>` respectively, where:
 
 * `<CITY>`: is the city name
 * `<TYPE>`: the latest infrastructure type of the segment
@@ -2164,6 +2164,14 @@ bike_adj <- bike_improv %>%
             `_adj_status` == "install" ~ verify_install_type
         )
     ) %>%
+	mutate( # add adj group for spatial only
+		`_adj_group1` = bike_improv %>%
+	        st_touches %>%
+	        graph_from_adj_list %>%
+	        components %>%
+	        .$membership,
+		`_adj_group1` = paste0(city, "_", `_adj_group1`)
+	) %>%
     group_by(city, `_adj_type`) %>%
     group_map(~ {
         
@@ -2174,7 +2182,7 @@ bike_adj <- bike_improv %>%
             str_to_lower(.)
         
         # Find adjacent segments and group them together using a group id
-        adj_group <- .x %>%
+        adj_group2 <- .x %>%
             st_touches %>%
             graph_from_adj_list %>%
             components %>%
@@ -2182,7 +2190,7 @@ bike_adj <- bike_improv %>%
             paste0(group_id, "_", .)
         
         # Assign adj group to data in order
-        out <- .x %>% mutate(`_adj_group` = adj_group)
+        out <- .x %>% mutate(`_adj_group2` = adj_group2)
         return(out)
         
     }, .keep = T) %>%
@@ -2214,7 +2222,7 @@ cat(glue(
 # Display counts
 bike_adj_counts <- bike_adj %>%
     as_tibble %>%
-	group_by(`_adj_group`) %>%
+	group_by(`_adj_group2`) %>%
 	count
 bike_adj_counts
 
@@ -2583,7 +2591,8 @@ model_data <- bike_ksi %>%
     ) %>%
 	select(
 		bike_id = id,
-		bike_adj_group = `_adj_group`,
+		bike_adj_group1 = `_adj_group1`,
+		bike_adj_group2 = `_adj_group2`,
 		bike_city = city,
 		bike_status = `_adj_status`,
 		bike_type = `_adj_type`,
@@ -2617,7 +2626,7 @@ model_data <- bike_ksi %>%
 		ksi_cyclist = ksi_count_cyclist,
 		ksi_other = ksi_count_other
 	) %>%
-	left_join( # add data about range of data
+	left_join( # add values about range of data
 		ksi_y2009to2023 %>%
 			as_tibble() %>%
 			group_by(ksi_city) %>%
@@ -2661,13 +2670,9 @@ model_data <- bike_ksi %>%
 	) %>%
 	mutate( # assign cohort based on bike time ids
 		cohort = case_match(bike_time_orig, !!!tid_map),
-		cohort_install = if_else(
-			!bike_improve,
-			case_match(bike_install_time_orig, !!!tid_map),
-			NA
-		),
+		cohort_install = case_match(bike_install_time_orig, !!!tid_map),
 		cohort_upgrade1 = if_else(
-			!bike_improve,
+			!bike_improve1,
 			case_match(bike_upgrade1_time_orig, !!!tid_map),
 			NA
 		),
@@ -2775,15 +2780,11 @@ model_data <- bike_ksi %>%
 			NA
 		),
 		cohort_pl = coalesce(
-			cohort_improve2_pl,
-			cohort_improve1_pl,
 			cohort_upgrade2_pl,
 			cohort_upgrade1_pl,
 			cohort_install_pl
 		),
 		cohort_ct = coalesce(
-			cohort_improve2_ct,
-			cohort_improve1_ct,
 			cohort_upgrade2_ct,
 			cohort_upgrade1_ct,
 			cohort_install_ct
@@ -2832,6 +2833,9 @@ model_data <- bike_ksi %>%
 			1,
 			0
 		)
+	) %>%
+	mutate( # adjust data types
+		time = time %>% as.integer
 	) %>%
 	arrange(id, time) %>%
 	select(

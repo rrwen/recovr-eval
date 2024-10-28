@@ -2677,7 +2677,7 @@ model_data <- bike_ksi %>%
 			NA
 		),
 		cohort_upgrade2 = if_else(
-			!bike_improve,
+			!bike_improve2,
 			case_match(bike_upgrade2_time_orig, !!!tid_map),
 			NA
 		),
@@ -2703,17 +2703,17 @@ model_data <- bike_ksi %>%
 			cohort
 		),
 		cohort_install = if_else(
-			!bike_improve & bike_install_year < min(tid$time_year),
+			bike_install_year < min(tid$time_year),
 			min(tid$time),
 			cohort_install
 		),
 		cohort_upgrade1 = if_else(
-			!bike_improve & bike_upgrade1_year < min(tid$time_year),
+			!bike_improve1 & bike_upgrade1_year < min(tid$time_year),
 			min(tid$time),
 			cohort_upgrade1
 		),
 		cohort_upgrade2 = if_else(
-			!bike_improve & bike_upgrade2_year < min(tid$time_year),
+			!bike_improve2 & bike_upgrade2_year < min(tid$time_year),
 			min(tid$time),
 			cohort_upgrade2
 		),
@@ -2832,6 +2832,26 @@ model_data <- bike_ksi %>%
 			),
 			1,
 			0
+		),
+		flag_issue2_data = paste0(
+			bike_install_type,
+			" -> ",
+			bike_upgrade1_type
+		),
+		flag_issue2 = if_else(
+			flag_issue2_data %in% c(
+				"NA -> PL",
+				"NA -> BUF",
+				"NA -> PBL",
+				"NA -> None",
+				"None -> PL",
+				"None -> BUF",
+				"None -> PBL",
+				"None -> None",
+				"None -> NA"
+			),
+			1,
+			0
 		)
 	) %>%
 	arrange(id, time) %>%
@@ -2847,7 +2867,7 @@ model_data <- bike_ksi %>%
 	)
 
 # Export model data and time ids to folder
-model_data %>% write_csv("../data/recovr-eval-2024-10-25.csv", na = "")
+model_data %>% write_csv("../data/recovr-eval-2024-10-27.csv", na = "")
 ```
 
 ### Details
@@ -2880,6 +2900,79 @@ cat(glue(
 # Display model data
 model_data %>%
 	head
+
+```
+
+### Check
+
+Perform data checks to ensure columns follow specifications.
+
+This table identifies problems stated in the `check` column.
+
+The number of rows should be `0` and there should be no `ids` if all checks passed.
+
+
+```{r}
+
+# Check model data for logic
+model_data_check_list <- list(
+	"Install time exists, but no cohort_install" = model_data %>%
+		filter(
+			!is.na(bike_install_time_orig) & is.na(cohort_install)
+		),
+	"Upgrade1 time exists, but no cohort_upgrade1" = model_data %>%
+		filter(
+			!is.na(bike_upgrade1_time_orig) & !bike_improve1 & is.na(cohort_upgrade1)
+		),
+	"Upgrade2 time exists, but no cohort_upgrade2" = model_data %>%
+		filter(
+			!is.na(bike_upgrade2_time_orig) & !bike_improve2 & is.na(cohort_upgrade2)
+		),
+	"Both upgrade1 and improve1 cohorts exist" = model_data %>%
+		filter(
+			!is.na(cohort_upgrade1) & !is.na(cohort_improve1)
+		),
+	"Both upgrade2 and improve2 cohorts exist" = model_data %>%
+		filter(
+			!is.na(cohort_upgrade2) & !is.na(cohort_improve2)
+		),
+	"Upgrade2 cohort exists but no upgrade1 or improve1 cohort" = model_data %>%
+		filter(
+			!is.na(cohort_upgrade2) & is.na(cohort_upgrade1) & is.na(cohort_improve1)
+		),
+	"Upgrade2 cohort exists but no install cohort" = model_data %>%
+		filter(
+			!is.na(cohort_upgrade2) & is.na(cohort_install)
+		),
+	"Upgrade1 cohort exists but no install cohort" = model_data %>%
+		filter(
+			!is.na(cohort_upgrade1) & is.na(cohort_install)
+		),
+	"Upgrade1 cohort exists but no install cohort" = model_data %>%
+		filter(
+			!is.na(cohort_upgrade1) & is.na(cohort_install)
+		)
+)
+
+# Create df template of checks
+model_data_check <- data.frame(
+	check = character(),
+	rows = integer(),
+	ids = character()
+)
+
+# Add checks to fill template
+for (check in names(model_data_check_list)) {
+	check_data <- model_data_check_list[[check]]
+	check_ids <- check_data %>% pull(id) %>% unique
+	model_data_check <- model_data_check %>%
+		add_row(
+			check = check,
+			rows =  check_ids %>% length,
+			ids = check_ids %>% paste0(., collapse = ",")
+		)
+}
+model_data_check
 
 ```
 

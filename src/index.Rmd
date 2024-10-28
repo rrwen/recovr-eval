@@ -2382,7 +2382,7 @@ bike_sjoin <- bike_adj %>%
 	full_join( # add ksi
 		ksi_tunits %>%
 			as_tibble %>%
-			select(-geometry),
+			select(-geometry, -ksi_city),
 		by = "ksi_id"
 	) %>%
 	mutate( # add ksi aggregates
@@ -3065,6 +3065,9 @@ for (check in names(model_data_check_list)) {
 		)
 }
 model_data_check
+
+# Save data check
+model_data_check %>% write_csv("../data/recovr-eval-check-2024-10-27.csv", na = "")
 
 ```
 

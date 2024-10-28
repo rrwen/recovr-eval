@@ -2275,7 +2275,8 @@ bike_adj_buff25 <- bike_adj %>%
 sjoin <- bike_adj_buff25 %>%
 	st_join(ksi_tunits %>% select(ksi_id)) %>%
 	as_tibble %>%
-	select(-geometry)
+	select(-geometry) %>%
+	mutate(ksi_city = str_split_i(ksi_id, "_", 1))
 
 ```
 
@@ -2604,12 +2605,15 @@ model_data <- bike_ksi %>%
 		bike_install_type = verify_install_type,
 		bike_install_year = verify_install_year,
 		bike_install_time_orig = .data[[glue("_install_time_{tunit}_group")]],
+		bike_install_comment = verify_install_comment,
 		bike_upgrade1_type = verify_upgrade1_type,
 		bike_upgrade1_year = verify_upgrade1_year,
 		bike_upgrade1_time_orig = .data[[glue("_upgrade1_time_{tunit}_group")]],
+		bike_upgrade1_comment = verify_upgrade1_comment,
 		bike_upgrade2_type = verify_upgrade2_type,
 		bike_upgrade2_year = verify_upgrade2_year,
 		bike_upgrade2_time_orig = .data[[glue("_upgrade2_time_{tunit}_group")]],
+		bike_upgrade2_comment = verify_upgrade2_comment,
 		bike_improve = `_improve`,
 		bike_improve1 = `_improve1`,
 		bike_improve1_type = verify_improve1_type,
@@ -2640,7 +2644,8 @@ model_data <- bike_ksi %>%
 		ksi_time_orig,
 		c("ksi_year", "ksi_time"),
 		sep = "_",
-		remove = F
+		remove = F,
+		convert = T
 	) %>%
 	mutate( # set ksi count to na if not within data year range
 		ksi = if_else(
@@ -2839,17 +2844,32 @@ model_data <- bike_ksi %>%
 			bike_upgrade1_type
 		),
 		flag_issue2 = if_else(
-			flag_issue2_data %in% c(
+			flag_issue2_data %in% c( # flag no installs
 				"NA -> PL",
 				"NA -> BUF",
 				"NA -> PBL",
 				"NA -> None",
+				"NA -> N",
 				"None -> PL",
 				"None -> BUF",
 				"None -> PBL",
 				"None -> None",
-				"None -> NA"
+				"None -> NA",
+				"None -> N",
+				"N -> PL",
+				"N -> BUF",
+				"N -> PBL",
+				"N -> N",
+				"N -> NA",
+				"N -> None"
 			),
+			1,
+			0
+		),
+		flag_issue3 = if_else( # flag types not ct or pbl
+			!bike_install_type %in% c("PL", "BUF", "PBL") |
+			!bike_upgrade1_type %in% c("PL", "BUF", "PBL") |
+			!bike_upgrade2_type %in% c("PL", "BUF", "PBL"),
 			1,
 			0
 		)
@@ -2909,7 +2929,7 @@ Perform data checks to ensure columns follow specifications.
 
 This table identifies problems stated in the `check` column.
 
-The number of rows should be `0` and there should be no `ids` if all checks passed.
+The number of bikeways should be `0` and there should be no `ids` if all checks passed.
 
 
 ```{r}
@@ -2951,13 +2971,85 @@ model_data_check_list <- list(
 	"Upgrade1 cohort exists but no install cohort" = model_data %>%
 		filter(
 			!is.na(cohort_upgrade1) & is.na(cohort_install)
+		),
+	"Install cohort exists but no PL or CT cohorts" = model_data %>%
+		filter(
+			!is.na(cohort_install) & is.na(cohort_install_pl) & is.na(cohort_install_ct)
+		),
+	"Upgrade1 cohort exists but no PL or CT cohorts" = model_data %>%
+		filter(
+			!is.na(cohort_upgrade1) & is.na(cohort_upgrade1_pl) & is.na(cohort_upgrade1_ct)
+		),
+	"Upgrade2 cohort exists but no PL or CT cohorts" = model_data %>%
+		filter(
+			!is.na(cohort_upgrade2) & is.na(cohort_upgrade2_pl) & is.na(cohort_upgrade2_ct)
+		),
+	"Cohort exists but no PL or CT cohorts" = model_data %>%
+		filter(
+			!is.na(cohort) & is.na(cohort_pl) & is.na(cohort_ct)
+		),
+	"Post install is 1 before cohort time" = model_data %>%
+		filter(
+			post_install == 1 & time < cohort_install
+		),
+	"Post upgrade1 is 1 before cohort time" = model_data %>%
+		filter(
+			post_upgrade1 == 1 & time < cohort_upgrade1
+		),
+	"Post upgrade2 is 1 before cohort time" = model_data %>%
+		filter(
+			post_upgrade2 == 1 & time < cohort_upgrade2
+		),
+	"Post is 1 before cohort time" = model_data %>%
+		filter(
+			post == 1 & time < cohort
+		),
+	"Post install is 0 after cohort time" = model_data %>%
+		filter(
+			post_install == 0 & time >= cohort_install
+		),
+	"Post upgrade1 is 0 after cohort time" = model_data %>%
+		filter(
+			post_upgrade1 == 0 & time >= cohort_upgrade1
+		),
+	"Post upgrade2 is 0 after cohort time" = model_data %>%
+		filter(
+			post_upgrade2 == 0 & time >= cohort_upgrade2
+		),
+	"Post is 0 after cohort time" = model_data %>%
+		filter(
+			post == 0 & time >= cohort
+		),
+	"KSI is outside data range" = model_data %>%
+		filter(
+			!is.na(ksi) & ksi_year < ksi_year_min & ksi_year > ksi_year_max
+		),
+	"Driver KSI is outside data range" = model_data %>%
+		filter(
+			!is.na(ksi_driver) & ksi_year < ksi_year_min & ksi_year > ksi_year_max
+		),
+	"Pedestrian KSI is outside data range" = model_data %>%
+		filter(
+			!is.na(ksi_pedestrian) & ksi_year < ksi_year_min & ksi_year > ksi_year_max
+		),
+	"Cyclist KSI is outside data range" = model_data %>%
+		filter(
+			!is.na(ksi_cyclist) & ksi_year < ksi_year_min & ksi_year > ksi_year_max
+		),
+	"Other KSI is outside data range" = model_data %>%
+		filter(
+			!is.na(ksi_other) & ksi_year < ksi_year_min & ksi_year > ksi_year_max
+		),
+	"Road user KSI does not add up to total KSI" = model_data %>%
+		filter(
+			ksi != sum(ksi_driver, ksi_pedestrian, ksi_cyclist, ksi_other)
 		)
 )
 
 # Create df template of checks
 model_data_check <- data.frame(
 	check = character(),
-	rows = integer(),
+	bikeways = integer(),
 	ids = character()
 )
 
@@ -2968,7 +3060,7 @@ for (check in names(model_data_check_list)) {
 	model_data_check <- model_data_check %>%
 		add_row(
 			check = check,
-			rows =  check_ids %>% length,
+			bikeways =  check_ids %>% length,
 			ids = check_ids %>% paste0(., collapse = ",")
 		)
 }
@@ -2999,14 +3091,12 @@ vancbike_stats <- list(
 	itypes = bike_itypes %>% filter(city == "vancouver") %>% nrow,
 	p2010 = bike_p2010 %>% filter(city == "vancouver") %>% nrow,
 	tfilter = bike_tfilter %>% filter(city == "vancouver") %>% nrow,
-	merge = bike_adj %>% filter(city == "vancouver") %>% nrow,
 	sjoin = sjoin %>% filter(ksi_city == "vancouver" & !is.na(ksi_id)) %>% pull(ksi_id) %>% unique %>% length,
 	raw_km = calc_total_km(vancbike_raw),
 	verify_km = calc_total_km(bike_verify %>% filter(city == "vancouver")),
 	itypes_km = calc_total_km(bike_itypes %>% filter(city == "vancouver")),
 	p2010_km = calc_total_km(bike_p2010 %>% filter(city == "vancouver")),
 	tfilter_km = calc_total_km(bike_tfilter %>% filter(city == "vancouver")),
-	merge_km = calc_total_km(bike_adj %>% filter(city == "vancouver")),
 	years = vancbike_raw$install_year %>% range(na.rm = T) %>% paste0(., collapse = "-")
 )
 
@@ -3026,14 +3116,12 @@ calgbike_stats <- list(
 	itypes = bike_itypes %>% filter(city == "calgary") %>% nrow,
 	p2010 = bike_p2010 %>% filter(city == "calgary") %>% nrow,
 	tfilter = bike_tfilter %>% filter(city == "calgary") %>% nrow,
-	merge = bike_adj %>% filter(city == "calgary") %>% nrow,
 	sjoin = sjoin %>% filter(ksi_city == "calgary" & !is.na(ksi_id)) %>% pull(ksi_id) %>% unique %>% length,
 	raw_km = calc_total_km(calgbike_raw),
 	verify_km = calc_total_km(bike_verify %>% filter(city == "calgary")),
 	itypes_km = calc_total_km(bike_itypes %>% filter(city == "calgary")),
 	p2010_km = calc_total_km(bike_p2010 %>% filter(city == "calgary")),
 	tfilter_km = calc_total_km(bike_tfilter %>% filter(city == "calgary")),
-	merge_km = calc_total_km(bike_adj %>% filter(city == "calgary")),
 	years = calgbike_raw$install_year %>% range(na.rm = T) %>% paste0(., collapse = "-")
 )
 
@@ -3053,14 +3141,12 @@ toronbike_stats <- list(
 	itypes = bike_itypes %>% filter(city == "toronto") %>% nrow,
 	p2010 = bike_p2010 %>% filter(city == "toronto") %>% nrow,
 	tfilter = bike_tfilter %>% filter(city == "toronto") %>% nrow,
-	merge = bike_adj %>% filter(city == "toronto") %>% nrow,
 	sjoin = sjoin %>% filter(ksi_city == "toronto" & !is.na(ksi_id)) %>% pull(ksi_id) %>% unique %>% length,
 	raw_km = calc_total_km(toronbike_raw),
 	verify_km = calc_total_km(bike_verify %>% filter(city == "toronto")),
 	itypes_km = calc_total_km(bike_itypes %>% filter(city == "toronto")),
 	p2010_km = calc_total_km(bike_p2010 %>% filter(city == "toronto")),
 	tfilter_km = calc_total_km(bike_tfilter %>% filter(city == "toronto")),
-	merge_km = calc_total_km(bike_adj %>% filter(city == "toronto")),
 	years = toronbike_raw$install_year %>% range(na.rm = T) %>% paste0(., collapse = "-")
 )
 
@@ -3099,63 +3185,27 @@ digraph {
 		pos="0,0!"
 	]
 	
-	// Verified bikeways
-	bike_verify[
-		label=<
-			<b>Verified Bikeways Only</b><br/><br/>
-			Vancouver: {{vancbike_stats$verify_km}} km (n={{vancbike_stats$verify}}) <br/>
-			Calgary: {{calgbike_stats$verify_km}} km (n={{calgbike_stats$verify}})<br/>
-			Toronto: {{toronbike_stats$verify_km}} km (n={{toronbike_stats$verify}})
-		>,
-		pos="3,0!"
-	]
-	
-	// PL and CT bikeways
+	// Verified bikeways with PL and CT only
 	bike_itypes[
 		label=<
-			<b>Painted Lanes and<br/>
-			Cycle Tracks Only</b><br/><br/>
+			<b>Verified Bikeways and Painted<br/>Lanes/Cycle Tracks Only</b><br/><br/>
 			Vancouver: {{vancbike_stats$itypes_km}} km (n={{vancbike_stats$itypes}}) <br/>
 			Calgary: {{calgbike_stats$itypes_km}} km (n={{calgbike_stats$itypes}})<br/>
 			Toronto: {{toronbike_stats$itypes_km}} km (n={{toronbike_stats$itypes}})
 		>,
-		pos="6,0!"
+		pos="3,0!"
 	]
 	
-	// Post-2010 bikeways
-	bike_p2010[
-		label=<
-			<b>Post-2010 Installs<br/>
-			or Upgrades Only</b><br/><br/>
-			Vancouver: {{vancbike_stats$p2010_km}} km (n={{vancbike_stats$p2010}}) <br/>
-			Calgary: {{calgbike_stats$p2010_km}} km (n={{calgbike_stats$p2010}})<br/>
-			Toronto: {{toronbike_stats$p2010_km}} km (n={{toronbike_stats$p2010}})
-		>,
-		pos="9,0!"
-	]
-	
-	// Within time unit
+	// Post-2010 bikeways with time
 	bike_tfilter[
 		label=<
-			<b>Installs or Upgrades<br/>
-			with {{tunit_title}}s</b><br/><br/>
+			<b>Post-2010 Installs<br/>
+			or Upgrades with {{tunit_title}}s Only</b><br/><br/>
 			Vancouver: {{vancbike_stats$tfilter_km}} km (n={{vancbike_stats$tfilter}}) <br/>
 			Calgary: {{calgbike_stats$tfilter_km}} km (n={{calgbike_stats$tfilter}})<br/>
 			Toronto: {{toronbike_stats$tfilter_km}} km (n={{toronbike_stats$tfilter}})
 		>,
-		pos="3,-2.25!"
-	]
-	
-	// Spatial merge
-	bike_adj[
-		label=<
-			<b>Spatially Merged Bikeways<br/>
-			by Status, Type, and {{tunit_title}}</b><br/><br/>
-			Vancouver: {{vancbike_stats$merge_km}} km (n={{vancbike_stats$merge}}) <br/>
-			Calgary: {{calgbike_stats$merge_km}} km (n={{calgbike_stats$merge}})<br/>
-			Toronto: {{toronbike_stats$merge_km}} km (n={{toronbike_stats$merge}})
-		>,
-		pos="6,-2.25!"
+		pos="6,0!"
 	]
 	
 	// Raw KSI
@@ -3168,7 +3218,7 @@ digraph {
 			Calgary: {{calgksi_stats$raw}} KSI<br/>
 			Toronto: {{toronksi_stats$raw}} KSI
 		>,
-		pos="0,-4.5!"
+		pos="0,-2.15!"
 	]
 	
 	// KSI with coordinates
@@ -3179,7 +3229,7 @@ digraph {
 			Calgary: {{calgksi_stats$coords}} KSI<br/>
 			Toronto: {{toronksi_stats$coords}} KSI
 		>,
-		pos="3,-4.5!"
+		pos="3,-2.15!"
 	]
 	
 	// KSI with fatal or serious injury only
@@ -3190,7 +3240,7 @@ digraph {
 			Calgary: {{calgksi_stats$injury}} KSI<br/>
 			Toronto: {{toronksi_stats$injury}} KSI
 		>,
-		pos="6,-4.5!"
+		pos="6,-2.15!"
 	]
 	
 	// Post-2010 KSI
@@ -3201,7 +3251,7 @@ digraph {
 			Calgary: {{calgksi_stats$y2009to2023}} KSI<br/>
 			Toronto: {{toronksi_stats$y2009to2023}} KSI
 		>,
-		pos="9,-4.5!"
+		pos="9,-2.15!"
 	]
 	
 	// Spatial Joined KSI
@@ -3209,11 +3259,11 @@ digraph {
 		label=<
 			<b>KSI Within 25 Meters of<br/>
 			Merged Bikeways</b><br/><br/>
-			Vancouver: {{vancbike_stats$sjoin}} KSI (n={{vancbike_stats$merge}}) <br/>
-			Calgary: {{calgbike_stats$sjoin}} KSI (n={{calgbike_stats$merge}})<br/>
-			Toronto: {{toronbike_stats$sjoin}} KSI (n={{toronbike_stats$merge}})
+			Vancouver: {{vancbike_stats$sjoin}} KSI (n={{vancbike_stats$tfilter}}) <br/>
+			Calgary: {{calgbike_stats$sjoin}} KSI (n={{calgbike_stats$tfilter}})<br/>
+			Toronto: {{toronbike_stats$sjoin}} KSI (n={{toronbike_stats$tfilter}})
 		>,
-		pos="9,-2.25!"
+		pos="9,0!"
 	]
 	
 	// Footer
@@ -3224,13 +3274,11 @@ digraph {
 		width=1,
 		labeljust="r",
 		label="*Bikeway Data Year Ranges: Vancouver ({{vancbike_stats$years}}), Calgary ({{calgbike_stats$years}}), Toronto ({{toronbike_stats$years}})\n**KSI Data Year Ranges: Vancouver ({{vancksi_stats$years}}), Calgary ({{calgksi_stats$years}}), Toronto ({{toronksi_stats$years}})",
-		pos="5,-5.85!"
+		pos="5,-3.35!"
 	]
 	
-	
-	
 	// Bikeway process
-	bike_raw -> bike_verify -> bike_itypes -> bike_p2010 -> bike_tfilter -> bike_adj -> ksi_sjoin
+	bike_raw -> bike_itypes -> bike_tfilter -> ksi_sjoin
 	
 	// KSI process
 	ksi_raw -> ksi_coords -> ksi_injury -> ksi_y2009to2023 -> ksi_sjoin

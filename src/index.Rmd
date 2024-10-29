@@ -2899,7 +2899,7 @@ model_data <- bike_ksi %>%
 	)
 
 # Export model data and time ids to folder
-model_data %>% write_csv("../data/recovr-eval-2024-10-27.csv", na = "")
+model_data %>% write_csv("../data/recovr-eval-2024-10-28.csv", na = "")
 ```
 
 ### Details
@@ -3090,7 +3090,7 @@ model_data_check <- model_data_check %>%
 
 # Preview and save data check
 model_data_check
-model_data_check %>% write_csv("../data/recovr-eval-check-2024-10-27.csv", na = "")
+model_data_check %>% write_csv("../data/recovr-eval-check-2024-10-28.csv", na = "")
 
 ```
 

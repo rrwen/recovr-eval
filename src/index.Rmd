@@ -2262,21 +2262,33 @@ Spatially join KSI to nearest bikeways.
 
 Each KSI point is joined to a bikeway if they are within 25 meters of the nearest bikeway
 
-**Note**: if there is overlapping of bikeways, the same KSI can be assigned to multiple bikeways.
+**Note**: Each KSI is joined to the nearest bikeway in cases where there are multiple bikeways within 25 meters.
 
 ```{r}
 
-# Buffer bikeways and keep ids
-bike_adj_buff25 <- bike_adj %>%
-	select(id) %>%
-	st_buffer(25)
+# Get bike ids and geoms
+bike_adj_ids <- bike_adj %>% select(id)
+
+# Get indices of nearest bikeway for each ksi
+sjoin_idx <- ksi_tunits %>%
+	st_nearest_feature(bike_adj_ids)
 
 # Spatial join bikeways with ksi keeping ids
-sjoin <- bike_adj_buff25 %>%
-	st_join(ksi_tunits %>% select(ksi_id)) %>%
+sjoin <- ksi_tunits %>%
+	mutate( # calc dist to nearest bikeway for each ksi
+		`_sjoin_meters` = st_distance(
+			geometry,
+			bike_adj_ids[sjoin_idx, ],
+			by_element = T
+		) %>% as.numeric
+	) %>%
 	as_tibble %>%
 	select(-geometry) %>%
-	mutate(ksi_city = str_split_i(ksi_id, "_", 1))
+	mutate( # remove bikeways that are not within 25 meters
+		id = bike_adj_ids[sjoin_idx, ] %>% pull(id),
+		id = if_else(`_sjoin_meters` <= 25, id, NA)
+	) %>%
+	select(id, ksi_id, ksi_city)
 
 ```
 
@@ -2927,14 +2939,14 @@ model_data %>%
 
 Perform data checks to ensure columns follow specifications.
 
-This table identifies problems stated in the `check` column.
+This table identifies problems stated in the `check` column, while signifying if the check is passed in the `pass` column.
 
-The number of bikeways should be `0` and there should be no `ids` if all checks passed.
+In addition, for row checks, the number of bikeways should be `0` and there should be no `ids` if all checks passed.
 
 
 ```{r}
 
-# Check model data for logic
+# Check model data for row logic
 model_data_check_list <- list(
 	"Install time exists, but no cohort_install" = model_data %>%
 		filter(
@@ -3040,7 +3052,7 @@ model_data_check_list <- list(
 		filter(
 			!is.na(ksi_other) & ksi_year < ksi_year_min & ksi_year > ksi_year_max
 		),
-	"Road user KSI does not add up to total KSI" = model_data %>%
+	"Road user KSI does not add up to all KSI" = model_data %>%
 		filter(
 			ksi != sum(ksi_driver, ksi_pedestrian, ksi_cyclist, ksi_other)
 		)
@@ -3053,7 +3065,7 @@ model_data_check <- data.frame(
 	ids = character()
 )
 
-# Add checks to fill template
+# Add row checks to fill template
 for (check in names(model_data_check_list)) {
 	check_data <- model_data_check_list[[check]]
 	check_ids <- check_data %>% pull(id) %>% unique
@@ -3064,12 +3076,25 @@ for (check in names(model_data_check_list)) {
 			ids = check_ids %>% paste0(., collapse = ",")
 		)
 }
-model_data_check
 
-# Save data check
+# Add pass to row checks
+model_data_check <- model_data_check %>%
+	mutate(pass = if_else(bikeways == 0, T, F))
+
+# Add column checks
+model_data_check <- model_data_check %>%
+	add_row(
+		check = "Sum of all KSIs is not equal to the total KSIs available",
+		pass = sum(model_data$ksi, na.rm = T) == (sjoin %>% filter(!is.na(id)) %>% pull(ksi_id) %>% unique %>% length)
+	)
+
+# Preview and save data check
+model_data_check
 model_data_check %>% write_csv("../data/recovr-eval-check-2024-10-27.csv", na = "")
 
 ```
+
+The next table identifies problems per column and simply 
 
 ## Flow Chart
 
@@ -3094,7 +3119,7 @@ vancbike_stats <- list(
 	itypes = bike_itypes %>% filter(city == "vancouver") %>% nrow,
 	p2010 = bike_p2010 %>% filter(city == "vancouver") %>% nrow,
 	tfilter = bike_tfilter %>% filter(city == "vancouver") %>% nrow,
-	sjoin = sjoin %>% filter(ksi_city == "vancouver" & !is.na(ksi_id)) %>% pull(ksi_id) %>% unique %>% length,
+	sjoin = sjoin %>% filter(ksi_city == "vancouver" & !is.na(id)) %>% pull(ksi_id) %>% unique %>% length,
 	raw_km = calc_total_km(vancbike_raw),
 	verify_km = calc_total_km(bike_verify %>% filter(city == "vancouver")),
 	itypes_km = calc_total_km(bike_itypes %>% filter(city == "vancouver")),
@@ -3119,7 +3144,7 @@ calgbike_stats <- list(
 	itypes = bike_itypes %>% filter(city == "calgary") %>% nrow,
 	p2010 = bike_p2010 %>% filter(city == "calgary") %>% nrow,
 	tfilter = bike_tfilter %>% filter(city == "calgary") %>% nrow,
-	sjoin = sjoin %>% filter(ksi_city == "calgary" & !is.na(ksi_id)) %>% pull(ksi_id) %>% unique %>% length,
+	sjoin = sjoin  %>% filter(ksi_city == "calgary" & !is.na(id)) %>% pull(ksi_id) %>% unique %>% length,
 	raw_km = calc_total_km(calgbike_raw),
 	verify_km = calc_total_km(bike_verify %>% filter(city == "calgary")),
 	itypes_km = calc_total_km(bike_itypes %>% filter(city == "calgary")),
@@ -3144,7 +3169,7 @@ toronbike_stats <- list(
 	itypes = bike_itypes %>% filter(city == "toronto") %>% nrow,
 	p2010 = bike_p2010 %>% filter(city == "toronto") %>% nrow,
 	tfilter = bike_tfilter %>% filter(city == "toronto") %>% nrow,
-	sjoin = sjoin %>% filter(ksi_city == "toronto" & !is.na(ksi_id)) %>% pull(ksi_id) %>% unique %>% length,
+	sjoin = sjoin %>% filter(ksi_city == "toronto" & !is.na(id)) %>% pull(ksi_id) %>% unique %>% length,
 	raw_km = calc_total_km(toronbike_raw),
 	verify_km = calc_total_km(bike_verify %>% filter(city == "toronto")),
 	itypes_km = calc_total_km(bike_itypes %>% filter(city == "toronto")),

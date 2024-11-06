@@ -1,0 +1,30 @@
+check,bikeways,ids,pass
+"Install time exists, but no cohort_install",0,,TRUE
+"Upgrade1 time exists, but no cohort_upgrade1",0,,TRUE
+"Upgrade2 time exists, but no cohort_upgrade2",0,,TRUE
+Both upgrade1 and improve1 cohorts exist,0,,TRUE
+Both upgrade2 and improve2 cohorts exist,0,,TRUE
+Upgrade2 cohort exists but no upgrade1 or improve1 cohort,0,,TRUE
+Upgrade2 cohort exists but no install cohort,0,,TRUE
+Upgrade1 cohort exists but no install cohort,0,,TRUE
+Upgrade1 cohort exists but no install cohort,0,,TRUE
+Install cohort exists but no PL or CT cohorts,0,,TRUE
+Upgrade1 cohort exists but no PL or CT cohorts,0,,TRUE
+Upgrade2 cohort exists but no PL or CT cohorts,0,,TRUE
+Cohort exists but no PL or CT cohorts,0,,TRUE
+Post install is 1 before cohort time,0,,TRUE
+Post upgrade1 is 1 before cohort time,0,,TRUE
+Post upgrade2 is 1 before cohort time,0,,TRUE
+Post is 1 before cohort time if there is no removal,0,,TRUE
+Post install is 0 after cohort time if there is no removal,0,,TRUE
+Post upgrade1 is 0 after cohort time if there is no removal,0,,TRUE
+Post upgrade2 is 0 after cohort tim if there is no removal,0,,TRUE
+Post is 0 after cohort time,0,,TRUE
+KSI is outside data range,0,,TRUE
+Driver KSI is outside data range,0,,TRUE
+Pedestrian KSI is outside data range,0,,TRUE
+Cyclist KSI is outside data range,0,,TRUE
+Other KSI is outside data range,0,,TRUE
+Road user KSI does not add up to all KSI,0,,TRUE
+Post is 1 during removal time,0,,TRUE
+Sum of all KSIs is not equal to the total KSIs available,,,TRUE

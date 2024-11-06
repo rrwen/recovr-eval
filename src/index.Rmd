@@ -958,6 +958,140 @@ bike_itypes %>% as_tibble %>% head
 
 ```
 
+## Fix Unknown Installs
+
+If installations are neither painted lane `PL`, buffered lane `BUF`, or cycle track `PBL`, then use upgrade1 as the installation and upgrade2 as the first upgrade if available.
+
+This shifts upgrade1 into the install, and upgrade2 into upgrade1, while setting upgrade2 as `NA`.
+
+```{r}
+
+# Shift upgrade1 and upgrade2 left if install is not PL/BUF/PBL
+bike_unknown <- bike_itypes %>%
+	mutate(
+		`_install_unknown` = if_else( # whether install was not PL/BUF/PBL
+			!is.na(verify_install_type) &
+				!verify_install_type %in% c("PL", "BUF", "PBL"),
+			TRUE,
+			FALSE
+		),
+		verify_install_type = if_else( # set install to upgrade1
+			`_install_unknown`,
+			verify_upgrade1_type,
+			verify_install_type
+		),
+		verify_install_date = if_else(
+			`_install_unknown`,
+			verify_upgrade1_date,
+			verify_install_date
+		),
+		verify_install_year = if_else(
+			`_install_unknown`,
+			verify_upgrade1_year,
+			verify_install_year
+		),
+		verify_upgrade1_type = if_else( # set upgrade1 to upgrade2
+			`_install_unknown`,
+			verify_upgrade2_type,
+			verify_upgrade1_type
+		),
+		verify_upgrade1_date = if_else(
+			`_install_unknown`,
+			verify_upgrade2_date,
+			verify_upgrade1_date
+		),
+		verify_upgrade1_year = if_else(
+			`_install_unknown`,
+			verify_upgrade2_year,
+			verify_upgrade1_year
+		),
+		verify_upgrade2_type = if_else( # set upgrade2 to na
+			`_install_unknown`,
+			NA,
+			verify_upgrade2_type
+		),
+		verify_upgrade2_date = if_else(
+			`_install_unknown`,
+			NA,
+			verify_upgrade2_date
+		),
+		verify_upgrade2_year = if_else(
+			`_install_unknown`,
+			NA,
+			verify_upgrade2_year
+		)
+	)
+
+```
+
+### Details
+
+```{r}
+
+# Display rows and cols
+cat(glue(
+	"\nBefore\n",
+	"\n* Rows: ", bike_itypes %>% nrow,
+	"\n* Columns: ", bike_itypes %>% ncol,
+	"\n\nAfter\n",
+	"\n* Rows: ", bike_unknown %>% nrow,
+	"\n* Columns: ", bike_unknown %>% ncol,
+	"\n\nNew Columns (", bike_unknown %>% ncol - bike_itypes %>% ncol, ")\n",
+	paste0(
+		"\n* ",
+		colnames(bike_unknown) %>%
+			.[!. %in% colnames(bike_itypes)],
+		collapse = ""
+	)
+))
+
+# Display counts
+bike_unknown_counts <- bike_unknown %>%
+	mutate(
+		history = paste0(
+			verify_install_type,
+			" -> ",
+			verify_upgrade1_type,
+			" -> ",
+			verify_upgrade2_type
+		)
+	) %>%
+	as_tibble() %>%
+	select(-geometry) %>%
+	arrange(history) %>%
+	group_by(history) %>%
+	summarize(
+		unknown = sum(`_install_unknown`),
+		n = n()
+	) %>%
+	add_row(
+		history = "TOTAL",
+		unknown = sum(.[["unknown"]]),
+		n = sum(.[["n"]])
+	)
+bike_unknown_counts
+
+```
+
+### Preview
+
+```{r}
+
+# Display clean dates cols
+bike_unknown %>%
+	as_tibble() %>%
+	select(-geometry) %>%
+	select(
+		starts_with("_install_unknown"),
+		verify_install_type,
+		verify_upgrade1_type,
+		verify_upgrade2_type,
+		everything()
+	) %>%
+	head()
+
+```
+
 ## Filter Post-2010 Bikeways {.tabset}
 
 Filter for bikeways with a verified installations or upgrades after 2010.
@@ -965,7 +1099,7 @@ Filter for bikeways with a verified installations or upgrades after 2010.
 ```{r}
 
 # Filter bikeways for post2010
-bike_p2010 <- bike_itypes %>%
+bike_p2010 <- bike_unknown %>%
 	filter(
 		verify_install_year > 2010 |
 		verify_upgrade1_year > 2010 |
@@ -981,8 +1115,8 @@ bike_p2010 <- bike_itypes %>%
 # Display rows and cols
 cat(glue(
 	"\nBefore\n",
-	"\n* Rows: ", bike_itypes %>% nrow,
-	"\n* Columns: ", bike_itypes %>% ncol,
+	"\n* Rows: ", bike_unknown %>% nrow,
+	"\n* Columns: ", bike_unknown %>% ncol,
 	"\n\nAfter\n",
 	"\n* Rows: ", bike_p2010 %>% nrow,
 	"\n* Columns: ", bike_p2010 %>% ncol
@@ -2023,11 +2157,11 @@ Bikeway improvements occur when the installation was upgraded either once or twi
 
 For the first upgrade, this is `TRUE` when the installation is the same type as the first upgrade.
 
-For the second upgrade, this is `TRUE` when the first upgrade or installation is the same type as the second upgrade.
+For the second upgrade, this is `TRUE` when the first upgrade is the same type as the second upgrade.
 
 ```{r}
 
-# Join clean dates to include structured date formats
+# Add columns to indicate whether a bikeway has an improvement
 bike_improv <- bike_tfilter %>%
 	mutate(
 		`_improve1` = if_else( # whether upgrade1 was an improvement
@@ -2038,8 +2172,7 @@ bike_improv <- bike_tfilter %>%
 		),
 		`_improve2` = if_else( # whether upgrade2 was an improvement
 			!is.na(verify_upgrade2_type) &
-			(verify_upgrade2_type == verify_upgrade1_type |
-			verify_upgrade2_type == verify_install_type),
+			verify_upgrade2_type == verify_upgrade1_type,
 			TRUE,
 			FALSE
 		),
@@ -2118,6 +2251,108 @@ bike_improv %>%
 
 ```
 
+## Add Removals
+
+Add whether there were bikeway removals or not for each bikeway segment.
+
+Bikeway removals occur when an upgrade is neither a painted lane `PL`, buffered lane `BUF` or cycle track `PBL`, signalling that the previous installation or upgrade was removed.
+
+For the first upgrade, this is `TRUE` when the first upgrade `None` or `N`.
+
+For the second upgrade, this is `TRUE` when the second upgrade is `None` or `N`.
+
+```{r}
+
+# Add columns to indicate whether a bikeway has a removal
+bike_remove <- bike_improv %>%
+	mutate(
+		`_remove1` = if_else( # whether upgrade1 was a removal
+			!is.na(verify_upgrade1_type) &
+				!verify_upgrade1_type %in% c("PL", "BUF", "PBL"),
+			TRUE,
+			FALSE
+		),
+		`_remove2` = if_else( # whether upgrade2 was a removal
+			!is.na(verify_upgrade2_type) &
+				!verify_upgrade2_type %in% c("PL", "BUF", "PBL"),
+			TRUE,
+			FALSE
+		),
+		`_remove` = `_remove1` | `_remove2` # whether there was a removal
+	)
+
+```
+
+### Details
+
+```{r}
+
+# Display rows and cols
+cat(glue(
+	"\nBefore\n",
+	"\n* Rows: ", bike_improv %>% nrow,
+	"\n* Columns: ", bike_improv %>% ncol,
+	"\n\nAfter\n",
+	"\n* Rows: ", bike_remove %>% nrow,
+	"\n* Columns: ", bike_remove %>% ncol,
+	"\n\nNew Columns (", bike_remove %>% ncol - bike_improv %>% ncol, ")\n",
+	paste0(
+		"\n* ",
+		colnames(bike_remove) %>%
+			.[!. %in% colnames(bike_improv)],
+		collapse = ""
+	)
+))
+
+# Display counts
+bike_remove_counts <- bike_remove %>%
+	mutate(
+		history = paste0(
+			verify_install_type,
+			" -> ",
+			verify_upgrade1_type,
+			" -> ",
+			verify_upgrade2_type
+		)
+	) %>%
+	as_tibble() %>%
+	select(-geometry) %>%
+	arrange(history) %>%
+	group_by(history) %>%
+	summarize(
+		remove1 = sum(`_remove1`),
+		remove2 = sum(`_remove2`),
+		n = n()
+	) %>%
+	add_row(
+		history = "TOTAL",
+		remove1 = sum(.[["remove1"]]),
+		remove2 = sum(.[["remove2"]]),
+		n = sum(.[["n"]])
+	)
+bike_remove_counts
+
+```
+
+### Preview
+
+```{r}
+
+# Display clean dates cols
+bike_remove %>%
+	as_tibble() %>%
+	select(-geometry) %>%
+	select(
+		starts_with("_remove"),
+		verify_install_type,
+		verify_upgrade1_type,
+		verify_upgrade2_type,
+		everything()
+	) %>%
+	head()
+
+```
+
 ## Group Adjacent Bikeways {.tabset}
 
 Group bikeway segments together if they are spatially adjacent and are the same latest infrastructure type after all installs and upgrades.
@@ -2135,17 +2370,20 @@ Other merge related columns start with `_adj_....`
 ```{r}
 
 # Determine adjacent segments if they are within same status, type, and time unit
-bike_adj <- bike_improv %>%
+bike_adj <- bike_remove %>%
     mutate( # add column to store status, type, and time unit
         `_adj_status` = case_when(
             !is.na(.data[[glue("_upgrade2_time_{tunit}")]]) &
+            	!verify_upgrade2_type %in% c("N", "None") &
                 verify_upgrade2_type != verify_upgrade1_type & # up2 == up1
                 verify_upgrade2_type != verify_install_type ~ # up2 == inst
                 "upgrade2",
             !is.na(.data[[glue("_upgrade1_time_{tunit}")]]) &
+            	!verify_upgrade1_type %in% c("N", "None") &
                 verify_upgrade1_type != verify_install_type ~ # up1 == inst
                 "upgrade1",
-            !is.na(.data[[glue("_install_time_{tunit}")]]) ~
+            !is.na(.data[[glue("_install_time_{tunit}")]]) &
+            	!verify_install_type %in% c("N", "None") ~
                 "install"
         ),
         `_adj_status_time_group` = case_when(
@@ -2165,7 +2403,7 @@ bike_adj <- bike_improv %>%
         )
     ) %>%
 	mutate( # add adj group for spatial only
-		`_adj_group1` = bike_improv %>%
+		`_adj_group1` = bike_remove %>%
 	        st_touches %>%
 	        graph_from_adj_list %>%
 	        components %>%
@@ -2205,16 +2443,16 @@ bike_adj <- bike_improv %>%
 # Display rows and cols
 cat(glue(
 	"\nBefore\n",
-	"\n* Rows: ", bike_improv %>% nrow,
-	"\n* Columns: ", bike_improv %>% ncol,
+	"\n* Rows: ", bike_remove %>% nrow,
+	"\n* Columns: ", bike_remove %>% ncol,
 	"\n\nAfter\n",
 	"\n* Rows: ", bike_adj %>% nrow,
 	"\n* Columns: ", bike_adj %>% ncol,
-	"\n\nNew Columns (", bike_adj %>% ncol - bike_improv %>% ncol, ")\n",
+	"\n\nNew Columns (", bike_adj %>% ncol - bike_remove %>% ncol, ")\n",
 	paste0(
 		"\n* ",
 		colnames(bike_adj) %>%
-			.[!. %in% colnames(bike_improv)],
+			.[!. %in% colnames(bike_remove)],
 		collapse = ""
 	)
 ))
@@ -2524,9 +2762,7 @@ bike_ksi %>%
 
 ## Prepare Model Data {.tabset}
 
-**Note**: Improvements and installs/upgrades can occur at different times and parts of the same merged segment. Although there is an improvement or previous install or upgrade on a merged segment, it may not be present on the entire merged segment.
-
-**Note 2**: If a time falls below the study period's time range, the cohort will be considered `1` (existing since the beginning of the time range).
+**Note**: If a time falls below the study period's time range, the cohort will be considered `1` (existing since the beginning of the time range).
 
 ```{r}
 
@@ -2602,6 +2838,14 @@ model_data <- bike_ksi %>%
         verify_improve2_year = if_else(`_improve2`, verify_upgrade2_year, NA),
         verify_improve2_time_orig = if_else(`_improve2`, .data[[glue("_upgrade2_time_{tunit}_group")]], NA)
     ) %>%
+	mutate( # Add whether segments were removed or not
+        verify_remove1_type = if_else(`_remove1`, verify_upgrade1_type, NA),
+        verify_remove1_year = if_else(`_remove1`, verify_upgrade1_year, NA),
+        verify_remove1_time_orig = if_else(`_remove1`, .data[[glue("_upgrade1_time_{tunit}_group")]], NA),
+        verify_remove2_type = if_else(`_remove2`, verify_upgrade2_type, NA),
+        verify_remove2_year = if_else(`_remove2`, verify_upgrade2_year, NA),
+        verify_remove2_time_orig = if_else(`_remove2`, .data[[glue("_upgrade2_time_{tunit}_group")]], NA)
+    ) %>%
 	select(
 		bike_id = id,
 		bike_adj_group1 = `_adj_group1`,
@@ -2618,6 +2862,7 @@ model_data <- bike_ksi %>%
 		bike_install_year = verify_install_year,
 		bike_install_time_orig = .data[[glue("_install_time_{tunit}_group")]],
 		bike_install_comment = verify_install_comment,
+		bike_install_unknown = `_install_unknown`,
 		bike_upgrade1_type = verify_upgrade1_type,
 		bike_upgrade1_year = verify_upgrade1_year,
 		bike_upgrade1_time_orig = .data[[glue("_upgrade1_time_{tunit}_group")]],
@@ -2635,6 +2880,15 @@ model_data <- bike_ksi %>%
 		bike_improve2_type = verify_improve2_type,
 		bike_improve2_year = verify_improve2_year,
 		bike_improve2_time_orig = verify_improve2_time_orig,
+		bike_remove = `_remove`,
+		bike_remove1 = `_remove1`,
+		bike_remove1_type = verify_remove1_type,
+		bike_remove1_year = verify_remove1_year,
+		bike_remove1_time_orig = verify_remove1_time_orig,
+		bike_remove2 = `_remove2`,
+		bike_remove2_type = verify_remove2_type,
+		bike_remove2_year = verify_remove2_year,
+		bike_remove2_time_orig = verify_remove2_time_orig,
 		ksi_time_orig = .data[[glue("_ksi_time_{tunit}_group")]],
 		ksi = ksi_count,
 		ksi_driver = ksi_count_driver,
@@ -2689,23 +2943,33 @@ model_data <- bike_ksi %>%
 		cohort = case_match(bike_time_orig, !!!tid_map),
 		cohort_install = case_match(bike_install_time_orig, !!!tid_map),
 		cohort_upgrade1 = if_else(
-			!bike_improve1,
+			!bike_improve1 & !bike_remove1,
 			case_match(bike_upgrade1_time_orig, !!!tid_map),
 			NA
 		),
 		cohort_upgrade2 = if_else(
-			!bike_improve2,
+			!bike_improve2 & !bike_remove1,
 			case_match(bike_upgrade2_time_orig, !!!tid_map),
 			NA
 		),
 		cohort_improve1 = if_else(
-			bike_improve1,
+			bike_improve1 & !bike_remove1,
 			case_match(bike_improve1_time_orig, !!!tid_map),
 			NA
 		),
 		cohort_improve2 = if_else(
-			bike_improve2,
+			bike_improve2 & !bike_remove2,
 			case_match(bike_improve2_time_orig, !!!tid_map),
+			NA
+		),
+		cohort_remove1 = if_else(
+			bike_remove1 & !bike_improve1,
+			case_match(bike_remove1_time_orig, !!!tid_map),
+			NA
+		),
+		cohort_remove2 = if_else(
+			bike_remove2 & !bike_improve2,
+			case_match(bike_remove2_time_orig, !!!tid_map),
 			NA
 		)
 	) %>%
@@ -2743,6 +3007,16 @@ model_data <- bike_ksi %>%
 			bike_improve2 & bike_improve2_year < min(tid$time_year),
 			min(tid$time),
 			cohort_improve2
+		),
+		cohort_remove1 = if_else(
+			bike_remove1 & bike_remove1_year < min(tid$time_year),
+			min(tid$time),
+			cohort_remove1
+		),
+		cohort_remove2 = if_else(
+			bike_remove2 & bike_remove2_year < min(tid$time_year),
+			min(tid$time),
+			cohort_remove2
 		)
 	) %>%
 	mutate( # assign cohort for infra types
@@ -2796,6 +3070,26 @@ model_data <- bike_ksi %>%
 			cohort_improve2,
 			NA
 		),
+		cohort_remove1_pl = if_else(
+			bike_install_type %in% c("PL", "BUF") & bike_remove1,
+			cohort_remove1,
+			NA
+		),
+		cohort_remove1_ct = if_else(
+			bike_install_type == "PBL" & bike_remove1,
+			cohort_remove1,
+			NA
+		),
+		cohort_remove2_pl = if_else(
+			bike_upgrade1_type %in% c("PL", "BUF") & bike_remove2,
+			cohort_remove2,
+			NA
+		),
+		cohort_remove2_ct = if_else(
+			bike_upgrade2_type == "PBL" & bike_remove2,
+			cohort_remove2,
+			NA
+		),
 		cohort_pl = coalesce(
 			cohort_upgrade2_pl,
 			cohort_upgrade1_pl,
@@ -2823,65 +3117,38 @@ model_data <- bike_ksi %>%
 		post_improve1_ct = as.integer(time >= cohort_improve1_ct) %>% replace_na(0),
 		post_improve2 = as.integer(time >= cohort_improve2) %>% replace_na(0),
 		post_improve2_pl = as.integer(time >= cohort_improve2_pl) %>% replace_na(0),
-		post_improve2_ct = as.integer(time >= cohort_improve2_ct) %>% replace_na(0)
+		post_improve2_ct = as.integer(time >= cohort_improve2_ct) %>% replace_na(0),
+		post_remove1 = as.integer(
+			time >= cohort_remove1 & (time < cohort_upgrade2 | time < cohort_improve2)
+		) %>% replace_na(0),
+		post_remove1_pl = as.integer(
+			time >= cohort_remove1_pl & (time < cohort_upgrade2_pl | time < cohort_improve2_pl)
+		) %>% replace_na(0),
+		post_remove1_ct = as.integer(
+			time >= cohort_remove1_ct & (time < cohort_upgrade2_ct | time < cohort_improve2_ct)
+		) %>% replace_na(0),
+		post_remove2 = as.integer(time >= cohort_remove2) %>% replace_na(0),
+		post_remove2_pl = as.integer(time >= cohort_remove2_pl) %>% replace_na(0),
+		post_remove2_ct = as.integer(time >= cohort_remove2_ct) %>% replace_na(0)
 	) %>%
+	mutate(across( # adjust post for removals, set 0 if post_remove is 1
+		starts_with("post") & !starts_with("post_remove"),
+		~ . * (+!post_remove1) * (+!post_remove2) # invert post_remove and multiply
+	)) %>%
 	mutate( # add length in km
 		bike_len_km = bike_len_meters / 1000,
 		.after = bike_len_meters
 	) %>%
 	rowwise %>%
 	mutate( # flag problematic segments
-		flag_issue1_data = paste0(
-			bike_install_type,
-			" -> ",
-			bike_upgrade1_type,
-			" -> ",
-			bike_upgrade2_type
-		),
 		flag_issue1 = if_else(
-			flag_issue1_data %in% c(
-				"PL -> CT -> PL",
-				"BUF -> CT -> BUF",
-				"NA -> CT -> PL",
-				"NA -> CT -> BUF",
-				"CT -> PL -> NA",
-				"CT -> BUF -> NA"
-			),
-			1,
-			0
-		),
-		flag_issue2_data = paste0(
-			bike_install_type,
-			" -> ",
-			bike_upgrade1_type
-		),
-		flag_issue2 = if_else(
-			flag_issue2_data %in% c( # flag no installs
-				"NA -> PL",
-				"NA -> BUF",
-				"NA -> PBL",
-				"NA -> None",
-				"NA -> N",
-				"None -> PL",
-				"None -> BUF",
-				"None -> PBL",
-				"None -> None",
-				"None -> NA",
-				"None -> N",
-				"N -> PL",
-				"N -> BUF",
-				"N -> PBL",
-				"N -> N",
-				"N -> NA",
-				"N -> None"
-			),
-			1,
-			0
-		),
-		flag_issue3 = if_else( # flag types not ct or pbl
-			!bike_install_type %in% c("PL", "BUF", "PBL") |
-			!bike_upgrade1_type %in% c("PL", "BUF", "PBL") |
-			!bike_upgrade2_type %in% c("PL", "BUF", "PBL"),
+			bike_install_type %in% c("N", "None") |
+				bike_upgrade1_type %in% c("N", "None") |
+				bike_upgrade2_type %in% c("N", "None") |
+				bike_improve1_type %in% c("N", "None") |
+				bike_improve2_type %in% c("N", "None") |
+				bike_remove1_type %in% c("N", "None") |
+				bike_remove2_type %in% c("N", "None"),
 			1,
 			0
 		)

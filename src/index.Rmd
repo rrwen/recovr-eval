@@ -962,7 +962,7 @@ bike_itypes %>% as_tibble %>% head
 
 ```
 
-## Fix Unknown Installs
+## Fix Unknown Installs {.tabset}
 
 If installations are neither painted lane `PL`, buffered lane `BUF`, or cycle track `PBL`, then use upgrade1 as the installation and upgrade2 as the first upgrade if available.
 
@@ -1097,7 +1097,7 @@ bike_unknown %>%
 
 ```
 
-## Apply Improvements
+## Apply Improvements {.tabset}
 
 Apply whether there were bikeway improvements or not for each bikeway segment.
 
@@ -1220,7 +1220,7 @@ bike_improv %>%
 
 ```
 
-## Apply Removals
+## Apply Removals {.tabset}
 
 Apply whether there were bikeway removals or not for each bikeway segment.
 
@@ -3536,7 +3536,7 @@ model_data_check %>% write_csv("../data/recovr-eval-check-2024-11-06.csv", na = 
 
 The next table identifies problems per column and simply 
 
-## Flow Chart
+## Flow Chart {.tabset}
 
 ```{r}
 

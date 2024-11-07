@@ -3266,6 +3266,14 @@ model_data <- bike_ksi %>%
 			.
 		)
 	)) %>%
+	mutate(across( # adjust post install to be 0 after removals
+		starts_with("post_install"),
+		~ if_else(
+			bike_remove & (time >= bike_remove1 | time >= bike_remove2),
+			0,
+			.
+		)
+	)) %>%
 	mutate( # add length in km
 		bike_len_km = bike_len_meters / 1000,
 		.after = bike_len_meters
@@ -3297,7 +3305,7 @@ model_data <- bike_ksi %>%
 	)
 
 # Export model data and time ids to folder
-model_data %>% write_csv("../data/recovr-eval-2024-10-28.csv", na = "")
+model_data %>% write_csv("../data/recovr-eval-2024-11-06.csv", na = "")
 ```
 
 ### Details
@@ -3418,11 +3426,11 @@ model_data_check_list <- list(
 		filter(
 			post_install == 0 & time >= cohort_install & !bike_remove
 		),
-	"Post upgrade1 is 0 after cohort time if there is no removal" = model_data %>%
+	"Post upgrade1 is 0 after cohort time" = model_data %>%
 		filter(
-			post_upgrade1 == 0 & time >= cohort_upgrade1 & !bike_remove
+			post_upgrade1 == 0 & time >= cohort_upgrade1
 		),
-	"Post upgrade2 is 0 after cohort tim if there is no removal" = model_data %>%
+	"Post upgrade2 is 0 after cohort time if there is no removal" = model_data %>%
 		filter(
 			post_upgrade2 == 0 & time >= cohort_upgrade2 & !bike_remove
 		),
@@ -3454,18 +3462,43 @@ model_data_check_list <- list(
 		filter(
 			ksi != sum(ksi_driver, ksi_pedestrian, ksi_cyclist, ksi_other)
 		),
-	"Post is 1 during removal time" = model_data %>%
+	"Post is not 0 during first removal time" = model_data %>%
 		filter(
-			post == 1 &
+			post != 0 &
 			time >= cohort_remove1 &
 			(time < cohort_upgrade1 | time < cohort_improve1)
+		),
+	"Post is not 0 during second removal time" = model_data %>%
+		filter(
+			post != 0 & time >= cohort_remove2
+		),
+	"Post install is not 0 after first removal time" = model_data %>%
+		filter(
+			post_install != 0 &
+			time >= cohort_remove1
+		),
+	"Post upgrade2 is not 0 during first removal time" = model_data %>%
+		filter(
+			post_upgrade2 != 0 & bike_remove1
+		),
+	"Post install is not 0 during second removal time" = model_data %>%
+		filter(
+			post_install != 0 & time >= cohort_remove2
+		),
+	"Post upgrade1 is not 0 during second removal time" = model_data %>%
+		filter(
+			post_upgrade1 != 0 & time >= cohort_remove2
+		),
+	"Post upgrade2 is 1 during second removal time" = model_data %>%
+		filter(
+			post_upgrade2 != 0 & time >= cohort_remove2
 		)
 )
 
 # Create df template of checks
 model_data_check <- data.frame(
 	check = character(),
-	check_type = chracter(),
+	check_type = character(),
 	bikeways = integer(),
 	ids = character()
 )
@@ -3497,7 +3530,7 @@ model_data_check <- model_data_check %>%
 
 # Preview and save data check
 model_data_check
-model_data_check %>% write_csv("../data/recovr-eval-check-2024-10-28.csv", na = "")
+model_data_check %>% write_csv("../data/recovr-eval-check-2024-11-06.csv", na = "")
 
 ```
 

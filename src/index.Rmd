@@ -80,7 +80,8 @@ required_packages <- c(
 	"units",
 	"leaflet",
 	"leaflet.extras",
-	"igraph"
+	"igraph",
+	"ggrepel"
 )
 
 # Try to install packages if not installed
@@ -2628,11 +2629,7 @@ tm_shape(bike_adj %>% select(-ends_with("comment"))) +
 
 ## Join KSI to Bikeways {.tabset}
 
-Spatially join KSI to nearest bikeways.
-
-Each KSI point is joined to a bikeway if they are within 25 meters of the nearest bikeway
-
-**Note**: Each KSI is joined to the nearest bikeway in cases where there are multiple bikeways within 25 meters.
+Spatially join KSI to nearest bikeways, where each KSI point is joined to the nearest bikeway and the distance to that joined bikeway is calculated in meters.
 
 ```{r}
 
@@ -2654,15 +2651,16 @@ sjoin <- ksi_tunits %>%
 	) %>%
 	as_tibble %>%
 	select(-geometry) %>%
-	mutate( # remove bikeways that are not within 25 meters
-		id = bike_adj_ids[sjoin_idx, ] %>% pull(id),
-		id = if_else(`_sjoin_meters` <= 25, id, NA)
+	mutate( # set bikeway ids
+		id = bike_adj_ids[sjoin_idx, ] %>% pull(id)
 	) %>%
-	select(id, ksi_id, ksi_city)
+	select(id, ksi_id, ksi_city, `_sjoin_meters`)
 
 ```
 
-### Details
+### Details {.tabset .tabset-pills}
+
+#### Changes
 
 ```{r}
 
@@ -2691,14 +2689,28 @@ cat(glue(
 		length
 ))
 
-# Display 
+```
+
+#### Table
+
+```{r}
+
+# Display details
 sjoin_counts <- sjoin %>%
 	mutate(
 		city = str_split_i(id, "_", 1)
 	) %>%
 	group_by(city) %>%
 	summarize(
-		n_bike = n_distinct(id, na.rm = T)
+		n_bike_10m = n_distinct(if_else(`_sjoin_meters` <= 10, id, NA), na.rm = T),
+		n_bike_25m = n_distinct(if_else(`_sjoin_meters` <= 25, id, NA), na.rm = T),
+		n_bike_50m = n_distinct(if_else(`_sjoin_meters` <= 50, id, NA), na.rm = T),
+		n_bike_75m = n_distinct(if_else(`_sjoin_meters` <= 75, id, NA), na.rm = T),
+		n_bike_100m = n_distinct(if_else(`_sjoin_meters` <= 100, id, NA), na.rm = T),
+		n_bike_200m = n_distinct(if_else(`_sjoin_meters` <= 200, id, NA), na.rm = T),
+		n_bike_300m = n_distinct(if_else(`_sjoin_meters` <= 300, id, NA), na.rm = T),
+		n_bike_400m = n_distinct(if_else(`_sjoin_meters` <= 400, id, NA), na.rm = T),
+		n_bike_500m = n_distinct(if_else(`_sjoin_meters` <= 500, id, NA), na.rm = T)
 	) %>%
 	left_join(
 		sjoin %>%
@@ -2711,6 +2723,46 @@ sjoin_counts <- sjoin %>%
 	)
 sjoin_counts
 
+```
+
+#### Buffer Distance
+
+```{r}
+
+# Display plot of details
+sjoin_counts %>%
+	pivot_longer(cols = starts_with("n_bike_"), names_to = "Distance") %>%
+    mutate(
+    	Distance = parse_number(Distance),
+    	`KSI Percentage` = (value / n_ksi) * 100
+    ) %>%
+	rename(
+		City = city,
+		KSI = value
+	) %>%
+	ggplot(aes(x = Distance, y = KSI, color = City, label = KSI)) +
+	geom_line() +
+	geom_point() +
+	geom_text_repel(size = 2.5) +
+	labs(x = "Buffer Distance", y = "KSI Count", color = "City") +
+	theme_minimal()
+```
+
+#### Distance Histogram
+
+```{r}
+sjoin %>%
+	filter(`_sjoin_meters` < 20000) %>%
+	ggplot(aes(x = `_sjoin_meters`)) +
+	geom_histogram(binwidth = 100) +
+	facet_wrap(~ ksi_city) +
+	labs(
+		x = "Distances of KSI to Closest Bikeway (Meters)",
+		y = "Frequency",
+		title = "Distances < 20,000 Meters",
+		caption = glue("*There were only {sjoin %>% filter(`_sjoin_meters` > 20000) %>% nrow} KSIs outside the distance of 20,000 meters which were assumed to be outliers.")
+	) +
+	theme_minimal()
 ```
 
 ### Preview
@@ -2734,7 +2786,7 @@ This creates columns in the format of `_ksi_time_<UNIT>_<YEAR>_<VALUE>`, where:
 * `<YEAR>`: is the year for the unit of time
 * `<VALUE>`: is the number representing the portion of the time range for the unit of time with month being 1-12, quarter being 1-4, third being 1-3, half being 1-2 and semester being 1-2 (this is omitted if time unit is `year`)
 
-**Note**: KSI by road users will also be counted.
+KSI by road users and different distances (10, 25, 50, 75, 100 .. 500 meters) to bikeways will also be counted.
 
 ```{r}
 
@@ -2752,7 +2804,17 @@ ksi_tunits <- ksi_tunits %>%
 # Get time unit col
 tunit_col <- glue("_ksi_time_{tunit}_group")
 
-# Count ksi spatially joined to bike
+# Set ksi buff count vars
+bike_sjoin_cols <- expand_grid(
+	buff = c(10, 25, 50, 75, 100, 150, 200, 300, 400, 500),
+	user = c("all", "driver", "pedestrian", "cyclist", "other")
+) %>%
+	mutate(
+		column = paste0("ksi_user_", user, "_", buff, "m")
+	) %>%
+	pull(buff, name = "column")
+
+# Rejoin ksi to bike and group for counting
 bike_sjoin <- bike_adj %>%
 	mutate(
 		id = as.character(id)
@@ -2767,7 +2829,7 @@ bike_sjoin <- bike_adj %>%
 			select(-geometry, -ksi_city),
 		by = "ksi_id"
 	) %>%
-	mutate( # add ksi aggregates
+	mutate( # calc ksi user flags without buff
 		ksi_user_driver = if_else(
 			ksi_user %in% c("Driver", "Passenger", "Truck Driver"), 1, 0
 		),
@@ -2777,30 +2839,56 @@ bike_sjoin <- bike_adj %>%
 		ksi_user_cyclist = if_else(
 			ksi_user %in% c("Cyclist", "Cyclist Passenger"), 1, 0
 		),
-		ksi_user_other = (!(ksi_user_driver | ksi_user_pedestrian | ksi_user_cyclist)) %>% as.integer
+		ksi_user_other = (
+			!(ksi_user_driver | ksi_user_pedestrian | ksi_user_cyclist)
+		) %>% as.integer
 	) %>%
+	add_column( # init ksi user flags within buffers
+		!!!as.list(bike_sjoin_cols)
+	) %>%
+	mutate(across( # all ksi within buffers
+		starts_with("ksi_user_all") & matches("_\\d+m$"),
+		~ if_else(
+			!is.na(ksi_user) & `_sjoin_meters` <= .x,
+			1,
+			0
+		)
+	)) %>%
+	mutate(across( # ksi by users within buffers
+		starts_with("ksi_user_") & !starts_with("ksi_user_all") & matches("_\\d+m$"),
+		~ if_else(
+			get(str_replace(cur_column(), "_\\d+m$", "")) == 1 &
+			`_sjoin_meters` <= .x,
+			1,
+			0
+		)
+	)) %>%
 	group_by(across(c(
 		"id",
 		tunit_col
 	))) %>%
-	summarize(
+	summarize( # count all and per road user type
+		`_count_ksi_user` = n(),
 		across(
-			-c("ksi_user_driver", "ksi_user_pedestrian", "ksi_user_cyclist", "ksi_user_other"),
-			~ paste0(unique(.x), collapse = ",")
+			starts_with("ksi_user_"),
+			~ sum(.x, na.rm = T),
+			.names = "_count_{.col}"
 		),
-		ksi_count = n(),
-		ksi_count_driver = sum(ksi_user_driver, na.rm = T),
-		ksi_count_pedestrian = sum(ksi_user_pedestrian, na.rm = T),
-		ksi_count_cyclist = sum(ksi_user_cyclist, na.rm = T),
-		ksi_count_other = sum(ksi_user_other, na.rm = T)
+		across(
+			!starts_with("_count_"),
+			~ paste0(.x, collapse = ",")
+		)
 	) %>%
-	mutate( # correct for no ksi joined
-		ksi_id = if_else(ksi_id == "NA", NA, ksi_id),
-		ksi_count = if_else(is.na(ksi_id), 0, ksi_count),
-		ksi_count_driver = if_else(is.na(ksi_id), 0, ksi_count_driver),
-		ksi_count_pedestrian = if_else(is.na(ksi_id), 0, ksi_count_pedestrian),
-		ksi_count_cyclist = if_else(is.na(ksi_id), 0, ksi_count_cyclist),
-		ksi_count_other = if_else(is.na(ksi_id), 0, ksi_count_other)
+	rename_with( # rename to count instead of user for agg
+		~str_replace(.x, "_count_ksi_user", "ksi_count"),
+		starts_with("_count_ksi_user")
+	) %>%
+	rename_with( # remove all from col name for simplicity
+		~str_replace(.x, "ksi_count_all", "ksi_count"),
+		starts_with("ksi_count_all")
+	) %>%
+	mutate( # set counts to 0 if not joined
+		across(starts_with("ksi_count"), ~replace_na(.x, 0))
 	)
 
 # Create combination of all id and time unit combos
@@ -2828,7 +2916,6 @@ if (tunit != "year") {
 	
 }
 
-
 # Fill in missing time units as zero
 bike_ksi <- tunit_combo %>%
 	left_join(
@@ -2847,13 +2934,10 @@ bike_ksi <- tunit_combo %>%
 			select(-geometry),
 		by = c("id", tunit_col)
 	) %>%
-	mutate(
-		ksi_count = replace_na(ksi_count, 0),
-		ksi_count_driver = replace_na(ksi_count_driver, 0),
-		ksi_count_pedestrian = replace_na(ksi_count_pedestrian, 0),
-		ksi_count_cyclist = replace_na(ksi_count_cyclist, 0),
-		ksi_count_other = replace_na(ksi_count_other, 0)
-	)
+	mutate(across(
+		starts_with("ksi_count"),
+		~replace_na(.x, 0)
+	))
 
 ```
 
@@ -2905,8 +2989,14 @@ if (tunit != "year") {
 	
 	# Time units more fine than a year
 	tid_data <- bike_ksi %>%
+		mutate(
+			time_group = .data[[glue("_ksi_time_{tunit}_group")]] %>%
+				replace_na("NA") %>%
+				str_split_1(., ",") %>%
+				unique
+		) %>%
 		separate(
-			glue("_ksi_time_{tunit}_group"),
+			time_group,
 			c("year", tunit),
 			sep = "_"
 		) %>%
@@ -2916,8 +3006,16 @@ if (tunit != "year") {
 	
 	# Time unit as year
 	tid_data <- bike_ksi %>%
-		mutate(time_value = .data[[glue("_ksi_time_{tunit}")]]) %>%
-		select(year = .data[[glue("_ksi_time_{tunit}")]], time_value)
+		rowwise %>%
+		mutate(
+			time_value = .data[[glue("_ksi_time_{tunit}")]] %>%
+				replace_na("NA") %>%
+				str_split_1(., ",") %>%
+				unique %>%
+				as.numeric,
+			year = time_value
+		) %>%
+		select(year, time_value)
 	
 }
 
@@ -3008,11 +3106,11 @@ model_data <- bike_ksi %>%
 		bike_remove2_year = `_remove2_year`,
 		bike_remove2_time_orig = .data[[glue("_remove2_time_{tunit}_group")]],
 		ksi_time_orig = .data[[glue("_ksi_time_{tunit}_group")]],
-		ksi = ksi_count,
-		ksi_driver = ksi_count_driver,
-		ksi_pedestrian = ksi_count_pedestrian,
-		ksi_cyclist = ksi_count_cyclist,
-		ksi_other = ksi_count_other
+		starts_with("ksi_count")
+	) %>%
+	rename_with( # adjust ksi col names
+		~str_replace(.x, "ksi_count", "ksi"),
+		starts_with("ksi_count")
 	) %>%
 	left_join( # add values about range of data
 		ksi_y2009to2023 %>%
@@ -3492,7 +3590,18 @@ model_data_check_list <- list(
 	"Post upgrade2 is 1 during second removal time" = model_data %>%
 		filter(
 			post_upgrade2 != 0 & time >= cohort_remove2
-		)
+		),
+	"Buffered road user KSI does not add up to all KSI" = model_data %>%
+		filter((if_any(
+			matches("ksi_\\d+m$"),
+			~.x != sum(
+				get(str_replace(cur_column(), "ksi_", "ksi_driver_")),
+				get(str_replace(cur_column(), "ksi_", "ksi_pedestrian_")),
+				get(str_replace(cur_column(), "ksi_", "ksi_cyclist_")),
+				get(str_replace(cur_column(), "ksi_", "ksi_other_")),
+				na.rm = T
+			)
+		)))
 )
 
 # Create df template of checks
@@ -3525,7 +3634,26 @@ model_data_check <- model_data_check %>%
 	add_row(
 		check = "Sum of all KSIs is not equal to the total KSIs available",
 		check_type = "column",
-		pass = sum(model_data$ksi, na.rm = T) == (sjoin %>% filter(!is.na(id)) %>% pull(ksi_id) %>% unique %>% length)
+		pass = sum(model_data$ksi, na.rm = T) == (
+			sjoin %>%
+				filter(!is.na(id)) %>%
+				pull(ksi_id) %>%
+				unique %>%
+				length
+		)
+	) %>%
+	add_row(
+		check = "Sum of all buffered KSIs is not equal to the total KSIs available",
+		check_type = "column",
+		pass = all(sapply(bike_sjoin_cols %>% unique, function(x) {
+		    sum(model_data[[glue("ksi_{x}m")]], na.rm = T) == (
+		        sjoin %>%
+		            filter(!is.na(id), `_sjoin_meters` <= x) %>%
+		            pull(ksi_id) %>%
+		            unique %>%
+		            length
+		    )
+		}))
 	)
 
 # Preview and save data check
@@ -3559,7 +3687,7 @@ vancbike_stats <- list(
 	itypes = bike_itypes %>% filter(city == "vancouver") %>% nrow,
 	p2010 = bike_p2010 %>% filter(city == "vancouver") %>% nrow,
 	tfilter = bike_tfilter %>% filter(city == "vancouver") %>% nrow,
-	sjoin = sjoin %>% filter(ksi_city == "vancouver" & !is.na(id)) %>% pull(ksi_id) %>% unique %>% length,
+	sjoin = sjoin %>% filter(ksi_city == "vancouver" & !is.na(id) & `_sjoin_meters` <= 25) %>% pull(ksi_id) %>% unique %>% length,
 	raw_km = calc_total_km(vancbike_raw),
 	verify_km = calc_total_km(bike_verify %>% filter(city == "vancouver")),
 	itypes_km = calc_total_km(bike_itypes %>% filter(city == "vancouver")),
@@ -3584,7 +3712,7 @@ calgbike_stats <- list(
 	itypes = bike_itypes %>% filter(city == "calgary") %>% nrow,
 	p2010 = bike_p2010 %>% filter(city == "calgary") %>% nrow,
 	tfilter = bike_tfilter %>% filter(city == "calgary") %>% nrow,
-	sjoin = sjoin  %>% filter(ksi_city == "calgary" & !is.na(id)) %>% pull(ksi_id) %>% unique %>% length,
+	sjoin = sjoin  %>% filter(ksi_city == "calgary" & !is.na(id) & `_sjoin_meters` <= 25) %>% pull(ksi_id) %>% unique %>% length,
 	raw_km = calc_total_km(calgbike_raw),
 	verify_km = calc_total_km(bike_verify %>% filter(city == "calgary")),
 	itypes_km = calc_total_km(bike_itypes %>% filter(city == "calgary")),
@@ -3609,7 +3737,7 @@ toronbike_stats <- list(
 	itypes = bike_itypes %>% filter(city == "toronto") %>% nrow,
 	p2010 = bike_p2010 %>% filter(city == "toronto") %>% nrow,
 	tfilter = bike_tfilter %>% filter(city == "toronto") %>% nrow,
-	sjoin = sjoin %>% filter(ksi_city == "toronto" & !is.na(id)) %>% pull(ksi_id) %>% unique %>% length,
+	sjoin = sjoin %>% filter(ksi_city == "toronto" & !is.na(id) & `_sjoin_meters` <= 25) %>% pull(ksi_id) %>% unique %>% length,
 	raw_km = calc_total_km(toronbike_raw),
 	verify_km = calc_total_km(bike_verify %>% filter(city == "toronto")),
 	itypes_km = calc_total_km(bike_itypes %>% filter(city == "toronto")),

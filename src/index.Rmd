@@ -2697,20 +2697,16 @@ cat(glue(
 
 # Display details
 sjoin_counts <- sjoin %>%
-	mutate(
-		city = str_split_i(id, "_", 1)
-	) %>%
-	group_by(city) %>%
+	group_by(ksi_city) %>%
 	summarize(
-		n_bike_10m = n_distinct(if_else(`_sjoin_meters` <= 10, id, NA), na.rm = T),
-		n_bike_25m = n_distinct(if_else(`_sjoin_meters` <= 25, id, NA), na.rm = T),
-		n_bike_50m = n_distinct(if_else(`_sjoin_meters` <= 50, id, NA), na.rm = T),
-		n_bike_75m = n_distinct(if_else(`_sjoin_meters` <= 75, id, NA), na.rm = T),
-		n_bike_100m = n_distinct(if_else(`_sjoin_meters` <= 100, id, NA), na.rm = T),
-		n_bike_200m = n_distinct(if_else(`_sjoin_meters` <= 200, id, NA), na.rm = T),
-		n_bike_300m = n_distinct(if_else(`_sjoin_meters` <= 300, id, NA), na.rm = T),
-		n_bike_400m = n_distinct(if_else(`_sjoin_meters` <= 400, id, NA), na.rm = T),
-		n_bike_500m = n_distinct(if_else(`_sjoin_meters` <= 500, id, NA), na.rm = T)
+		n_ksi_25m = n_distinct(if_else(`_sjoin_meters` <= 25, ksi_id, NA), na.rm = T),
+		n_ksi_50m = n_distinct(if_else(`_sjoin_meters` <= 50, ksi_id, NA), na.rm = T),
+		n_ksi_100m = n_distinct(if_else(`_sjoin_meters` <= 100, ksi_id, NA), na.rm = T),
+		n_ksi_150m = n_distinct(if_else(`_sjoin_meters` <= 150, ksi_id, NA), na.rm = T),
+		n_ksi_200m = n_distinct(if_else(`_sjoin_meters` <= 200, ksi_id, NA), na.rm = T),
+		n_ksi_300m = n_distinct(if_else(`_sjoin_meters` <= 300, ksi_id, NA), na.rm = T),
+		n_ksi_400m = n_distinct(if_else(`_sjoin_meters` <= 400, ksi_id, NA), na.rm = T),
+		n_ksi_500m = n_distinct(if_else(`_sjoin_meters` <= 500, ksi_id, NA), na.rm = T)
 	) %>%
 	left_join(
 		sjoin %>%
@@ -2719,7 +2715,7 @@ sjoin_counts <- sjoin %>%
 			summarize(
 				n_ksi = n_distinct(ksi_id, na.rm = T)
 			),
-		by = join_by(city == ksi_city)
+		by = join_by(ksi_city == ksi_city)
 	)
 sjoin_counts
 
@@ -2731,13 +2727,13 @@ sjoin_counts
 
 # Display plot of details
 sjoin_counts %>%
-	pivot_longer(cols = starts_with("n_bike_"), names_to = "Distance") %>%
+	pivot_longer(cols = starts_with("n_ksi_"), names_to = "Distance") %>%
     mutate(
     	Distance = parse_number(Distance),
     	`KSI Percentage` = (value / n_ksi) * 100
     ) %>%
 	rename(
-		City = city,
+		City = ksi_city,
 		KSI = value
 	) %>%
 	ggplot(aes(x = Distance, y = KSI, color = City, label = KSI)) +
@@ -2806,7 +2802,7 @@ tunit_col <- glue("_ksi_time_{tunit}_group")
 
 # Set ksi buff count vars
 bike_sjoin_cols <- expand_grid(
-	buff = c(10, 25, 50, 75, 100, 150, 200, 300, 400, 500),
+	buff = c(25, 50, 100, 150, 200, 300, 400, 500),
 	user = c("all", "driver", "pedestrian", "cyclist", "other")
 ) %>%
 	mutate(

@@ -1,0 +1,121 @@
+"city","user","dist","ksi"
+"calgary","all","25 meters",238
+"calgary","all","50 meters",266
+"calgary","all","25 to 150 meters",249
+"calgary","all","150 to 250 meters",263
+"calgary","all","150 to 550 meters",681
+"calgary","all","250 to 350 meters",153
+"calgary","all","350 to 450 meters",156
+"calgary","all","450 to 550 meters",109
+"toronto","all","25 meters",1791
+"toronto","all","50 meters",1871
+"toronto","all","25 to 150 meters",987
+"toronto","all","150 to 250 meters",822
+"toronto","all","150 to 550 meters",2654
+"toronto","all","250 to 350 meters",774
+"toronto","all","350 to 450 meters",624
+"toronto","all","450 to 550 meters",434
+"vancouver","all","25 meters",214
+"vancouver","all","50 meters",225
+"vancouver","all","25 to 150 meters",200
+"vancouver","all","150 to 250 meters",177
+"vancouver","all","150 to 550 meters",635
+"vancouver","all","250 to 350 meters",202
+"vancouver","all","350 to 450 meters",122
+"vancouver","all","450 to 550 meters",134
+"calgary","cyclist","25 meters",90
+"calgary","cyclist","50 meters",183
+"calgary","cyclist","25 to 150 meters",18
+"calgary","cyclist","150 to 250 meters",20
+"calgary","cyclist","150 to 550 meters",54
+"calgary","cyclist","250 to 350 meters",15
+"calgary","cyclist","350 to 450 meters",14
+"calgary","cyclist","450 to 550 meters",5
+"toronto","cyclist","25 meters",316
+"toronto","cyclist","50 meters",515
+"toronto","cyclist","25 to 150 meters",72
+"toronto","cyclist","150 to 250 meters",59
+"toronto","cyclist","150 to 550 meters",169
+"toronto","cyclist","250 to 350 meters",51
+"toronto","cyclist","350 to 450 meters",40
+"toronto","cyclist","450 to 550 meters",19
+"vancouver","cyclist","25 meters",130
+"vancouver","cyclist","50 meters",213
+"vancouver","cyclist","25 to 150 meters",28
+"vancouver","cyclist","150 to 250 meters",32
+"vancouver","cyclist","150 to 550 meters",102
+"vancouver","cyclist","250 to 350 meters",34
+"vancouver","cyclist","350 to 450 meters",22
+"vancouver","cyclist","450 to 550 meters",14
+"calgary","driver","25 meters",984
+"calgary","driver","50 meters",1957
+"calgary","driver","25 to 150 meters",134
+"calgary","driver","150 to 250 meters",140
+"calgary","driver","150 to 550 meters",391
+"calgary","driver","250 to 350 meters",90
+"calgary","driver","350 to 450 meters",89
+"calgary","driver","450 to 550 meters",72
+"toronto","driver","25 meters",4519
+"toronto","driver","50 meters",7418
+"toronto","driver","25 to 150 meters",556
+"toronto","driver","150 to 250 meters",465
+"toronto","driver","150 to 550 meters",1567
+"toronto","driver","250 to 350 meters",457
+"toronto","driver","350 to 450 meters",367
+"toronto","driver","450 to 550 meters",278
+"vancouver","driver","25 meters",311
+"vancouver","driver","50 meters",454
+"vancouver","driver","25 to 150 meters",79
+"vancouver","driver","150 to 250 meters",60
+"vancouver","driver","150 to 550 meters",240
+"vancouver","driver","250 to 350 meters",69
+"vancouver","driver","350 to 450 meters",48
+"vancouver","driver","450 to 550 meters",63
+"calgary","other","25 meters",135
+"calgary","other","50 meters",253
+"calgary","other","25 to 150 meters",27
+"calgary","other","150 to 250 meters",24
+"calgary","other","150 to 550 meters",65
+"calgary","other","250 to 350 meters",12
+"calgary","other","350 to 450 meters",19
+"calgary","other","450 to 550 meters",10
+"toronto","other","25 meters",985
+"toronto","other","50 meters",1601
+"toronto","other","25 to 150 meters",167
+"toronto","other","150 to 250 meters",121
+"toronto","other","150 to 550 meters",380
+"toronto","other","250 to 350 meters",118
+"toronto","other","350 to 450 meters",86
+"toronto","other","450 to 550 meters",55
+"vancouver","other","25 meters",4
+"vancouver","other","50 meters",5
+"vancouver","other","25 to 150 meters",1
+"vancouver","other","150 to 250 meters",1
+"vancouver","other","150 to 550 meters",2
+"vancouver","other","250 to 350 meters",1
+"vancouver","other","350 to 450 meters",0
+"vancouver","other","450 to 550 meters",0
+"calgary","pedestrian","25 meters",355
+"calgary","pedestrian","50 meters",649
+"calgary","pedestrian","25 to 150 meters",70
+"calgary","pedestrian","150 to 250 meters",79
+"calgary","pedestrian","150 to 550 meters",171
+"calgary","pedestrian","250 to 350 meters",36
+"calgary","pedestrian","350 to 450 meters",34
+"calgary","pedestrian","450 to 550 meters",22
+"toronto","pedestrian","25 meters",1260
+"toronto","pedestrian","50 meters",2082
+"toronto","pedestrian","25 to 150 meters",192
+"toronto","pedestrian","150 to 250 meters",177
+"toronto","pedestrian","150 to 550 meters",538
+"toronto","pedestrian","250 to 350 meters",148
+"toronto","pedestrian","350 to 450 meters",131
+"toronto","pedestrian","450 to 550 meters",82
+"vancouver","pedestrian","25 meters",329
+"vancouver","pedestrian","50 meters",515
+"vancouver","pedestrian","25 to 150 meters",92
+"vancouver","pedestrian","150 to 250 meters",84
+"vancouver","pedestrian","150 to 550 meters",291
+"vancouver","pedestrian","250 to 350 meters",98
+"vancouver","pedestrian","350 to 450 meters",52
+"vancouver","pedestrian","450 to 550 meters",57

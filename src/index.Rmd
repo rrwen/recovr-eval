@@ -2711,7 +2711,9 @@ This creates columns in the format of `_ksi_time_<UNIT>_<YEAR>_<VALUE>`, where:
 * `<YEAR>`: is the year for the unit of time
 * `<VALUE>`: is the number representing the portion of the time range for the unit of time with month being 1-12, quarter being 1-4, third being 1-3, half being 1-2 and semester being 1-2 (this is omitted if time unit is `year`)
 
-KSI by road users and different distances (10, 25, 50, 75, 100 .. 500 meters) to bikeways will also be counted.
+KSI by road users and different distances (25, 50, >25-150, >150-250, >250-350, >350-450, >450-550, >150-550 meters) to bikeways will also be counted according to the Ling et al. (2020) paper with a modification for an addition of 25 and 50 meter distances with the inclusion of decimal distances between cutoffs (instead of 151-250 we use >150-250 to capture decimal numbers between 150 and 151):
+
+Ling, R., Rothman, L., Cloutier, M. S., Macarthur, C., & Howard, A. (2020). Cyclist-motor vehicle collisions before and after implementation of cycle tracks in Toronto, Canada. Accident Analysis & Prevention, 135, 105360.
 
 ```{r}
 
@@ -2729,17 +2731,19 @@ ksi_tunits <- ksi_tunits %>%
 # Get time unit col
 tunit_col <- glue("_ksi_time_{tunit}_group")
 
-# Set ksi dist to bikeways
+# Set ksi dist to bikeways according to ling paper 2020
+bike_sjoin_dist <- c(
+	"25",
+	"50",
+	"25to150",
+	"150to250",
+	"250to350",
+	"350to450",
+	"450to550",
+	"150to550"
+)
 bike_sjoin_cols <- expand_grid(
-	dist = c(
-		"25",
-		"26to150",
-		"151to250",
-		"251to350",
-		"351to450",
-		"451to550",
-		"150to550"
-	),
+	dist = bike_sjoin_dist,
 	user = c("all", "driver", "pedestrian", "cyclist", "other")
 ) %>%
 	mutate(
@@ -2791,7 +2795,7 @@ bike_sjoin <- bike_adj %>%
 		starts_with("ksi_user_all") & matches("_\\d+to\\d+m$"),
 		~ if_else(
 			!is.na(ksi_user) &
-			`_sjoin_meters` >= as.numeric(str_split_1(.x %>% unique, "to")[1]) &
+			`_sjoin_meters` > as.numeric(str_split_1(.x %>% unique, "to")[1]) &
 			`_sjoin_meters` <= as.numeric(str_split_1(.x %>% unique, "to")[2]),
 			1,
 			0
@@ -2814,7 +2818,7 @@ bike_sjoin <- bike_adj %>%
 		matches("_\\d+to\\d+m$"),
 		~ if_else(
 			get(str_replace(cur_column(), "_\\d+to\\d+m$", "")) == 1 &
-			`_sjoin_meters` >= as.numeric(str_split_1(.x %>% unique, "to")[1]) &
+			`_sjoin_meters` > as.numeric(str_split_1(.x %>% unique, "to")[1]) &
 			`_sjoin_meters` <= as.numeric(str_split_1(.x %>% unique, "to")[2]),
 			1,
 			0
@@ -2900,6 +2904,56 @@ bike_ksi <- tunit_combo %>%
 
 ### Details {.tabset .tabset-pills}
 
+```{r}
+
+# Calc ksi counts per road user and dist to bikeway
+bike_ksi_counts <- bike_sjoin %>%
+	as_tibble %>%
+	select(-geometry) %>%
+    pivot_longer(
+        starts_with("ksi_count"),
+        names_to = "column",
+        values_to = "value"
+    ) %>%
+    mutate(
+        user = str_remove_all( # extract user
+            column,
+            "ksi_count|_|\\d+m$|\\d+to\\d+m$"
+        ) %>%
+            if_else(. == "", "all", .),
+        dist_min = case_when( # extract min dist to bike
+        	str_detect(column, "\\d+to\\d+m$") ~
+        		str_extract(column, "\\d+") %>%
+        		as.numeric,
+        	str_detect(column, "\\d+m$") ~
+        		0,
+        	.default = NA
+        ),
+        dist_max = case_when( # extract max dist to bike
+        	str_detect(column, "\\d+to\\d+m$") ~
+        		str_remove(str_extract(column, "\\d+m$"), "m") %>%
+        		as.numeric,
+        	str_detect(column, "\\d+m$") ~
+        		str_extract(column, "\\d+") %>%
+        		as.numeric,
+        	.default = NA
+        ),
+        is_dist = if_else(!is.na(dist_min) | !is.na(dist_max), T, F),
+        dist = if_else(
+        	dist_min == 0,
+        	glue("{dist_max} meters"),
+        	glue("{dist_min} to {dist_max} meters")
+        )
+    ) %>%
+	rowwise %>%
+	mutate(
+		city = str_split_1(city, ",") %>%
+			unique
+	) %>%
+    select(city, ksi = value, user, dist, is_dist, dist_min, dist_max)
+
+```
+
 #### Changes
 
 ```{r}
@@ -2923,49 +2977,57 @@ cat(glue(
 
 ```
 
-#### Table
+#### KSI Counts Per Distance
 
 ```{r}
 
-# Display details
-bike_ksi_counts <- bike_sjoin %>%
-    pivot_longer(
-        starts_with("ksi_count"),
-        names_to = "column",
-        values_to = "value"
-    ) %>%
-    mutate(
-        user = str_remove_all(
-            column,
-            "ksi_count|_|\\d+m$|\\d+to\\d+m$"
-        ) %>%
-            if_else(. == "", "all", .),
-        dist_max = str_extract(column, "\\d+")
-    ) %>%
-    select(column, value, user, dist_max, everything())
+# Table of total counts per city, user, and dist to bikeway
+bike_ksi_agg <- bike_ksi_counts %>%
+	filter(!is.na(dist)) %>%
+	group_by(city, user, dist) %>%
+	summarize(
+		ksi = sum(ksi, na.rm = T),
+		dist_min = unique(dist_min),
+		dist_max = unique(dist_max)
+	) %>%
+	arrange(user, city, dist_min)
+bike_ksi_agg %>%
+	select(-dist_min, -dist_max)
+
+# Save table
+bike_ksi_agg %>%
+	select(-dist_min, -dist_max) %>%
+	write_csv("../data/recovr-eval-dist-2024-11-12.csv")
 
 ```
-
-#### Buffer Distance
 
 ```{r}
 
 # Display plot of details
-sjoin_counts %>%
-	pivot_longer(cols = starts_with("n_ksi_"), names_to = "Distance") %>%
-    mutate(
-    	Distance = parse_number(Distance),
-    	`KSI Percentage` = (value / n_ksi) * 100
-    ) %>%
-	rename(
-		City = ksi_city,
-		KSI = value
+bike_ksi_agg %>%
+	filter(
+		user == "all" &
+			!dist %in% c("50 meters", "150 to 550 meters")
 	) %>%
-	ggplot(aes(x = Distance, y = KSI, color = City, label = KSI)) +
+	mutate(
+		city = factor(
+			str_to_title(city),
+			levels = c("Vancouver", "Calgary", "Toronto")
+		),
+		dist = factor(
+			str_replace(dist, " meters", ""),
+			levels = str_replace(bike_sjoin_dist, "to", " to ")
+		)
+	) %>%
+	ggplot(aes(x = dist, y = ksi, color = city, label = ksi, group = city)) +
 	geom_line() +
 	geom_point() +
 	geom_text_repel(size = 2.5) +
-	labs(x = "Buffer Distance", y = "KSI Count", color = "City") +
+	labs(
+		x = "Distance to Nearest Bikeway (Meters)",
+		y = "KSI Individuals",
+		color = "City"
+	) +
 	theme_minimal()
 ```
 
@@ -2976,7 +3038,7 @@ sjoin %>%
 	filter(`_sjoin_meters` < 20000) %>%
 	ggplot(aes(x = `_sjoin_meters`)) +
 	geom_histogram(binwidth = 100) +
-	facet_wrap(~ ksi_city) +
+	facet_wrap(~ksi_city) +
 	labs(
 		x = "Distances of KSI to Closest Bikeway (Meters)",
 		y = "Frequency",
@@ -3706,10 +3768,10 @@ model_data_check <- model_data_check %>%
 			            filter(
 			            	!is.na(id) &
 			            	`_sjoin_meters` >= as.numeric(
-			            		str_split_1(.x %>% unique, "to")[1]
+			            		str_split_1(x %>% unique, "to")[1]
 			            	) &
 			            	`_sjoin_meters` <= as.numeric(
-			            		str_split_1(.x %>% unique, "to")[2]
+			            		str_split_1(x %>% unique, "to")[2]
 			            	)
 			            ) %>%
 			            pull(ksi_id) %>%

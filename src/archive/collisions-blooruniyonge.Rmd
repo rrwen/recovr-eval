@@ -39,11 +39,16 @@ library(DT)
 
 # Data
 
-Load the centrelines open data and all collisions data from the City of Toronto.
+Load the boundary, centrelines, all collisions, and verified bikeways data for the City of Toronto.
 
-All collisions data was provided by David McElroy <David.McElroy@toronto.ca>, and pre-processed by Chaandini Ranganathan <chaandini.ranganathan@mail.utoronto.ca> (joined individuals involved data with collisions data).
+All collisions data was provided by David McElroy <David.McElroy@toronto.ca> from the City of Toronto on November 7, 2024.
 
-```{r, message = FALSE}
+Verified bikeways data originally from Konrad Samsel <konrad.samsel@mail.utoronto.ca> and later modified by Richard Wen <richard.wen@utoronto.ca> on October 27, 2024.
+
+```{r, message = F, warning = F}
+
+# Load boundaries
+bounds_raw <- read_sf("../../data/toronto-boundary-2019-07-23/citygcs_regional_mun_wgs84.shp")
 
 # Load toronto centrelines data
 ctl_raw <- read_sf("../../data/toronto-centrelines-2024-12-06.geojson")
@@ -52,14 +57,43 @@ ctl_raw <- read_sf("../../data/toronto-centrelines-2024-12-06.geojson")
 bike_raw <- read_sf("../../data/toronto-bikeways-2024-10-27.geojson")
 
 # Load all toronto collisions from 2022 to 2024
-colli_raw <- read_csv("../../tmp/allcol_2022_2024.csv")
+colli_raw <- read_sf(
+	"../../tmp/i0327_collisionsrep_acc_export.csv",
+	options = c(
+		"X_POSSIBLE_NAMES=LONGITUDE",
+		"Y_POSSIBLE_NAMES=LATITUDE"
+	),
+	crs = 4326
+)
 ```
 
 # Cleaning
 
+## Re-projection and Data Types
+
+Re-project the City of Toronto boundaries to coordinate system `EPSG:4326`, then crop all collisions to the boundaries of the City of Toronto.
+
+Also, converts the accident date `ACCDATE` to `date` type.
+
+```{r}
+
+# Reproj bounds 4326
+bounds <- bounds_raw %>% st_transform(4326)
+
+# Crop to toronto bounds and convert date type
+colli <- colli_raw %>%
+	st_intersection(bounds) %>%
+	mutate(datetime = as_date(ACCDATE))
+
+```
+
+## Filtering and Columns
+
 Filter the centreline data for target streets Bloor Street, University Avenue, and Yonge Street, and merge all segments for each target street.
 
-Also, separate the collisions data for Killed or Seriously Injured (KSI) and non-KSI collisions.
+Then, calculate the final type and year for each verified bikeway and filter for cycle tracks only based on this final type for Bloor Street, University Avenue, and Yonge Street.
+
+Also, adds a column to separate the collisions data for Killed or Seriously Injured (KSI) and non-KSI collisions.
 
 ```{r}
 
@@ -121,32 +155,66 @@ bike <- bike_raw %>%
 		final_type == "Cycle Track"
 	)
 
-# Filter killed or serious injuries (ksi) collisions
+# Add a column to separate ksi and non-ksi
 ksi_codes <- c("3", "4")
-ksi <- colli_raw %>%
-	filter(INJURY %in% ksi_codes)
-
-# Filter non-ksi collisions
-noksi <- colli_raw %>%
-	filter(!INJURY %in% ksi_codes)
+colli <- colli %>%
+	mutate(
+		ksi = if_else(INJURY %in% ksi_codes, T, F)
+	)
 
 ```
 
 
 ```{r}
 
-# Visualize results of target streets
+# Visualize results of target streets and cycle tracks
 tmap_mode("view")
-tm_shape(streets) +
-	tm_lines(col = "#336699", popup.vars = T) +
-	tm_text("target_street", size = 1) +
-	tm_shape(bike %>% filter(verify_install_type == "PBL")) +
-	tm_lines(col = "red", popup.vars = T)
+tmap_leaflet(
+	tm_shape(streets) +
+		tm_lines(col = "black", popup.vars = T) +
+		tm_text("target_street", size = 1) +
+		tm_shape(bike) +
+		tm_lines(col = "red", lwd = 2, popup.vars = T)
+	) %>%
+	addFullscreenControl %>%
+	addLegend(
+		position = "topright",
+		colors = c("red", "black"),
+		labels = c("Cycle Track", "Street")
+	)
 
 ```
 
 # Processing
 
 ```{r}
+
+# Get nearest bikeway to each collision
+bike_near_colli <- colli %>% st_nearest_feature(bike)
+
+# Calc distances to nearest bikeway for each collision
+colli_bike <- colli %>%
+	mutate( # calc dist to nearest bikeway for each ksi
+		`near_bike_meters` = st_distance(
+			geometry,
+			bike[bike_near_colli, ],
+			by_element = T
+		) %>% as.numeric
+	)
+
+# Add bike columns to collisions
+colli_bike <- colli_bike %>%
+	mutate( # add ids for bike
+		bike_id = bike[bike_near_colli, ]$id
+	) %>%
+	left_join( # add bike cols to colli
+		bike,
+		by = join_by(bike_id == id)
+	)
+
+# Filter for collisions within 25 meters of the bikeways
+colli_bike <- colli_bike %>%
+	filter(near_bike_meters <= 25)
+
 ```
 

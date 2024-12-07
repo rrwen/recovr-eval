@@ -103,21 +103,21 @@ ddesc
 
 ## Toronto Bikeways {.tabset}
 
-`r ddesc %>% filter(file == "toronto-bikeways-2024-06-02.geojson") %>% pull(description)`
+`r ddesc %>% filter(file == "toronto-bikeways-2024-10-27.geojson") %>% pull(description)`
 
-* **Download Link**: `r ddesc %>% filter(file == "toronto-bikeways-2024-06-02.geojson") %>% pull(url)`
-* **Download Date**: `r format(ddesc %>% filter(file == "toronto-bikeways-2024-06-02.geojson") %>% pull(download_date), '%B %d, %Y')`
-* **Data Updated**: `r format(ddesc %>% filter(file == "toronto-bikeways-2024-06-02.geojson") %>% pull(update_date), '%B %d, %Y')`
-* **Notes**: `r ddesc %>% filter(file == "toronto-bikeways-2024-06-02.geojson") %>% pull(notes)`
+* **Download Link**: `r ddesc %>% filter(file == "toronto-bikeways-2024-10-27.geojson") %>% pull(url)`
+* **Download Date**: `r format(ddesc %>% filter(file == "toronto-bikeways-2024-10-27.geojson") %>% pull(download_date), '%B %d, %Y')`
+* **Data Updated**: `r format(ddesc %>% filter(file == "toronto-bikeways-2024-10-27.geojson") %>% pull(update_date), '%B %d, %Y')`
+* **Notes**: `r ddesc %>% filter(file == "toronto-bikeways-2024-10-27.geojson") %>% pull(notes)`
 
 ```{r}
 
 # Read data
-toronbike_raw <- read_sf("../../data/toronto-bikeways-2024-06-02.geojson")
+toronbike_raw <- read_sf("../../data/toronto-bikeways-2024-10-27.geojson")
 
 # Get download date
 toronbike_dldate <- ddesc %>% filter(
-	file == "toronto-bikeways-2024-06-02.geojson"
+	file == "toronto-bikeways-2024-10-27.geojson"
 ) %>% pull(download_date)
 ```
 
@@ -149,7 +149,7 @@ toronbike_raw %>% as_tibble
 The data contains the following columns:
 
 ```{r, cols.print = 3}
-toronbike_ddict <- read_csv("../../data/toronto-bikeways-2024-06-02-datadict.csv")
+toronbike_ddict <- read_csv("../../data/toronto-bikeways-2024-10-27-datadict.csv")
 toronbike_ddict
 ```
 
@@ -163,8 +163,8 @@ print(toronbike_raw)
 
 The data files are available below:
 
-- [toronto-bikeways-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-bikeways-2024-06-02.geojson)
-- [toronto-bikeways-2024-06-02-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-bikeways-2024-06-02-datadict.csv)
+- [toronto-bikeways-2024-10-27.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-bikeways-2024-10-27.geojson)
+- [toronto-bikeways-2024-10-27-datadict.csv](https://github.com/rrwen/recovr-eval/blob/main/data/toronto-bikeways-2024-10-27-datadict.csv)
 
 ## Verified Dates {.tabset}
 
@@ -488,8 +488,8 @@ tmap_leaflet(toronbike_instyearx_map) %>%
 
 ### Data
 
-- [toronto-bikeways-instyearx-2024-06-02.csv](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-instyearx-2024-06-02.csv)
-- [toronto-bikeways-instyearx-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-instyearx-2024-06-02.geojson)
+- [toronto-bikeways-instyearx-2024-10-27.csv](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-instyearx-2024-10-27.csv)
+- [toronto-bikeways-instyearx-2024-10-27.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-instyearx-2024-10-27.geojson)
 
 ```{r}
 
@@ -497,11 +497,11 @@ tmap_leaflet(toronbike_instyearx_map) %>%
 toronbike_instyearx %>%
 	mutate(geometry_wkb = st_as_text(geometry)) %>%
 	select(-geometry) %>%
-    write_sf("../../data/archive/toronto-bikeways-instyearx-2024-06-02.csv", na = "", append = F)
+    write_sf("../../data/archive/toronto-bikeways-instyearx-2024-10-27.csv", na = "", append = F)
 
 # Save unmatched bike install year geojson
 toronbike_instyearx %>%
-    write_sf("../../data/archive/toronto-bikeways-instyearx-2024-06-02.geojson", na = "", append = F)
+    write_sf("../../data/archive/toronto-bikeways-instyearx-2024-10-27.geojson", na = "", append = F)
 
 # Display bike with unmatched years
 toronbike_instyearx %>%
@@ -672,8 +672,8 @@ tmap_leaflet(toronbike_noquarter_map) %>%
 
 #### Install
 
-- [toronto-bikeways-noquartinstp2011-2024-06-02.csv](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noquartinstp2011-2024-06-02.csv.csv)
-- [toronto-bikeways-noquartinstp2011-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noquartinstp2011-2024-06-02.geojson)
+- [toronto-bikeways-noquartinstp2011-2024-10-27.csv](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noquartinstp2011-2024-10-27.csv.csv)
+- [toronto-bikeways-noquartinstp2011-2024-10-27.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noquartinstp2011-2024-10-27.geojson)
 
 ```{r}
 
@@ -681,11 +681,11 @@ tmap_leaflet(toronbike_noquarter_map) %>%
 toronbike_noquartinstp2011 %>%
 	mutate(geometry_wkb = st_as_text(geometry)) %>%
 	select(-geometry) %>%
-    write_sf("../../data/archive/toronto-bikeways-noquartinstp2011-2024-06-02.csv", na = "", append = F)
+    write_sf("../../data/archive/toronto-bikeways-noquartinstp2011-2024-10-27.csv", na = "", append = F)
 
 # Save post2011 no quarter install geojson
 toronbike_noquartinstp2011 %>%
-    write_sf("../../data/archive/toronto-bikeways-noquartinstp2011-2024-06-02.geojson", na = "", append = F)
+    write_sf("../../data/archive/toronto-bikeways-noquartinstp2011-2024-10-27.geojson", na = "", append = F)
 
 # Display data
 toronbike_noquartinstp2011 %>%
@@ -696,8 +696,8 @@ toronbike_noquartinstp2011 %>%
 
 #### 1st Upgrade
 
-- [toronto-bikeways-noquartu1p2011-2024-06-02.csv](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noquartu1p2011-2024-06-02.csv.csv)
-- [toronto-bikeways-noquartu1p2011-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noquartu1p2011-2024-06-02.geojson)
+- [toronto-bikeways-noquartu1p2011-2024-10-27.csv](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noquartu1p2011-2024-10-27.csv.csv)
+- [toronto-bikeways-noquartu1p2011-2024-10-27.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noquartu1p2011-2024-10-27.geojson)
 
 ```{r}
 
@@ -705,11 +705,11 @@ toronbike_noquartinstp2011 %>%
 toronbike_noquartu1p2011 %>%
 	mutate(geometry_wkb = st_as_text(geometry)) %>%
 	select(-geometry) %>%
-    write_sf("../../data/archive/toronto-bikeways-noquartu1p2011-2024-06-02.csv", na = "", append = F)
+    write_sf("../../data/archive/toronto-bikeways-noquartu1p2011-2024-10-27.csv", na = "", append = F)
 
 # Save post2011 no quarter upgrade1 geojson
 toronbike_noquartu1p2011 %>%
-    write_sf("../../data/archive/toronto-bikeways-noquartu1p2011-2024-06-02.geojson", na = "", append = F)
+    write_sf("../../data/archive/toronto-bikeways-noquartu1p2011-2024-10-27.geojson", na = "", append = F)
 
 # Display data
 toronbike_noquartu1p2011 %>%
@@ -720,8 +720,8 @@ toronbike_noquartu1p2011 %>%
 
 #### 2nd Upgrade
 
-- [toronto-bikeways-noquartu2p2011-2024-06-02.csv](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noquartu2p2011-2024-06-02.csv.csv)
-- [toronto-bikeways-noquartu2p2011-2024-06-02.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noquartu2p2011-2024-06-02.geojson)
+- [toronto-bikeways-noquartu2p2011-2024-10-27.csv](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noquartu2p2011-2024-10-27.csv.csv)
+- [toronto-bikeways-noquartu2p2011-2024-10-27.geojson](https://github.com/rrwen/recovr-eval/blob/main/data/archive/toronto-bikeways-noquartu2p2011-2024-10-27.geojson)
 
 
 ```{r}
@@ -730,11 +730,11 @@ toronbike_noquartu1p2011 %>%
 toronbike_noquartu2p2011 %>%
 	mutate(geometry_wkb = st_as_text(geometry)) %>%
 	select(-geometry) %>%
-    write_sf("../../data/archive/toronto-bikeways-noquartu2p2011-2024-06-02.csv", na = "", append = F)
+    write_sf("../../data/archive/toronto-bikeways-noquartu2p2011-2024-10-27.csv", na = "", append = F)
 
 # Save post2011 no quarter upgrade2 geojson
 toronbike_noquartu2p2011 %>%
-    write_sf("../../data/archive/toronto-bikeways-noquartu2p2011-2024-06-02.geojson", na = "", append = F)
+    write_sf("../../data/archive/toronto-bikeways-noquartu2p2011-2024-10-27.geojson", na = "", append = F)
 
 # Display data
 toronbike_noquartu2p2011 %>%

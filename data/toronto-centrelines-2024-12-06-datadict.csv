@@ -1,0 +1,42 @@
+column,description,data_type
+_id,Unique row identifier for Open Data database,numeric
+CENTRELINE_ID,Unique ID of centreline,numeric
+LINEAR_NAME_ID,Linear Name ID,numeric
+LINEAR_NAME_FULL,"Linear Name in full, e.g. Don Mills Rd",text
+LINEAR_NAME_FULL_LEGAL,"Legal Linear Name in full, e.g. Don Mills Road",text
+ADDRESS_L,Address Range on the left,text
+ADDRESS_R,Address Range on the right,text
+PARITY_L,Address numbers parity on left,text
+PARITY_R,Address numbers parity on right,text
+LO_NUM_L,Lowest address number for left,numeric
+HI_NUM_L,Highest address number for left,numeric
+LO_NUM_R,Lowest address number for right,numeric
+HI_NUM_R,Highest address number for right,numeric
+BEGIN_ADDR_POINT_ID_L,Begin positional address point on the left,numeric
+END_ADDR_POINT_ID_L,End positional address point on the left,numeric
+BEGIN_ADDR_POINT_ID_R,Begin positional address point on the right,numeric
+END_ADDR_POINT_ID_R,End positional address point on the right,numeric
+BEGIN_ADDR_L,Begin positional address on the left,numeric
+END_ADDR_L,End positional address on the left,numeric
+BEGIN_ADDR_R,Begin positional address on the right,numeric
+END_ADDR_R,End positional address on the right,numeric
+LOW_NUM_ODD,Numeric lowest odd number,numeric
+HIGH_NUM_ODD,Numeric highest odd number,numeric
+LOW_NUM_EVEN,Numeric lowest even number,numeric
+HIGH_NUM_EVEN,Numeric highest even number,numeric
+LINEAR_NAME,Name part of the linear name,text
+LINEAR_NAME_TYPE,Type part of the linear name,text
+LINEAR_NAME_DIR,Direction part of the linear name,text
+LINEAR_NAME_DESC,Description of the linear name,text
+LINEAR_NAME_LABEL,Centreline label,text
+FROM_INTERSECTION_ID,Intersection id at the from node,numeric
+TO_INTERSECTION_ID,Intersection id at the to node,numeric
+ONEWAY_DIR_CODE,"Traffic direction (0, 1, -1)",numeric
+ONEWAY_DIR_CODE_DESC,"non-oneway (0), follow digitized direction (1), against digitised direction (-1)",numeric
+FEATURE_CODE,Centreline classification code,numeric
+FEATURE_CODE_DESC,Centreline classification description,text
+JURISDICTION,Jurisdiction of the centreline (/ownership),text
+CENTRELINE_STATUS,Business status of the centreline,text
+OBJECTID,,numeric
+MI_PRINX,Unique MapInfo identifier,numeric
+geometry,,geometry

@@ -1,0 +1,40 @@
+﻿column,description,data_type
+_id,Unique row identifier for Open Data database,numeric
+OBJECTID,,numeric
+SEGMENT_ID,Number given to a segment within the data. The assigned follows a consecutive sequential order.,numeric
+INSTALLED,The year in which the cycling infrastructure was originally installed.,numeric
+UPGRADED,"The year in which the cycling infrastructure received upgrades, without changing from shared space to dedicated space. For example, if a bike lane is upgraded to a cycle track, or a signed route is upgraded to a sharrow wayfinding route. Upgrades can be undertaken using pavement markings or physical separation.",numeric
+PRE_AMALGAMATION,Yes/No on if it was installed before amalgamation.,text
+STREET_NAME,The name of the street where the cycling infrastructure is located.,text
+FROM_STREET,"The beginning of the boundary, the street name for which the cycling infrastructure segment starts.",text
+TO_STREET,"The end of the boundary, the street name for which the cycling infrastructure segment ends.",text
+ROADCLASS,"Classification of road (ex. Arterial, Collector, Local)",text
+CNPCLASS,"Type of road (ex. Fast Busy Street, Quiet Street)",text
+SURFACE,Surface Material of infrastructure,text
+OWNER,,text
+DIR_LOWORDER,,numeric
+INFRA_LOWORDER,"Refers to the lowest classified cycling infrastructure type installed on this segment. In order of lowest to highest:
+
+Signed Route
+Wayfinding Sharrows
+Sharrows
+Contra-flow Bike Lane
+Bike Lane
+Bike Lane – Buffered
+Multi-Use Trail
+Cycle Track
+As an example, on a contra-flow route with sharrows on one side, and contra-flow bike lane on the other side, the lowest classified cycling infrastructure type on this street would be the ""Sharrows"". If the street only has one type of cycling infrastructure on both sides, then the input would be the same for both ""INFRA_LOWO"" and ""INFRA_HIGH"".",text
+SEPA_LOWORDER,,text
+SEPB_LOWORDER,,text
+ORIG_LOWORDER_INFRA,,text
+DIR_HIGHORDER,,numeric
+INFRA_HIGHORDER,"Refers to the highest classified cycling infrastructure type installed on this segment, as outlined above.",text
+SEPA_HIGHORDER,,text
+SEPB_HIGHORDER,,text
+ORIG_HIGHORDER,,text
+BYLAWED,,text
+EDITOR,,text
+LAST_EDIT_DATE,,date
+UPGRADE_DESCRIPTION,,text
+CONVERTED,"Identifies bikeways routes that were initially shared space (sharrows, signed routes, etc) and have been converted to dedicated spaces or cycling facilities (i.e. bike lane, cycle tracks, multi-use trails).",text
+geometry,,geometry

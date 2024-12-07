@@ -1,0 +1,152 @@
+---
+title: "Quarterly Collisions in Bloor, University and Yonge"
+subtitle: "R Code"
+author:
+- "Richard Wen richard.wen@utoronto.ca"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+knit: |
+    (function(input_rmd, ...) {
+    rmarkdown::render(
+        input_rmd,
+        rmarkdown::html_document(
+            toc = TRUE,
+            toc_float = TRUE,
+            highlight = "zenburn",
+            code_folding = "hide",
+            df_print = "paged",
+            self_contained = FALSE
+        ),
+        output_dir = "../../docs/archive/collisions-blooruniyonge",
+        output_file = "index", ...)
+    })
+---
+
+# Libraries
+
+```{r}
+
+# Load libraries
+library(ggplot2)
+library(leaflet)
+library(leaflet.extras)
+library(lubridate)
+library(sf)
+library(tidyverse)
+library(tmap)
+library(DT)
+
+```
+
+# Data
+
+Load the centrelines open data and all collisions data from the City of Toronto.
+
+All collisions data was provided by David McElroy <David.McElroy@toronto.ca>, and pre-processed by Chaandini Ranganathan <chaandini.ranganathan@mail.utoronto.ca> (joined individuals involved data with collisions data).
+
+```{r, message = FALSE}
+
+# Load toronto centrelines data
+ctl_raw <- read_sf("../../data/toronto-centrelines-2024-12-06.geojson")
+
+# Load toronto bikeways data
+bike_raw <- read_sf("../../data/toronto-bikeways-2024-10-27.geojson")
+
+# Load all toronto collisions from 2022 to 2024
+colli_raw <- read_csv("../../tmp/allcol_2022_2024.csv")
+```
+
+# Cleaning
+
+Filter the centreline data for target streets Bloor Street, University Avenue, and Yonge Street, and merge all segments for each target street.
+
+Also, separate the collisions data for Killed or Seriously Injured (KSI) and non-KSI collisions.
+
+```{r}
+
+# Filter for Bloor, University and Yonge
+streets <- ctl_raw %>%
+	filter( # filter for streets only
+		FEATURE_CODE_DESC %in% c(
+			"Major Arterial",
+		    "Major Arterial Ramp",
+		    "Minor Arterial",
+		    "Minor Arterial Ramp",
+		    "Collector",
+		    "Access Road",
+		    "Other",
+		    "Laneway",
+		    "Local"
+		)
+	) %>%
+	mutate( # create col for target streets bloor, uni, and yonge
+		target_street = case_when(
+			str_starts(LINEAR_NAME_FULL_LEGAL, "Bloor Street") ~
+				"Bloor Street",
+			str_starts(LINEAR_NAME_FULL_LEGAL, "University Avenue") ~
+				"University Avenue",
+			str_starts(LINEAR_NAME_FULL_LEGAL, "Yonge Street") ~
+				"Yonge Street",
+			.default = NA
+		)
+	) %>%
+	filter(!is.na(target_street)) %>%
+	group_by(target_street) %>% # merge geoms based on target streets
+	summarize(geometry = st_union(geometry))
+
+# Get cycle tracks only after all upgrades
+bike <- bike_raw %>%
+	filter(str_starts(street, "Yonge|Bloor|University")) %>%
+	mutate(
+		final_type = case_when( # create col for final type
+			!is.na(verify_upgrade2_year) ~ verify_upgrade2_type,
+			!is.na(verify_upgrade1_year) ~ verify_upgrade1_type,
+			!is.na(verify_install_year) ~ verify_install_type,
+			.default = NA
+		),
+		final_type = case_when( # remap infra types to actual names
+			final_type %in% c("PL", "BUF") ~ "Painted Lane",
+			final_type == "PBL" ~ "Cycle Track",
+			.default = NA
+		)
+	) %>%
+	mutate( # create col for final year
+		final_year = case_when(
+			!is.na(verify_upgrade2_year) ~ verify_upgrade2_year,
+			!is.na(verify_upgrade1_year) ~ verify_upgrade1_year,
+			!is.na(verify_install_year) ~ verify_install_year,
+			.default = NA
+		),
+	) %>%
+	filter( # filter for cycle tracks only
+		final_type == "Cycle Track"
+	)
+
+# Filter killed or serious injuries (ksi) collisions
+ksi_codes <- c("3", "4")
+ksi <- colli_raw %>%
+	filter(INJURY %in% ksi_codes)
+
+# Filter non-ksi collisions
+noksi <- colli_raw %>%
+	filter(!INJURY %in% ksi_codes)
+
+```
+
+
+```{r}
+
+# Visualize results of target streets
+tmap_mode("view")
+tm_shape(streets) +
+	tm_lines(col = "#336699", popup.vars = T) +
+	tm_text("target_street", size = 1) +
+	tm_shape(bike %>% filter(verify_install_type == "PBL")) +
+	tm_lines(col = "red", popup.vars = T)
+
+```
+
+# Processing
+
+```{r}
+```
+

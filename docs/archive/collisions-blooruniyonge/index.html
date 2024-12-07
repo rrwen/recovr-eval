@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+<meta name="author" content="Richard Wen richard.wen@utoronto.ca" />
+
+<meta name="date" content="2024-12-06" />
+
+<title>Quarterly Collisions in Bloor, University and Yonge</title>
+
+<script src="index_files/header-attrs-2.29/header-attrs.js"></script>
+<script src="index_files/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="index_files/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
+<script src="index_files/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="index_files/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="index_files/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="index_files/jqueryui-1.13.2/jquery-ui.min.js"></script>
+<link href="index_files/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="index_files/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="index_files/navigation-1.1/tabsets.js"></script>
+<script src="index_files/navigation-1.1/codefolding.js"></script>
+<link href="index_files/pagedtable-1.1/css/pagedtable.css" rel="stylesheet" />
+<script src="index_files/pagedtable-1.1/js/pagedtable.js"></script>
+<link href="index_files/htmltools-fill-0.5.8.1/fill.css" rel="stylesheet" />
+<script src="index_files/htmlwidgets-1.6.4/htmlwidgets.js"></script>
+<link href="index_files/leaflet-1.3.1/leaflet.css" rel="stylesheet" />
+<script src="index_files/leaflet-1.3.1/leaflet.js"></script>
+<link href="index_files/leafletfix-1.0.0/leafletfix.css" rel="stylesheet" />
+<script src="index_files/proj4-2.6.2/proj4.min.js"></script>
+<script src="index_files/Proj4Leaflet-1.0.1/proj4leaflet.js"></script>
+<link href="index_files/rstudio_leaflet-1.3.1/rstudio_leaflet.css" rel="stylesheet" />
+<script src="index_files/leaflet-binding-2.2.2/leaflet.js"></script>
+<script src="index_files/leaflet-providers-2.0.0/leaflet-providers_2.0.0.js"></script>
+<script src="index_files/leaflet-providers-plugin-2.2.2/leaflet-providers-plugin.js"></script>
+<link href="index_files/lfx-fullscreen-1.0.2/lfx-fullscreen-prod.css" rel="stylesheet" />
+<script src="index_files/lfx-fullscreen-1.0.2/lfx-fullscreen-prod.js"></script>
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+
+
+<style type="text/css">
+  code {
+    white-space: pre;
+  }
+  .sourceCode {
+    overflow: visible;
+  }
+</style>
+<style type="text/css" data-origin="pandoc">
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  { color: #cccccc; background-color: #303030; }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ffcfaf; } /* Alert */
+code span.an { color: #7f9f7f; font-weight: bold; } /* Annotation */
+code span.at { } /* Attribute */
+code span.bn { color: #dca3a3; } /* BaseN */
+code span.bu { } /* BuiltIn */
+code span.cf { color: #f0dfaf; } /* ControlFlow */
+code span.ch { color: #dca3a3; } /* Char */
+code span.cn { color: #dca3a3; font-weight: bold; } /* Constant */
+code span.co { color: #7f9f7f; } /* Comment */
+code span.cv { color: #7f9f7f; font-weight: bold; } /* CommentVar */
+code span.do { color: #7f9f7f; } /* Documentation */
+code span.dt { color: #dfdfbf; } /* DataType */
+code span.dv { color: #dcdccc; } /* DecVal */
+code span.er { color: #c3bf9f; } /* Error */
+code span.ex { } /* Extension */
+code span.fl { color: #c0bed1; } /* Float */
+code span.fu { color: #efef8f; } /* Function */
+code span.im { } /* Import */
+code span.in { color: #7f9f7f; font-weight: bold; } /* Information */
+code span.kw { color: #f0dfaf; } /* Keyword */
+code span.op { color: #f0efd0; } /* Operator */
+code span.ot { color: #efef8f; } /* Other */
+code span.pp { color: #ffcfaf; font-weight: bold; } /* Preprocessor */
+code span.sc { color: #dca3a3; } /* SpecialChar */
+code span.ss { color: #cc9393; } /* SpecialString */
+code span.st { color: #cc9393; } /* String */
+code span.va { } /* Variable */
+code span.vs { color: #cc9393; } /* VerbatimString */
+code span.wa { color: #7f9f7f; font-weight: bold; } /* Warning */
+
+.sourceCode .row {
+  width: 100%;
+}
+.sourceCode {
+  overflow-x: auto;
+}
+.code-folding-btn {
+  margin-right: -30px;
+}
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+<style type="text/css">
+.code-folding-btn { margin-bottom: 4px; }
+</style>
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div id="header">
+
+<div class="btn-group pull-right float-right">
+<button type="button" class="btn btn-default btn-xs btn-secondary btn-sm dropdown-toggle" data-toggle="dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><span>Code</span> <span class="caret"></span></button>
+<ul class="dropdown-menu dropdown-menu-right" style="min-width: 50px;">
+<li><a id="rmd-show-all-code" href="#">Show All Code</a></li>
+<li><a id="rmd-hide-all-code" href="#">Hide All Code</a></li>
+</ul>
+</div>
+
+
+
+<h1 class="title toc-ignore">Quarterly Collisions in Bloor, University
+and Yonge</h1>
+<h3 class="subtitle">R Code</h3>
+<h4 class="author">Richard Wen <a href="mailto:richard.wen@utoronto.ca"
+class="email">richard.wen@utoronto.ca</a></h4>
+<h4 class="date">December 06, 2024</h4>
+
+</div>
+
+
+<div id="libraries" class="section level1">
+<h1>Libraries</h1>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="co"># Load libraries</span></span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a><span class="fu">library</span>(leaflet)</span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a><span class="fu">library</span>(leaflet.extras)</span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a><span class="fu">library</span>(lubridate)</span></code></pre></div>
+<pre><code>## 
+## Attaching package: &#39;lubridate&#39;</code></pre>
+<pre><code>## The following objects are masked from &#39;package:base&#39;:
+## 
+##     date, intersect, setdiff, union</code></pre>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="fu">library</span>(sf)</span></code></pre></div>
+<pre><code>## Linking to GEOS 3.11.0, GDAL 3.5.3, PROJ 9.1.0; sf_use_s2() is TRUE</code></pre>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span></code></pre></div>
+<pre><code>## ── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
+## ✔ dplyr   1.1.4     ✔ stringr 1.5.1
+## ✔ forcats 1.0.0     ✔ tibble  3.2.1
+## ✔ purrr   1.0.2     ✔ tidyr   1.3.1
+## ✔ readr   2.1.5</code></pre>
+<pre><code>## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+## ✖ dplyr::filter() masks stats::filter()
+## ✖ dplyr::lag()    masks stats::lag()
+## ℹ Use the conflicted package (&lt;http://conflicted.r-lib.org/&gt;) to force all conflicts to become errors</code></pre>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="fu">library</span>(tmap)</span></code></pre></div>
+<pre><code>## Breaking News: tmap 3.x is retiring. Please test v4, e.g. with
+## remotes::install_github(&#39;r-tmap/tmap&#39;)</code></pre>
+</div>
+<div id="data" class="section level1">
+<h1>Data</h1>
+<p>Load the centrelines open data and all collisions data from the City
+of Toronto.</p>
+<p>All collisions data was provided by David McElroy <a
+href="mailto:David.McElroy@toronto.ca"
+class="email">David.McElroy@toronto.ca</a>, and pre-processed by
+Chaandini Ranganathan <a
+href="mailto:chaandini.ranganathan@mail.utoronto.ca"
+class="email">chaandini.ranganathan@mail.utoronto.ca</a> (joined
+individuals involved data with collisions data).</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="co"># Load toronto centrelines data</span></span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a>ctl_raw <span class="ot">&lt;-</span> <span class="fu">read_sf</span>(<span class="st">&quot;../../data/toronto-centrelines-2024-12-06.geojson&quot;</span>)</span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a><span class="co"># Load all toronto collisions from 2022 to 2024</span></span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a>colli_raw <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">&quot;../../tmp/allcol_2022_2024.csv&quot;</span>)</span></code></pre></div>
+</div>
+<div id="cleaning" class="section level1">
+<h1>Cleaning</h1>
+<p>Filter the centreline data for target streets Bloor Street,
+University Avenue, and Yonge Street, and merge all segments for each
+target street.</p>
+<p>Also, separate the collisions data for Killed or Seriously Injured
+(KSI) and non-KSI collisions.</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="co"># Filter for Bloor, University and Yonge</span></span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>streets <span class="ot">&lt;-</span> ctl_raw <span class="sc">%&gt;%</span></span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a>    <span class="fu">filter</span>( <span class="co"># filter for streets only</span></span>
+<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a>        FEATURE_CODE_DESC <span class="sc">%in%</span> <span class="fu">c</span>(</span>
+<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a>            <span class="st">&quot;Major Arterial&quot;</span>,</span>
+<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a>            <span class="st">&quot;Major Arterial Ramp&quot;</span>,</span>
+<span id="cb12-7"><a href="#cb12-7" tabindex="-1"></a>            <span class="st">&quot;Minor Arterial&quot;</span>,</span>
+<span id="cb12-8"><a href="#cb12-8" tabindex="-1"></a>            <span class="st">&quot;Minor Arterial Ramp&quot;</span>,</span>
+<span id="cb12-9"><a href="#cb12-9" tabindex="-1"></a>            <span class="st">&quot;Collector&quot;</span>,</span>
+<span id="cb12-10"><a href="#cb12-10" tabindex="-1"></a>            <span class="st">&quot;Access Road&quot;</span>,</span>
+<span id="cb12-11"><a href="#cb12-11" tabindex="-1"></a>            <span class="st">&quot;Other&quot;</span>,</span>
+<span id="cb12-12"><a href="#cb12-12" tabindex="-1"></a>            <span class="st">&quot;Laneway&quot;</span>,</span>
+<span id="cb12-13"><a href="#cb12-13" tabindex="-1"></a>            <span class="st">&quot;Local&quot;</span></span>
+<span id="cb12-14"><a href="#cb12-14" tabindex="-1"></a>        )</span>
+<span id="cb12-15"><a href="#cb12-15" tabindex="-1"></a>    ) <span class="sc">%&gt;%</span></span>
+<span id="cb12-16"><a href="#cb12-16" tabindex="-1"></a>    <span class="fu">mutate</span>( <span class="co"># create col for target streets bloor, uni, and yonge</span></span>
+<span id="cb12-17"><a href="#cb12-17" tabindex="-1"></a>        <span class="at">target_street =</span> <span class="fu">case_when</span>(</span>
+<span id="cb12-18"><a href="#cb12-18" tabindex="-1"></a>            <span class="fu">str_starts</span>(LINEAR_NAME_FULL_LEGAL, <span class="st">&quot;Bloor Street&quot;</span>) <span class="sc">~</span></span>
+<span id="cb12-19"><a href="#cb12-19" tabindex="-1"></a>                <span class="st">&quot;Bloor Street&quot;</span>,</span>
+<span id="cb12-20"><a href="#cb12-20" tabindex="-1"></a>            <span class="fu">str_starts</span>(LINEAR_NAME_FULL_LEGAL, <span class="st">&quot;University Avenue&quot;</span>) <span class="sc">~</span></span>
+<span id="cb12-21"><a href="#cb12-21" tabindex="-1"></a>                <span class="st">&quot;University Avenue&quot;</span>,</span>
+<span id="cb12-22"><a href="#cb12-22" tabindex="-1"></a>            <span class="fu">str_starts</span>(LINEAR_NAME_FULL_LEGAL, <span class="st">&quot;Yonge Street&quot;</span>) <span class="sc">~</span></span>
+<span id="cb12-23"><a href="#cb12-23" tabindex="-1"></a>                <span class="st">&quot;Yonge Street&quot;</span>,</span>
+<span id="cb12-24"><a href="#cb12-24" tabindex="-1"></a>            <span class="at">.default =</span> <span class="cn">NA</span></span>
+<span id="cb12-25"><a href="#cb12-25" tabindex="-1"></a>        )</span>
+<span id="cb12-26"><a href="#cb12-26" tabindex="-1"></a>    ) <span class="sc">%&gt;%</span></span>
+<span id="cb12-27"><a href="#cb12-27" tabindex="-1"></a>    <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(target_street)) <span class="sc">%&gt;%</span></span>
+<span id="cb12-28"><a href="#cb12-28" tabindex="-1"></a>    <span class="fu">group_by</span>(target_street) <span class="sc">%&gt;%</span> <span class="co"># merge geoms based on target streets</span></span>
+<span id="cb12-29"><a href="#cb12-29" tabindex="-1"></a>    <span class="fu">summarize</span>(<span class="at">geometry =</span> <span class="fu">st_union</span>(geometry))</span>
+<span id="cb12-30"><a href="#cb12-30" tabindex="-1"></a></span>
+<span id="cb12-31"><a href="#cb12-31" tabindex="-1"></a><span class="co"># Filter killed or serious injuries (ksi) collisions</span></span>
+<span id="cb12-32"><a href="#cb12-32" tabindex="-1"></a>ksi_codes <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;3&quot;</span>, <span class="st">&quot;4&quot;</span>)</span>
+<span id="cb12-33"><a href="#cb12-33" tabindex="-1"></a>ksi <span class="ot">&lt;-</span> colli_raw <span class="sc">%&gt;%</span></span>
+<span id="cb12-34"><a href="#cb12-34" tabindex="-1"></a>    <span class="fu">filter</span>(INJURY <span class="sc">%in%</span> ksi_codes)</span>
+<span id="cb12-35"><a href="#cb12-35" tabindex="-1"></a></span>
+<span id="cb12-36"><a href="#cb12-36" tabindex="-1"></a><span class="co"># Filter non-ksi collisions</span></span>
+<span id="cb12-37"><a href="#cb12-37" tabindex="-1"></a>noksi <span class="ot">&lt;-</span> colli_raw <span class="sc">%&gt;%</span></span>
+<span id="cb12-38"><a href="#cb12-38" tabindex="-1"></a>    <span class="fu">filter</span>(<span class="sc">!</span>INJURY <span class="sc">%in%</span> ksi_codes)</span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="co"># Visualize results of target streets</span></span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a><span class="fu">tmap_mode</span>(<span class="st">&quot;view&quot;</span>)</span></code></pre></div>
+<pre><code>## tmap mode set to interactive viewing</code></pre>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a><span class="fu">tmap_leaflet</span>(<span class="fu">tm_shape</span>(streets) <span class="sc">+</span></span>
+<span id="cb15-2"><a href="#cb15-2" tabindex="-1"></a>    <span class="fu">tm_lines</span>(</span>
+<span id="cb15-3"><a href="#cb15-3" tabindex="-1"></a>        <span class="at">col =</span> <span class="st">&quot;#336699&quot;</span>,</span>
+<span id="cb15-4"><a href="#cb15-4" tabindex="-1"></a>        <span class="at">popup.vars =</span> <span class="cn">TRUE</span></span>
+<span id="cb15-5"><a href="#cb15-5" tabindex="-1"></a>    )) <span class="sc">%&gt;%</span></span>
+<span id="cb15-6"><a href="#cb15-6" tabindex="-1"></a>    addFullscreenControl</span></code></pre></div>
+<div class="leaflet html-widget html-fill-item" id="htmlwidget-4ac78baa43b92f9ef3bb" style="width:672px;height:480px;"></div>
+<script type="application/json" data-for="htmlwidget-4ac78baa43b92f9ef3bb">{"x":{"options":{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"fullscreenControl":{"position":"topleft","pseudoFullscreen":false}},"calls":[{"method":"createMapPane","args":["tmap401",401]},{"method":"addProviderTiles","args":["Esri.WorldGrayCanvas",null,"Esri.WorldGrayCanvas",{"minZoom":0,"maxZoom":18,"tileSize":256,"subdomains":"abc","errorTileUrl":"","tms":false,"noWrap":false,"zoomOffset":0,"zoomReverse":false,"opacity":1,"zIndex":1,"detectRetina":false,"pane":"tilePane"}]},{"method":"addProviderTiles","args":["OpenStreetMap",null,"OpenStreetMap",{"minZoom":0,"maxZoom":18,"tileSize":256,"subdomains":"abc","errorTileUrl":"","tms":false,"noWrap":false,"zoomOffset":0,"zoomReverse":false,"opacity":1,"zIndex":1,"detectRetina":false,"pane":"tilePane"}]},{"method":"addProviderTiles","args":["Esri.WorldTopoMap",null,"Esri.WorldTopoMap",{"minZoom":0,"maxZoom":18,"tileSize":256,"subdomains":"abc","errorTileUrl":"","tms":false,"noWrap":false,"zoomOffset":0,"zoomReverse":false,"opacity":1,"zIndex":1,"detectRetina":false,"pane":"tilePane"}]},{"method":"addPolylines","args":[[[[{"lng":[-79.5278716991773,-79.5290050580071,-79.52963470057222,-79.5304602684501,-79.5308157055118,-79.53146598113629,-79.53236509639839,-79.53401683816361,-79.5347072990993,-79.5353609571934,-79.53677249539879,-79.53733899581469,-79.53816108524322,-79.5395050111262,-79.5405805933689,-79.54082381375019,-79.5409797368447,-79.5417313796693,-79.5422270901346,-79.54251443093889,-79.544506100471,-79.5450464411757,-79.5464052304529,-79.5477728118608,-79.5514794293111,-79.5524672201532,-79.5567097191495,-79.5590671729185,-79.55918723881329,-79.5594231522968,-79.5595857324343,-79.55979880821491,-79.5600391597639,-79.56046869043131,-79.56050567801179,-79.5605556994048,-79.56231872754481,-79.5636548698336,-79.56575761360421,-79.5660151304787,-79.567229736234,-79.5679184510405,-79.5689154912456,-79.5690883938756,-79.56930873201961,-79.5694758700763,-79.5695750517657,-79.56961419165459,-79.56990260505749,-79.570784243055,-79.573043718401,-79.5734247044859,-79.5737205556232,-79.5751591120696,-79.5766338736379,-79.5768207689364,-79.5769010755471,-79.5771556241129,-79.5772893933583,-79.5774789384373,-79.5777705487674,-79.5779087067494,-79.57830820103101,-79.57982774755069,-79.5804884535837,-79.58172510381671],"lat":[43.6436836357342,43.64343887652569,43.6433028843268,43.6431165099445,43.6430367705375,43.642884020125,43.64264147013941,43.6421397040588,43.6419554994217,43.64179494861,43.64150281371541,43.6413819756497,43.64120348594231,43.640896802606,43.640644414318,43.6405926958239,43.64055595042441,43.6403788284577,43.640262222613,43.6402092330212,43.6397780651009,43.6396728433821,43.6393467020216,43.6390293171632,43.6381765916296,43.63794661633659,43.63692963069761,43.6363550308393,43.6363257592504,43.63627561617739,43.6362382298188,43.63620505647771,43.6361446032267,43.6360505914163,43.63604328972631,43.6360317594718,43.6356253626362,43.63530580640851,43.6348025999582,43.63473057547561,43.6344501675606,43.63429233521251,43.6340462886955,43.6340075683828,43.6339642013475,43.63393514243131,43.6339129296982,43.6339041655238,43.6338183953406,43.6335561915137,43.6329354926568,43.6327841242772,43.6326682390236,43.6320417687356,43.631385164364,43.6312990306344,43.6312620259307,43.6311393454805,43.6310647776068,43.6309591169866,43.6307677294166,43.630676586265,43.6303881517395,43.62929109110001,43.6288195218389,43.6279533313016]}],[{"lng":[-79.44038896467541,-79.4407475119921,-79.4415787626296,-79.4417347767139,-79.4427340259447,-79.44397431381221,-79.44521862235899,-79.4452504542932,-79.4469341996345,-79.4469887856838,-79.4477408113591,-79.4480601195871,-79.44879634661081,-79.44893428242079,-79.44965138090642,-79.4498705732511,-79.44990107688891,-79.4524538746396,-79.4538198288722,-79.45425962684961,-79.4543487565749,-79.45684420399191,-79.45705010890681,-79.4586544349642,-79.4588143446,-79.4600481088834,-79.4601834462141,-79.46103502064551,-79.4623409357521,-79.46321781802649,-79.46370533199031,-79.46526429408461,-79.4665705955706,-79.4668727257357,-79.46811498849679,-79.46865753466339,-79.46999076926961,-79.4711800619082,-79.4717900139881,-79.4728711863274,-79.4740894301729,-79.4743758381335,-79.4751812063023,-79.4755210078737,-79.4763045779024],"lat":[43.65885851323911,43.65878179213261,43.65859443385241,43.6585615145361,43.6583384169865,43.6580738338477,43.6578341098941,43.6578274461429,43.6574765754274,43.6574651960435,43.6572939405709,43.6572238125564,43.65707896191689,43.6570538738444,43.6569171733723,43.6568753864178,43.65686956691491,43.6563210256757,43.6560395912925,43.6559396550735,43.655919716701,43.65539575412109,43.6553527151862,43.65501906843831,43.6549912309672,43.65470705499741,43.65467788382,43.65449435159411,43.65419967084179,43.6540064902223,43.6538990798471,43.653546404984,43.6532630806986,43.65319652260671,43.6529228475401,43.6528023793927,43.6525155488434,43.6522565617409,43.6521283275136,43.65187898152909,43.65160880030911,43.6515395994067,43.65136283737061,43.6512855529533,43.6511352063182]}],[{"lng":[-79.4302367524498,-79.43042088089642,-79.43113209914191,-79.43164691234909,-79.43240269678429,-79.432886797554,-79.4330362381417,-79.4338181201617,-79.43409291200609,-79.4353272024436,-79.4364354327261,-79.4375976695155,-79.438658696305,-79.43914510830101,-79.4397312600787,-79.4403889770737],"lat":[43.66098365699771,43.6609451354497,43.6607909230365,43.6606753397127,43.6605105964497,43.6604027755343,43.6603691981417,43.660198780947,43.6601399628913,43.65986121207,43.6596353147991,43.6594023162038,43.6591991899976,43.6591015963279,43.65898236896919,43.6588585132456]}],[{"lng":[-79.4045186458487,-79.4053548050255,-79.4062769941368,-79.4066466049006,-79.4074718149966,-79.4086535975627,-79.4093235920505,-79.4099839166593,-79.4105942098507,-79.4111954412483,-79.4124113315557,-79.4136470363071,-79.4148585870861,-79.41598409147259,-79.4160854712102,-79.4172180864183,-79.4184160600154,-79.4188388920993,-79.41893504128311,-79.4202489726821,-79.4209149380606,-79.4216234385491,-79.4220599722745,-79.4232502990377,-79.42440721740761,-79.4246236747191,-79.4256477341801,-79.42682987705599,-79.4280186542799,-79.4281379121213,-79.4294168201706,-79.4302367400511],"lat":[43.666523764993,43.6663588717851,43.66617503220151,43.6660965999572,43.6659241211862,43.6656789211038,43.6655377824894,43.66540161006961,43.66525438607711,43.6651204017518,43.6648733079963,43.66461055393741,43.66434009937971,43.6640936743453,43.664074089886,43.6638340668632,43.6635768597084,43.6634812874234,43.6634588162921,43.6631712475518,43.66302548344401,43.6628725345494,43.6627783009308,43.66251493494,43.6622575473508,43.6622114413879,43.66198830267079,43.661730312853,43.66146303459059,43.66141650966789,43.66115657356431,43.6609836569901]}],[{"lng":[-79.3867880679966,-79.38605076951301,-79.3857192494022,-79.3842095596079,-79.38316045781821,-79.3823757534925,-79.3805663805765,-79.3794067060678,-79.37906834595221,-79.3768542862929,-79.37645573051979,-79.3763169504609,-79.3761626782557,-79.37605068420299,-79.3759524602155,-79.3758925984185,-79.37485493829899,-79.3735887193595,-79.37145846633059,-79.3713279508458,-79.37114171072371,-79.3709909041501,-79.3708533919647,-79.3706971470973,-79.3699848093236,-79.369916694932,-79.3688335742863,-79.3681007296565,-79.3671815200514,-79.3670424670598,-79.3669249335302,-79.36681030129401,-79.3667358881175],"lat":[43.6702263905041,43.67038711476,43.6704593795273,43.6708044294258,43.671046406795,43.671221127933,43.6716108185391,43.6718413131701,43.6719153156726,43.6723585535877,43.6724481277896,43.67246598036699,43.6724793063298,43.6724791849481,43.6724706891652,43.67246550243511,43.6723335368773,43.67216603317879,43.67188890111651,43.6718866659717,43.6718993280798,43.6719216883023,43.67195531500381,43.67200954238979,43.6725263376393,43.6725757494329,43.67333064099991,43.6738193707325,43.6744694170656,43.6745513654741,43.6746094312554,43.67465087485449,43.674669456869]}],[{"lng":[-79.3867880679966,-79.3873874518698,-79.3880184064428,-79.3894814610709,-79.39057935106912,-79.3909897880728,-79.39414141345139,-79.3958757476091,-79.3973807918684,-79.3983043058038,-79.3998364772384,-79.4015151850851,-79.4026872546459,-79.40383162450151,-79.40451864586301],"lat":[43.6702263905041,43.6701007569097,43.6699744129918,43.6697057879646,43.6694821529456,43.6693829543637,43.6687202589369,43.6683327872883,43.66803322474301,43.6678434378347,43.6675168720603,43.6671691869245,43.66691043919591,43.66666764250839,43.6665237559916]}],[{"lng":[-79.4763045778989,-79.477204852952,-79.477642589547,-79.4781214855762,-79.47904734728051,-79.4804697629918,-79.4817602109748,-79.4818707966355,-79.4829681664411,-79.4835737676064,-79.48400807835399,-79.4844830374883,-79.4845819602731,-79.4846687583877,-79.4847399860641,-79.4849072160753,-79.48564585776749,-79.4857525759618,-79.4859870421861,-79.48624180908629,-79.4864344456545,-79.4867117594965,-79.4874835219244,-79.48769377590349,-79.4878479729279,-79.488136552528,-79.48876609020211,-79.4894023343215,-79.48978057003841,-79.4899417769152,-79.4900959660761,-79.4903402194951,-79.49084435342832,-79.49135490063171,-79.49197043926711,-79.49257164083832,-79.4934446855478,-79.4936698680259,-79.49388672104659,-79.4941080496454,-79.49455680726111,-79.4949084813492,-79.4954437314121,-79.4957446858994,-79.49625829918,-79.4966777893613,-79.49718482505649,-79.4975636462276,-79.4980997312564,-79.49842239875051,-79.498803937354,-79.4992140256451,-79.499412047372,-79.499767231547,-79.50204466819081,-79.5032056729293,-79.5043077229418,-79.5054535730369,-79.5065966474038,-79.50775833178362,-79.50800313330321,-79.5088845045976,-79.5091737064745,-79.51002901388679,-79.5102387333263,-79.5113633238247,-79.51248499308259],"lat":[43.6511352153196,43.6509345330308,43.6508396911323,43.6507337837671,43.6505338029553,43.65020570315991,43.6499333191027,43.6499025520357,43.6496877952738,43.6495533045273,43.6494463849136,43.64933036879471,43.64928175681661,43.6492367436723,43.6491938977127,43.6490795395909,43.64841627021281,43.6483123448074,43.6481802337556,43.64806152769719,43.64799937829099,43.6479360052469,43.647771772429,43.6477463393949,43.64773108057311,43.6477280414199,43.647759249743,43.64779302961141,43.6478165036055,43.6478368789916,43.6478674250852,43.6479324268414,43.64810149596219,43.64825905959601,43.6484661358722,43.64866421553321,43.6489570922963,43.6490326354285,43.64910537824699,43.6491782289003,43.64932595451601,43.6494429884377,43.6496050355522,43.649677058051,43.6497896020466,43.6498796376305,43.6499606725012,43.65001919905641,43.65003722094981,43.65005523758321,43.6500732539369,43.6500650752541,43.650037262236,43.6499742539777,43.6494612302853,43.6492046467764,43.64893901633241,43.64869138489999,43.6484257394028,43.6481690735653,43.6481015374514,43.6479164312883,43.64784933927351,43.64766287616201,43.64761380012809,43.6473629698271,43.6471176916156]}],[{"lng":[-79.5124849930808,-79.51359718322961,-79.513756809604,-79.51417950970111,-79.5145715452482,-79.5158048748829,-79.51702514555861,-79.5170596777391,-79.5175213115445,-79.5189772001073,-79.5200596910603,-79.52116737155841,-79.5222979126908,-79.5234380978566,-79.524535250139,-79.5256340026359,-79.5268559672984,-79.52722111805581,-79.5278716991815],"lat":[43.64711768261421,43.64687432080679,43.6468431569794,43.6467485819756,43.64667032879881,43.6463805639437,43.6461104016946,43.6461027633864,43.6459976836029,43.6456662368327,43.6454345998083,43.6451968179302,43.6449249686704,43.644648578551,43.64440684156769,43.6441886772779,43.6439128827653,43.64383046085301,43.64368364473551]}]],[[{"lng":[-79.3894893895808,-79.3896478901753,-79.38993599919159,-79.3899839150609,-79.390307058421,-79.39049460327681],"lat":[43.6575295665681,43.6579198651501,43.6585907523423,43.6587012179957,43.6594462459568,43.65985884043]}],[{"lng":[-79.38831451009629,-79.3883208689855,-79.3885991717995,-79.3886884022932,-79.3889555967219,-79.3889718118282,-79.3893278794003,-79.3894893771828],"lat":[43.65479018665879,43.6548041089638,43.6554655298873,43.6556775986548,43.6563231924189,43.65635747631261,43.65713193772739,43.6575295665561]}],[{"lng":[-79.3836845910065,-79.3837918646821,-79.38385835956829,-79.38409992061541,-79.3848068602278,-79.38516293926121,-79.38532554068409,-79.38555619968869,-79.3862911434379,-79.386628635294,-79.3869962877697,-79.38724521303661,-79.3875515611915,-79.38757480294142,-79.3879385142415,-79.3883145224937],"lat":[43.64569548242289,43.6458679137051,43.6459748095102,43.64638370773631,43.64766214814839,43.648265048727,43.648544389245,43.6488690205193,43.6500869990893,43.6508528459786,43.65175592029251,43.65231419626949,43.65303456156641,43.6530958746609,43.6539665998478,43.6547901866709]}],[{"lng":[-79.3834267068036,-79.3836845910065],"lat":[43.6450834507433,43.64569548242289]}],[{"lng":[-79.38247106841369,-79.38256468854991,-79.3826457227259,-79.38273242113139,-79.3828228762931,-79.3829108932099,-79.38301122578871,-79.3831274199343,-79.3832360868103,-79.3833170331298,-79.3833867203321,-79.3834850749258,-79.3835347424378,-79.3836845910065],"lat":[43.645292258139,43.6453383873499,43.6453741699931,43.6454039004685,43.64542682969449,43.64544790206949,43.6454590674733,43.6454726883771,43.6454879757291,43.64551182199181,43.64554415400369,43.6455975963991,43.645617630048,43.64569548242289]}]],[[{"lng":[-79.4187942411545,-79.4190145440665,-79.4192094377799,-79.4194226533823,-79.41963117998409,-79.4198543941588,-79.420060868408],"lat":[43.7929562398991,43.79381001883589,43.79462034879611,43.7954769300405,43.7963225890905,43.7971640634093,43.7980294054522]}],[{"lng":[-79.4183610003533,-79.41847474688041,-79.418575884422,-79.41879424116669],"lat":[43.7911736611423,43.7916471841884,43.792064747033,43.7929562308979]}],[{"lng":[-79.4049325459509,-79.4051401344049,-79.40542313826261,-79.4056127304427,-79.4059137431,-79.406251643319,-79.40645397141211,-79.40649787594469,-79.40672552049161,-79.4074508653805,-79.40765244101161,-79.4077731234065,-79.40784040148409,-79.40787655312261,-79.4079781046144,-79.40805058661449,-79.4081097503073,-79.40813412435681,-79.408138923249,-79.4081401904926,-79.4081467170744,-79.4081522251747,-79.4081571372206,-79.40816104352881,-79.4081641922466,-79.40816649667291,-79.40816804357419,-79.40816873355671,-79.40816851723891,-79.40816760543549,-79.40816578732802,-79.4081632241453,-79.4081598166582,-79.4081555275996,-79.408150493543,-79.4081445903973,-79.4081378180918,-79.4081303007831,-79.4081220386349,-79.4081127832453,-79.4081036399283,-79.4081072632421,-79.4081098559296,-79.4081115916638,-79.4081124583542,-79.4081125798678,-79.4081117079506,-79.4081099670064,-79.40810749332,-79.4081040014531,-79.4080996652318,-79.4080945715472,-79.4080884844505,-79.40809112881119,-79.4080945306856,-79.40809866525451,-79.4081036690026,-79.4081094055185,-79.4081160362049,-79.408123424416,-79.4081315205664,-79.4081443508443,-79.4081502215143,-79.4081606773466,-79.40817203980832,-79.408185265873,-79.408185425257,-79.4081867400204,-79.40818894886949,-79.4081913622379,-79.40819304061502,-79.40819553984481,-79.40820007090269,-79.4082053721918,-79.4082114060749,-79.4082183093542,-79.408225957868,-79.4082343515623,-79.4082436021978,-79.4082536354757,-79.4082643890888,-79.40827587553829,-79.40828291031499,-79.4083352641337,-79.408388704346,-79.4084417326717,-79.40847337026879,-79.4084880692299,-79.4085036377994,-79.408519939149,-79.4085371347274,-79.40855505090489,-79.40857398557699,-79.4085936657018,-79.40861406626669,-79.40863546066092,-79.40865750110071,-79.40868054770969,-79.40870430249872,-79.40872880262761,-79.40875418495629,-79.4087803126147,-79.4088556712578,-79.4088885784265,-79.40892325488061,-79.4089570620019,-79.4089902478639,-79.4090226883109,-79.40905438360021,-79.4090853334296,-79.4091155380288,-79.4091449972733,-79.4091737112288,-79.40920155569762,-79.4092420386103,-79.4092815524827,-79.4093201968621,-79.40935807118682,-79.4093950883089,-79.4094310992466,-79.409466377295,-79.4095007858904,-79.409534324867,-79.40956600054881,-79.40958926969752,-79.4096402780374,-79.4096956818038,-79.4098503405832,-79.4098806973376,-79.4099430132808,-79.41006528709261,-79.4101240155436,-79.41033943867861,-79.4105599217727,-79.4105823600902,-79.4107525203177,-79.4108028677995,-79.4109379794936,-79.4111576604859,-79.4113808789883,-79.4115394195947,-79.41156577867881,-79.41163974492289,-79.4117646051015,-79.4119924340858,-79.41221300915529,-79.4122474447867,-79.4123176880311,-79.4124485698824,-79.4126707509606,-79.4129045889902,-79.4131104212436,-79.4132150274701,-79.4133165359637,-79.41357517681162,-79.4136379089869,-79.4138326789637,-79.41403076619621,-79.4143844536036,-79.4145147425143,-79.4147543235941,-79.41484992427949,-79.41508655650659,-79.41528641919589,-79.4153045481077,-79.4153136188159,-79.41557769795752,-79.4157893220853,-79.4160016963409,-79.4161601565436,-79.4163258481868,-79.4163440701717,-79.4164534669269,-79.4164759370033,-79.4166215827543,-79.4167212705307],"lat":[43.73601095129331,43.73697937649149,43.73819863762321,43.7390154571456,43.7403772657945,43.74185824368511,43.74301816202911,43.7433035454409,43.7441495484372,43.7473028208725,43.7481068006912,43.74854056723341,43.7488050769139,43.7489305648538,43.749283043822,43.7495560096646,43.7497935450057,43.7499644344443,43.750001172212,43.7500088332544,43.75005257534611,43.75009650564391,43.75014046246579,43.75018439147539,43.75022841888899,43.75027240061791,43.75031643574501,43.7503605601952,43.7504045849038,43.750448690064,43.75049269548251,43.75053672730559,43.7505807134439,43.7506246628685,43.75066858469041,43.7507124248024,43.7507562282104,43.7508000040153,43.7508436442026,43.7508871845773,43.7509305090121,43.7510133229814,43.7510961361207,43.7511790565843,43.7512618683336,43.7513447694946,43.7514276968594,43.7515104975075,43.7515933695749,43.7516762048176,43.7517590123765,43.7518418103237,43.7519246074708,43.75198177621959,43.7520389185734,43.7520960255108,43.7521531691511,43.752210232369,43.75226723329641,43.7523242078281,43.75238110191709,43.7524603857926,43.75249473008599,43.7525514370422,43.7526080637145,43.7526884460464,43.7526979064347,43.7527313829499,43.7527648511819,43.7527945030696,43.7528094464078,43.7528316723751,43.7528650794631,43.7528982711405,43.75293149941059,43.75296462936511,43.7529976519031,43.7530306030289,43.75306348283242,43.7530961562356,43.7531287672074,43.7531612617506,43.75318963917271,43.7534007862701,43.7536163537944,43.75380911192191,43.75395784603899,43.7540092636446,43.75406046591531,43.75411160576151,43.7541626743109,43.7542135274051,43.754264255294,43.7543147587455,43.7543651547549,43.7544153175235,43.7544653007801,43.7545151048119,43.7545647023767,43.75461415651229,43.75466329630461,43.7547123016678,43.7548393776589,43.7548971825699,43.7549593184556,43.7550215436497,43.7550840473755,43.7551468115322,43.7552096650982,43.7552728060999,43.7553360815179,43.7553995723634,43.7554632336311,43.7555270742241,43.7556013752325,43.7556760175019,43.7557508660943,43.7558258580811,43.7559011374131,43.7559766769694,43.75605241395921,43.7561283212713,43.7562045069208,43.75628110513999,43.7563325293637,43.7564853649547,43.75665536026511,43.75722666201441,43.75733868778319,43.7575875208323,43.7580188911719,43.7582261897779,43.7590533342684,43.75994754104071,43.7600413419698,43.7607312989247,43.76096563910291,43.7615088309948,43.762361261111,43.7632782499007,43.76389261336399,43.7639995587943,43.7642997873828,43.7648142742933,43.7656573203726,43.766564412679,43.7666877822519,43.7669394010488,43.7674717499265,43.7683941172845,43.76927425944209,43.7701390867082,43.77057248256409,43.7709930402735,43.7719924469497,43.772258037836,43.7729776661681,43.773778181049,43.77515705591659,43.7756601114347,43.7765851597781,43.7769466096552,43.7778909713848,43.7786802872795,43.7787480614323,43.7787819305097,43.77976908474751,43.7807292771144,43.7816376858441,43.7822623651864,43.7829156011873,43.7830074802761,43.783432738658,43.78353445908001,43.7840895223212,43.78450378288019]}],[{"lng":[-79.3889871333684,-79.38909527959279,-79.3892382459301,-79.3892769265621,-79.3894930239606,-79.3895318905153,-79.3895728256234,-79.3895947708295,-79.38970321398629,-79.3898844568661,-79.390042002542,-79.3904324955443,-79.3907280054913,-79.3909689273803,-79.39119482591801,-79.39134023679222,-79.3915700212246,-79.39162812949689,-79.3919188610237,-79.3920329239436,-79.3923766356003,-79.3928180581881,-79.39318567665441,-79.3933005382507,-79.39368372212481,-79.39407739837721,-79.3945442387554,-79.39456909934231,-79.39486800985451,-79.3949336648847,-79.3950322615013,-79.3951319460234,-79.39520542367249,-79.3952284697508,-79.39534218065999,-79.3953796752826,-79.3960876631912,-79.3961081541657,-79.3962045104245,-79.3964710412413,-79.3966427138492,-79.3968149811206,-79.39690940055431,-79.3970070776097,-79.39711285099702,-79.3971762226391,-79.39731611875111,-79.39746820161029,-79.3976234552792,-79.39764761101171,-79.39781288937871,-79.39785246564919,-79.39823965277722,-79.3983665000037,-79.3986278251664,-79.3986783963494,-79.39886920167049],"lat":[43.675588827225,43.6758699804276,43.6762416665266,43.6763365329012,43.67686668567,43.67696204720019,43.6770385979586,43.6770962005895,43.6773807649293,43.6778359742652,43.6782092215014,43.6791457693062,43.6798995522065,43.68050862209179,43.681081122778,43.6814318081777,43.68196478696921,43.68213016914331,43.6828330866456,43.6831012444181,43.68392452214299,43.6850344379518,43.6858813548032,43.68622319658899,43.6871211725781,43.6880970631256,43.6891213926552,43.6892265237592,43.6899874808044,43.6901811050783,43.69076934042021,43.6912540257066,43.691608501108,43.6917168168179,43.6920985128822,43.6922732983368,43.69557117131411,43.6956666126055,43.696127026043,43.69737393704351,43.69830120681349,43.6993188585979,43.6997866144452,43.70028735380779,43.7008647462374,43.70112787468761,43.701792465924,43.70251545913601,43.7032802748273,43.7034051711739,43.70415114679361,43.7043508304571,43.70614440059,43.7067319904649,43.70798546042081,43.7082097268797,43.709087726564]}],[{"lng":[-79.41672127054321,-79.4168430732628,-79.4169787052368,-79.4170339420926,-79.41712429577009,-79.4173504529731,-79.4178235195626,-79.4179199851248,-79.4181348562375,-79.41836100034099],"lat":[43.7845037738791,43.7849730474287,43.7855507946809,43.7857859807554,43.7861707013032,43.7870687833405,43.7889778798965,43.78936168587811,43.79025273686679,43.7911736701435]}],[{"lng":[-79.38122577679979,-79.3813594398639,-79.3815872272275,-79.3819252222489,-79.38193535655439,-79.38211784739239],"lat":[43.6570379337584,43.657396299267,43.6579078120651,43.6586680284635,43.6586908213407,43.6590959622693]}],[{"lng":[-79.3821178473747,-79.3824906966192,-79.3831103829273,-79.38336000818261,-79.3834037969776,-79.3837242015903,-79.3837795281997,-79.3841402226623,-79.38455504760621,-79.38493360725271,-79.3850288392487,-79.3852434346835,-79.3852931162377,-79.3856537577676,-79.3858353289974,-79.38610938516641,-79.38613835417949,-79.3864081546031,-79.3867880679966,-79.3871291196525,-79.38718794524911,-79.38745592252459,-79.387555000313,-79.3877866530401,-79.3878664707012,-79.38865654834881,-79.388849167649,-79.3889871209666],"lat":[43.6590959712706,43.65991283123789,43.6613718193454,43.66202506771519,43.6621233800366,43.66289919894249,43.663033285166,43.6639085005191,43.66492806972229,43.6658230582565,43.6660558476096,43.666567465101,43.66668717870899,43.6675545395137,43.6679945711293,43.6686504295219,43.66872158690211,43.6693887819326,43.6702263905041,43.671121288782,43.67128225458241,43.671928705987,43.6721577882279,43.6726828021495,43.6728738435857,43.6748801737317,43.6753046744792,43.675588827213]}],[{"lng":[-79.37466492256119,-79.3752089099784,-79.37528611102189,-79.375470622428,-79.37573515871432,-79.3757522591785,-79.37576970612309,-79.3758110614577,-79.3758744423851,-79.37598907632641,-79.37616506482939,-79.37635282984,-79.3765030771403,-79.3769743175951,-79.3773365299314,-79.37762626587241,-79.37764464872181,-79.3779183233073,-79.37842578786611,-79.3786926224018,-79.37896231221541,-79.3792589348883,-79.3799739834396,-79.3806510675514,-79.3809264046243,-79.3812257768175],"lat":[43.64194339530181,43.6427619361854,43.6429212547079,43.64332968606309,43.643979098788,43.6440175892322,43.6440623900108,43.6441623591555,43.6443230034316,43.64458707500659,43.6449977822242,43.64543950259171,43.6457838773097,43.6468847935012,43.6478320363295,43.6485079892227,43.6485510624202,43.6491487484549,43.65042222577251,43.6510449892728,43.65169935887481,43.6524399442108,43.6540628045453,43.65571276839619,43.6563287749711,43.65703792475711]}],[{"lng":[-79.39886921407911,-79.39897264360521,-79.3992468840346,-79.3992775114524,-79.3994565990224,-79.3995330893127,-79.399682467901,-79.3997905459548,-79.3998219842276,-79.4000126723892,-79.4000948148759,-79.4002082818094,-79.4004146248049,-79.40045137906061,-79.40046138017389,-79.40060293193412,-79.40082580466201,-79.4009117798584,-79.4010964599275,-79.4013990903555,-79.4014887373891,-79.4015151369851,-79.4015952102755,-79.40180680922251,-79.40184337762039,-79.40194019711009,-79.4020676083707,-79.4021167447587,-79.4021905856616,-79.4021952907712,-79.4023640882383,-79.40251511942969,-79.40281871367689,-79.4029271456225,-79.40305367344961,-79.40311736810069,-79.40327275953641,-79.40334928225479,-79.4034668602999,-79.40355514631381,-79.4037231973231,-79.4037873539158,-79.4039805531869,-79.40400846307671,-79.40424714242729,-79.4042668170799,-79.4044257606912,-79.40447842285791,-79.4045311142273,-79.4045519105058,-79.4045771260414,-79.40484222548132,-79.4049325459367],"lat":[43.709087726575,43.70958800946761,43.7109319335069,43.7110937852378,43.71184346016279,43.712296651005,43.7130061716778,43.7135175561215,43.71366362913421,43.7145727433223,43.7149523892328,43.7154811502448,43.7163863435903,43.7166140173738,43.7166898976695,43.7173049956162,43.7183461302302,43.7187559058207,43.7195572672047,43.7209616066793,43.7214226199216,43.72155839049611,43.7219702305438,43.72310330041459,43.7234581249138,43.72378744655081,43.7243250830866,43.72457779008311,43.7249574537171,43.7251017926697,43.7256780344773,43.7262896177002,43.7274461934888,43.7278554459274,43.7283436184316,43.7285789287744,43.72918226024811,43.7294306060703,43.7299307240546,43.73026788582009,43.73089330721,43.7311457828151,43.7318914993578,43.73199737728589,43.73291986160981,43.7330139049403,43.7336773205578,43.7339330534864,43.7341706849335,43.7342625058279,43.7343778686176,43.7355686189124,43.7360109602945]}]]],["Bloor.Street","University.Avenue","Yonge.Street"],"streets",{"interactive":true,"className":"","pane":"tmap401","stroke":true,"color":["#336699","#336699","#336699"],"weight":[1,1,1],"opacity":[1,1,1],"fill":false,"fillColor":["#336699","#336699","#336699"],"fillOpacity":0.2,"dashArray":"none","smoothFactor":1,"noClip":false},["<style> div.leaflet-popup-content {width:auto !important;overflow-y:auto; overflow-x:hidden;}<\/style><div style=\"max-height:25em;padding-right:0px;\"><table>\n\t\t\t   <thead><tr><th colspan=\"2\"><b>Bloor Street<\/b><\/th><\/thead><\/tr><tr><td style=\"color: #888888;\"><nobr>target_street<\/nobr><\/td><td align=\"right\"><nobr>Bloor Street<\/nobr><\/td><\/tr><\/table><\/div>","<style> div.leaflet-popup-content {width:auto !important;overflow-y:auto; overflow-x:hidden;}<\/style><div style=\"max-height:25em;padding-right:0px;\"><table>\n\t\t\t   <thead><tr><th colspan=\"2\"><b>University Avenue<\/b><\/th><\/thead><\/tr><tr><td style=\"color: #888888;\"><nobr>target_street<\/nobr><\/td><td align=\"right\"><nobr>University Avenue<\/nobr><\/td><\/tr><\/table><\/div>","<style> div.leaflet-popup-content {width:auto !important;overflow-y:auto; overflow-x:hidden;}<\/style><div style=\"max-height:25em;padding-right:0px;\"><table>\n\t\t\t   <thead><tr><th colspan=\"2\"><b>Yonge Street<\/b><\/th><\/thead><\/tr><tr><td style=\"color: #888888;\"><nobr>target_street<\/nobr><\/td><td align=\"right\"><nobr>Yonge Street<\/nobr><\/td><\/tr><\/table><\/div>"],null,["Bloor Street","University Avenue","Yonge Street"],{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addLayersControl","args":[["Esri.WorldGrayCanvas","OpenStreetMap","Esri.WorldTopoMap"],"streets",{"collapsed":true,"autoZIndex":true,"position":"topleft"}]}],"limits":{"lat":[43.6279533313016,43.7980294054522],"lng":[-79.58172510381671,-79.3667358881175]},"fitBounds":[43.6279533313016,-79.58172510381671,43.7980294054522,-79.3667358881175,[]]},"evals":[],"jsHooks":[]}</script>
+</div>
+<div id="processing" class="section level1">
+<h1>Processing</h1>
+</div>
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+<script>
+$(document).ready(function () {
+  window.initializeCodeFolding("hide" === "show");
+});
+</script>
+
+<script>
+$(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

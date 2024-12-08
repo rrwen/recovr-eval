@@ -293,17 +293,17 @@ colli_bike <- colli_bike %>%
 colli_bike <- colli_bike %>%
 	filter(near_bike_meters <= 25)
 
-# Count them by collision year
+# Count by collision quarter
 colli_counts <- colli_bike %>%
 	as_tibble %>%
 	select(-geometry) %>%
-	mutate(year = year(colli_date)) %>%
-	group_by(year, target_street, user, ksi) %>%
+	mutate(quarter = glue("{year(colli_date)}_q{quarter(colli_date)}")) %>%
+	group_by(quarter, target_street, user, ksi) %>%
 	count %>%
 	rename(
 		street = target_street
 	) %>%
-	arrange(year, street, user, ksi) %>%
+	arrange(quarter, street, user, ksi) %>%
 	ungroup
 
 ```
@@ -320,7 +320,7 @@ The results contain:
 
 The resulting data consists of the following columns:
 
-* `year`: the year of the collisions
+* `quarter`: the year and quarter of the collisions
 * `street`: the street, one of Yonge Street, University Avenue, or Bloor Street
 * `ksi`: the number of Killed or Seriously Injured (KSI) individuals
 * `non_ksi`: the number of non-KSI individuals
@@ -339,7 +339,7 @@ out <- colli_counts %>%
 		names_from = group
 	) %>%
 	select(-user, -ksi) %>%
-	group_by(year, street) %>%
+	group_by(quarter, street) %>%
 	summarize(across(everything(), ~ sum(., na.rm = T))) %>%
 	ungroup %>%
 	mutate(
@@ -349,7 +349,8 @@ out <- colli_counts %>%
 			rowSums(na.rm = T)
 	) %>%
 	select(order(colnames(.))) %>%
-	select(year, street, ksi, non_ksi, everything())
+	select(quarter, street, ksi, non_ksi, everything()) %>%
+	arrange(street, quarter)
 
 # Show data table
 datatable(
@@ -362,7 +363,7 @@ datatable(
 
 This plot shows the number of KSI individuals by road user for cycle tracks on Bloor Streeet, University Avenue, and Yonge Street. The dark gray dotted vertical lines show which year a cycle track is added to the street along with the amount of cycle track kilometers added.
 
-```{r fig.width = 18, fig.height = 9}
+```{r fig.width = 18, fig.height = 9, message = F, warning = F}
 
 # Calc cycle track final year events by road segment length
 bike_events <- bike %>%
@@ -371,11 +372,15 @@ bike_events <- bike %>%
 		len_km = sum(st_length(geometry)) / 1000 %>%
 			as.numeric
 	) %>%
+	as_tibble %>%
+	select(-geometry) %>%
 	mutate(
 		len_km_label = glue("+{round(len_km, 2)} km"),
-		len_km_legend = "Cycle Track Added"
+		len_km_legend = "Cycle Track Added",
+		len_km_quarter = as_date(glue("{final_year}-01-01")),
+		quarter = as_date(glue("{final_year}-03-01"))
 	) %>%
-	rename(year = final_year, street = target_street)
+	rename(street = target_street)
 
 # Calc label position for ct events
 bike_events_y <- colli_counts %>%
@@ -385,9 +390,19 @@ bike_events_y <- colli_counts %>%
 	)
 
 # Prep plot data
-plot_data <- colli_counts %>% 
+plot_data <- colli_counts %>%
 	filter(!user %in% c("other")) %>%
-	left_join(bike_events, by = c("year", "street")) %>%
+	rowwise %>%
+	mutate(
+		quarter = paste0(
+			str_split_i(quarter, "_", 1),
+			"-0",
+			as.integer(str_split_i(quarter, "_q", 2)) * 3,
+			"-01",
+			collapse = ""
+		) %>% as_date
+	) %>%
+	left_join(bike_events, by = c("quarter", "street")) %>%
 	left_join(bike_events_y, by = "user") %>%
 	mutate(
 		user = str_to_title(user),
@@ -397,19 +412,14 @@ plot_data <- colli_counts %>%
 # Generate plot
 p <- ggplot(
 	plot_data,
-	aes(x = year, y = n, fill = ksi, color = ksi)
+	aes(x = quarter, y = n, fill = ksi, color = ksi)
 ) +
 	geom_line() +
 	geom_point(show.legend = F) +
 	geom_vline(
 		data = bike_events,
-		aes(xintercept = year, color = len_km_legend),
+		aes(xintercept = len_km_quarter, color = len_km_legend),
 		linetype = "dashed"
-	) +
-	geom_text(
-		aes(label = n),
-		size = 3,
-		vjust = 2
 	) +
 	facet_grid(
 		user ~ street,
@@ -418,7 +428,7 @@ p <- ggplot(
 	) +
 	geom_label(
 		aes(
-			x = year,
+			x = len_km_quarter,
 			y = len_km_label_y,
 			label = len_km_label
 		),
@@ -433,16 +443,10 @@ p <- ggplot(
 		"KSI" = "#F8766D",
 		"Cycle Track Added" = "darkgray"
 	)) +
-	scale_x_continuous(
-		breaks = seq(
-			min(colli_counts$year, na.rm = T),
-			max(colli_counts$year, na.rm = T),
-			by = 1
-		)
-	) +
+	scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
 	scale_y_continuous(expand = expansion(mult = c(0.1, 0.3))) +
 	labs(
-		x = "Year",
+		x = "Quarter",
 		y = "Individuals Involved"
 	) +
 	theme(

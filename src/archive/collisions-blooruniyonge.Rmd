@@ -259,7 +259,7 @@ streets <- ctl_raw %>%
 
 # Processing
 
-Find all collision points within 25 meters of the verified bikeways on Yonge, Bloor and University, then count the number of individuals involved by the collision year, KSI/Non-KSI, and road user.
+Find all collision points within 25 meters of the verified bikeways on Yonge, Bloor and University, then count the collisions by the collision year, KSI/Non-KSI, and road user.
 
 ```{r}
 
@@ -297,6 +297,25 @@ colli_bike <- colli_bike %>%
 colli_counts <- colli_bike %>%
 	as_tibble %>%
 	select(-geometry) %>%
+	group_by(ACCNB) %>%
+	summarize(across(
+		c(target_street, user, ksi, colli_date),
+		~ paste0(unique(.), collapse = ",")
+	)) %>%
+	mutate(
+		user = case_when(
+			str_detect(user, "pedestrian") ~ "pedestrian",
+			str_detect(user, "cyclist") ~ "cyclist",
+			str_detect(user, "driver") ~ "driver",
+			.default = "other"
+		),
+		ksi = if_else(
+			str_detect(ksi, "^ksi|^ksi,|,ksi"),
+			"ksi",
+			"non_ksi"
+		),
+		colli_date = as_date(colli_date)
+	) %>%
 	mutate(quarter = glue("{year(colli_date)}_q{quarter(colli_date)}")) %>%
 	group_by(quarter, target_street, user, ksi) %>%
 	count %>%
@@ -312,9 +331,9 @@ colli_counts <- colli_bike %>%
 
 The results contain:
 
-1. Data in wide format with counts divided by road user and KSI/Non-KSI for each street by year
+1. Data in wide format with collision counts divided by road user and KSI/Non-KSI for each street by year
 2. A plot showing when the data in 1. with when the cycle tracks were implemented for each street
-3. A map showing the locations of the cycle tracks for each street and a heatmap of the collision density determined by individuals involved
+3. A map showing the locations of the cycle tracks for each street and a heatmap of the collision density
 
 ## Data
 
@@ -322,10 +341,10 @@ The resulting data consists of the following columns:
 
 * `quarter`: the year and quarter of the collisions
 * `street`: the street, one of Yonge Street, University Avenue, or Bloor Street
-* `ksi`: the number of Killed or Seriously Injured (KSI) individuals
-* `non_ksi`: the number of non-KSI individuals
-* `<USER>_ksi`: the number of KSI individuals for a road user group indicated by `<USER>`
-* `<USER>_non_ksi`: the number of non-KSI individuals for a road user group indicated by `<USER>`
+* `ksi`: the number of Killed or Seriously Injured (KSI) collisions
+* `non_ksi`: the number of non-KSI collisions
+* `<USER>_ksi`: the number of KSI collisions for a road user group indicated by `<USER>`
+* `<USER>_non_ksi`: the number of non-KSI collisions for a road user group indicated by `<USER>`
 
 ```{r fig.height = 8, fig.width = 8}
 
@@ -361,7 +380,7 @@ datatable(
 
 ## Plot
 
-This plot shows the number of KSI individuals by road user for cycle tracks on Bloor Streeet, University Avenue, and Yonge Street. The dark gray dotted vertical lines show which year a cycle track is added to the street along with the amount of cycle track kilometers added.
+These plots show the number of KSI collisions by road user for cycle tracks on Bloor Streeet, University Avenue, and Yonge Street. The dark gray dotted vertical lines show which year a cycle track is added to the street along with the amount of cycle track kilometers added.
 
 ```{r fig.width = 18, fig.height = 9, message = F, warning = F}
 
@@ -410,7 +429,7 @@ plot_data <- colli_counts %>%
 	)
 
 # Generate plot
-p <- ggplot(
+ggplot(
 	plot_data,
 	aes(x = quarter, y = n, fill = ksi, color = ksi)
 ) +
@@ -454,12 +473,11 @@ p <- ggplot(
 		legend.title = element_blank(),
 		legend.position = "top"
 	)
-p
 ```
 
 ## Map
 
-This map shows the location of cycle tracks on Bloor Streeet, University Avenue, and Yonge Street, along with the collision density determined by the number of individuals within 25 meters of each cycle track.
+This map shows the location of cycle tracks on Bloor Streeet, University Avenue, and Yonge Street, along with the collision density within 25 meters of each cycle track.
 
 ```{r}
 
@@ -467,17 +485,21 @@ This map shows the location of cycle tracks on Bloor Streeet, University Avenue,
 tmap_mode("view")
 tmap_leaflet(
 	tm_shape(bounds) +
-		tm_polygons(alpha = 0, ) +
+		tm_polygons(alpha = 0, popup.vars = F, id = "") +
 		tm_shape(streets) +
 		tm_lines(col = "#1d1d1d", popup.vars = T) +
 		tm_text("target_street", size = 1) +
-		tm_shape(bike) +
+		tm_shape(
+			bike %>% select(-ends_with("_comment"))
+		) +
 		tm_lines(col = "red", lwd = 2, popup.vars = T)
 	) %>%
 	addFullscreenControl%>%
 	addHeatmap(
-		lat = colli_bike$LATITUDE,
-		lng = colli_bike$LONGITUDE,
+		data = colli_bike %>%
+			distinct(ACCNB, .keep_all = TRUE),
+		lat = ~LATITUDE,
+		lng = ~LONGITUDE,
 		radius = 8
 	) %>%
 	addLegend(

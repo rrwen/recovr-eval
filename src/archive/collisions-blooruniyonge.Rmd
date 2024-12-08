@@ -21,7 +21,16 @@ knit: |
     })
 ---
 
+```{r include = FALSE, echo = FALSE}
+knitr::opts_chunk$set(
+	warning = FALSE,
+	message = FALSE
+)
+```
+
 # Libraries
+
+Load libraries, the main ones being used are `ggplot2` for plotting, `leaflet` and `tmap` for interactive maps, `sf` for spatial data processing, `tidyverse` for data processing, and `DT` for interactive tables.
 
 ```{r}
 
@@ -31,21 +40,81 @@ library(leaflet)
 library(leaflet.extras)
 library(lubridate)
 library(sf)
+library(glue)
 library(tidyverse)
 library(tmap)
 library(DT)
 
 ```
 
+# Functions
+
+Create a function to assign default behaviour for our `DT` datatables.
+
+```{r}
+
+# Function for default datatable params
+datatable <- function(...) {
+    
+    # Build arg list
+    args <- list(...)
+    
+    # Default custom filename
+    filename <- if (!"filename" %in% names(args)) "data" else args$filename
+    args[["filename"]] <- NULL
+    
+    # Add default extensions
+    args$extensions <- if (!"extensions" %in% names(args)) "Buttons" else args$extensions
+    
+    # Add default args
+    args$filter <- if (!"filter" %in% names(args)) "top" else args$filter
+    args$fillContainer <- if (!"fillContainer" %in% names(args)) T else args$fillContainer
+    
+    # Add default options
+    if (!"options" %in% names(args)) {
+        args$options <-  list(
+            scrollY = "350px",
+            buttons = list(
+                list(
+                    extend = "csv",
+                    filename = filename,
+                    exportOptions = list(columns = ":not(.rownames)")
+                ),
+                list(
+                    extend = "excel",
+                    filename = filename,
+                    exportOptions = list(columns = ":not(.rownames)"),
+                    title = ""
+                )
+            ),
+            columnDefs = list(
+                list(
+                    targets = 0,
+                    className = "rownames"
+                )
+            ),
+            dom = "Bfrtip"
+        )
+    }
+    return(do.call(DT::datatable, args))
+}
+
+```
+
 # Data
 
-Load the boundary, centrelines, all collisions, and verified bikeways data for the City of Toronto.
+Load the following data for the City of Toronto:
+
+* boundary
+* centrelines
+* all collisions
+* verified bikeways
 
 All collisions data was provided by David McElroy <David.McElroy@toronto.ca> from the City of Toronto on November 7, 2024.
 
 Verified bikeways data originally from Konrad Samsel <konrad.samsel@mail.utoronto.ca> and later modified by Richard Wen <richard.wen@utoronto.ca> on October 27, 2024.
 
-```{r, message = F, warning = F}
+```{r}
 
 # Load boundaries
 bounds_raw <- read_sf("../../data/toronto-boundary-2019-07-23/citygcs_regional_mun_wgs84.shp")
@@ -69,35 +138,94 @@ colli_raw <- read_sf(
 
 # Cleaning
 
-## Re-projection and Data Types
+For the collisions:
 
-Re-project the City of Toronto boundaries to coordinate system `EPSG:4326`, then crop all collisions to the boundaries of the City of Toronto.
+1. Crop all collision points to the boundaries of the City of Toronto
+2. Convert the accident date `ACCDATE` to `date` type
+3. Add a column to separate the collisions data for Killed or Seriously Injured (KSI) and non-KSI individuals
+4. Add columns to identify drivers (and passengers), pedestrians, cyclists (and cyclist passengers), and other road users
 
-Also, converts the accident date `ACCDATE` to `date` type.
+For the verified bikeways:
+
+1. Filter for Bloor Street, University Avenue, and Yonge Street
+2. Calculate the final type and year for each verified bikeway, where improvements (when the same type occurs between upgrades) are not considered an upgrade
+3. Filter for cycle tracks only based on the final type
+
+For the centrelines, extract target streets Bloor Street, University Avenue, and Yonge Street, and merge all segments for each target street.
 
 ```{r}
 
-# Reproj bounds 4326
+# Reproj city bounds to 4326
 bounds <- bounds_raw %>% st_transform(4326)
 
-# Crop to toronto bounds and convert date type
+# Crop colli to toronto bounds and convert date type
 colli <- colli_raw %>%
 	st_intersection(bounds) %>%
-	mutate(datetime = as_date(ACCDATE))
+	mutate(colli_date = as_date(ACCDATE))
 
-```
+# Add a columns for ksi and road users
+ksi_codes <- c("3", "4")
+colli <- colli %>%
+	mutate(
+		ksi = if_else(INJURY %in% ksi_codes, "ksi", "non_ksi"), # ksi col
+		user = case_when( # road user col
+			INVTYPE %in% c("01", "02") ~ "driver",
+			INVTYPE == "03" ~ "pedestrian",
+			INVTYPE %in% c("04", "05") ~ "cyclist",
+			.default = "other"
+		)
+	)
 
-## Filtering and Columns
+# Get cycle tracks only after all upgrades for yonge, bloor, uni
+bike <- bike_raw %>%
+	mutate( # create col for target streets bloor, uni, and yonge
+		target_street = case_when(
+			str_starts(street, "Bloor") ~
+				"Bloor Street",
+			str_starts(street, "University") ~
+				"University Avenue",
+			str_starts(street, "Yonge") ~
+				"Yonge Street",
+			.default = NA
+		)
+	) %>%
+	filter(!is.na(target_street)) %>%
+	mutate(
+		final_type = case_when( # col for final type without improvements
+			!is.na(verify_upgrade2_year) &
+			verify_upgrade2_type != verify_upgrade1_type
+				~ verify_upgrade2_type,
+			!is.na(verify_upgrade1_year) &
+			verify_upgrade1_type != verify_install_type
+				~ verify_upgrade1_type,
+			!is.na(verify_install_year)
+				~ verify_install_type,
+			.default = NA
+		),
+		final_type = case_when( # remap infra types to actual names
+			final_type %in% c("PL", "BUF") ~ "Painted Lane",
+			final_type == "PBL" ~ "Cycle Track",
+			.default = NA
+		)
+	) %>%
+	mutate( # col for final year without improvements
+		final_year = case_when(
+			!is.na(verify_upgrade2_year) &
+			verify_upgrade2_type != verify_upgrade1_type
+				~ verify_upgrade2_year,
+			!is.na(verify_upgrade1_year) &
+			verify_upgrade1_type != verify_install_type
+				~ verify_upgrade1_year,
+			!is.na(verify_install_year)
+				~ verify_install_year,
+			.default = NA
+		),
+	) %>%
+	filter( # filter for cycle tracks only
+		final_type == "Cycle Track"
+	)
 
-Filter the centreline data for target streets Bloor Street, University Avenue, and Yonge Street, and merge all segments for each target street.
-
-Then, calculate the final type and year for each verified bikeway and filter for cycle tracks only based on this final type for Bloor Street, University Avenue, and Yonge Street.
-
-Also, adds a column to separate the collisions data for Killed or Seriously Injured (KSI) and non-KSI collisions.
-
-```{r}
-
-# Filter for Bloor, University and Yonge
+# Filter centrelines for Bloor, University and Yonge
 streets <- ctl_raw %>%
 	filter( # filter for streets only
 		FEATURE_CODE_DESC %in% c(
@@ -127,88 +255,37 @@ streets <- ctl_raw %>%
 	group_by(target_street) %>% # merge geoms based on target streets
 	summarize(geometry = st_union(geometry))
 
-# Get cycle tracks only after all upgrades
-bike <- bike_raw %>%
-	filter(str_starts(street, "Yonge|Bloor|University")) %>%
-	mutate(
-		final_type = case_when( # create col for final type
-			!is.na(verify_upgrade2_year) ~ verify_upgrade2_type,
-			!is.na(verify_upgrade1_year) ~ verify_upgrade1_type,
-			!is.na(verify_install_year) ~ verify_install_type,
-			.default = NA
-		),
-		final_type = case_when( # remap infra types to actual names
-			final_type %in% c("PL", "BUF") ~ "Painted Lane",
-			final_type == "PBL" ~ "Cycle Track",
-			.default = NA
-		)
-	) %>%
-	mutate( # create col for final year
-		final_year = case_when(
-			!is.na(verify_upgrade2_year) ~ verify_upgrade2_year,
-			!is.na(verify_upgrade1_year) ~ verify_upgrade1_year,
-			!is.na(verify_install_year) ~ verify_install_year,
-			.default = NA
-		),
-	) %>%
-	filter( # filter for cycle tracks only
-		final_type == "Cycle Track"
-	)
-
-# Add a column to separate ksi and non-ksi
-ksi_codes <- c("3", "4")
-colli <- colli %>%
-	mutate(
-		ksi = if_else(INJURY %in% ksi_codes, T, F)
-	)
-
-```
-
-
-```{r}
-
-# Visualize results of target streets and cycle tracks
-tmap_mode("view")
-tmap_leaflet(
-	tm_shape(streets) +
-		tm_lines(col = "black", popup.vars = T) +
-		tm_text("target_street", size = 1) +
-		tm_shape(bike) +
-		tm_lines(col = "red", lwd = 2, popup.vars = T)
-	) %>%
-	addFullscreenControl %>%
-	addLegend(
-		position = "topright",
-		colors = c("red", "black"),
-		labels = c("Cycle Track", "Street")
-	)
-
 ```
 
 # Processing
 
+Find all collision points within 25 meters of the verified bikeways on Yonge, Bloor and University, then count the number of individuals involved by the collision year, KSI/Non-KSI, and road user.
+
 ```{r}
 
-# Get nearest bikeway to each collision
-bike_near_colli <- colli %>% st_nearest_feature(bike)
+# Get row indices of nearest bikeway to each collision
+near_idx <- colli %>% st_nearest_feature(bike)
 
 # Calc distances to nearest bikeway for each collision
 colli_bike <- colli %>%
 	mutate( # calc dist to nearest bikeway for each ksi
 		`near_bike_meters` = st_distance(
 			geometry,
-			bike[bike_near_colli, ],
+			bike[near_idx, ],
 			by_element = T
 		) %>% as.numeric
 	)
 
+# Get df version of bike
+bike_df <- bike %>% as_tibble %>% select(-geometry)
+
 # Add bike columns to collisions
 colli_bike <- colli_bike %>%
 	mutate( # add ids for bike
-		bike_id = bike[bike_near_colli, ]$id
+		bike_id = bike_df[near_idx, ]$id
 	) %>%
 	left_join( # add bike cols to colli
-		bike,
+		bike_df,
 		by = join_by(bike_id == id)
 	)
 
@@ -216,5 +293,203 @@ colli_bike <- colli_bike %>%
 colli_bike <- colli_bike %>%
 	filter(near_bike_meters <= 25)
 
+# Count them by collision year
+colli_counts <- colli_bike %>%
+	as_tibble %>%
+	select(-geometry) %>%
+	mutate(year = year(colli_date)) %>%
+	group_by(year, target_street, user, ksi) %>%
+	count %>%
+	rename(
+		street = target_street
+	) %>%
+	arrange(year, street, user, ksi) %>%
+	ungroup
+
 ```
 
+# Results {.tabset}
+
+The results contain:
+
+1. Data in wide format with counts divided by road user and KSI/Non-KSI for each street by year
+2. A plot showing when the data in 1. with when the cycle tracks were implemented for each street
+3. A map showing the locations of the cycle tracks for each street and a heatmap of the collision density determined by individuals involved
+
+## Data
+
+The resulting data consists of the following columns:
+
+* `year`: the year of the collisions
+* `street`: the street, one of Yonge Street, University Avenue, or Bloor Street
+* `ksi`: the number of Killed or Seriously Injured (KSI) individuals
+* `non_ksi`: the number of non-KSI individuals
+* `<USER>_ksi`: the number of KSI individuals for a road user group indicated by `<USER>`
+* `<USER>_non_ksi`: the number of non-KSI individuals for a road user group indicated by `<USER>`
+
+```{r fig.height = 8, fig.width = 8}
+
+# Create output data
+out <- colli_counts %>%
+	mutate(
+		group = glue("{user}_{ksi}")
+	) %>%
+	pivot_wider(
+		values_from = n,
+		names_from = group
+	) %>%
+	select(-user, -ksi) %>%
+	group_by(year, street) %>%
+	summarize(across(everything(), ~ sum(., na.rm = T))) %>%
+	ungroup %>%
+	mutate(
+		ksi = select(., !ends_with ("_non_ksi") & ends_with("_ksi")) %>%
+			rowSums(na.rm = T),
+		non_ksi = select(., ends_with("_non_ksi")) %>%
+			rowSums(na.rm = T)
+	) %>%
+	select(order(colnames(.))) %>%
+	select(year, street, ksi, non_ksi, everything())
+
+# Show data table
+datatable(
+	out,
+	filename = glue("toronto-collisions-blooruniyonge-{today()}")
+)
+```
+
+## Plot
+
+This plot shows the number of KSI individuals by road user for cycle tracks on Bloor Streeet, University Avenue, and Yonge Street. The dark gray dotted vertical lines show which year a cycle track is added to the street along with the amount of cycle track kilometers added.
+
+```{r fig.width = 18, fig.height = 9}
+
+# Calc cycle track final year events by road segment length
+bike_events <- bike %>%
+	group_by(target_street, final_year) %>%
+	summarize(
+		len_km = sum(st_length(geometry)) / 1000 %>%
+			as.numeric
+	) %>%
+	mutate(
+		len_km_label = glue("+{round(len_km, 2)} km"),
+		len_km_legend = "Cycle Track Added"
+	) %>%
+	rename(year = final_year, street = target_street)
+
+# Calc label position for ct events
+bike_events_y <- colli_counts %>%
+	group_by(user) %>%
+	summarize(
+		len_km_label_y = max(n, na.rm = T) + 0.3 * (max(n, na.rm = T))
+	)
+
+# Prep plot data
+plot_data <- colli_counts %>% 
+	filter(!user %in% c("other")) %>%
+	left_join(bike_events, by = c("year", "street")) %>%
+	left_join(bike_events_y, by = "user") %>%
+	mutate(
+		user = str_to_title(user),
+		ksi = if_else(ksi == "non_ksi", "Non-KSI", "KSI")
+	)
+
+# Generate plot
+p <- ggplot(
+	plot_data,
+	aes(x = year, y = n, fill = ksi, color = ksi)
+) +
+	geom_line() +
+	geom_point(show.legend = F) +
+	geom_vline(
+		data = bike_events,
+		aes(xintercept = year, color = len_km_legend),
+		linetype = "dashed"
+	) +
+	geom_text(
+		aes(label = n),
+		size = 3,
+		vjust = 2
+	) +
+	facet_grid(
+		user ~ street,
+		scales = "free",
+		switch = "y"
+	) +
+	geom_label(
+		aes(
+			x = year,
+			y = len_km_label_y,
+			label = len_km_label
+		),
+		color = "darkgray",
+		fill = "white",
+		size = 3.5,
+		angle = 90
+	) +
+	theme_minimal() +
+	scale_color_manual(values = c(
+		"Non-KSI" = "#00BFC4",
+		"KSI" = "#F8766D",
+		"Cycle Track Added" = "darkgray"
+	)) +
+	scale_x_continuous(
+		breaks = seq(
+			min(colli_counts$year, na.rm = T),
+			max(colli_counts$year, na.rm = T),
+			by = 1
+		)
+	) +
+	scale_y_continuous(expand = expansion(mult = c(0.1, 0.3))) +
+	labs(
+		x = "Year",
+		y = "Individuals Involved"
+	) +
+	theme(
+		axis.text.x = element_text(size = 8),
+		legend.title = element_blank(),
+		legend.position = "top"
+	)
+p
+```
+
+## Map
+
+This map shows the location of cycle tracks on Bloor Streeet, University Avenue, and Yonge Street, along with the collision density determined by the number of individuals within 25 meters of each cycle track.
+
+```{r}
+
+# Visualize results of target streets and cycle tracks
+tmap_mode("view")
+tmap_leaflet(
+	tm_shape(bounds) +
+		tm_polygons(alpha = 0, ) +
+		tm_shape(streets) +
+		tm_lines(col = "#1d1d1d", popup.vars = T) +
+		tm_text("target_street", size = 1) +
+		tm_shape(bike) +
+		tm_lines(col = "red", lwd = 2, popup.vars = T)
+	) %>%
+	addFullscreenControl%>%
+	addHeatmap(
+		lat = colli_bike$LATITUDE,
+		lng = colli_bike$LONGITUDE,
+		radius = 8
+	) %>%
+	addLegend(
+		position = "topright",
+		colors = c("red", "#1d1d1d"),
+		labels = c("Cycle Track", "Street")
+	) %>%
+	addLegend(
+		position = "topright",
+		colors = colorNumeric(
+			c("blue", "green", "yellow", "orange"),
+			domain = NULL
+		)(seq(1, 100, length.out = 5)),
+		values = c(1, 10),
+		labels = c("Low", "", "", "", "High"),
+		title = "Collision<br/>Density"
+	)
+
+```

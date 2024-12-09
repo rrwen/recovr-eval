@@ -1,5 +1,5 @@
 ---
-title: "Quarterly Collisions in Bloor, University and Yonge"
+title: "Quarterly Collisions in Bloor, University, Danforth, and Yonge"
 subtitle: "R Code"
 author:
 - "Richard Wen richard.wen@utoronto.ca"
@@ -16,7 +16,7 @@ knit: |
             df_print = "paged",
             self_contained = FALSE
         ),
-        output_dir = "../../docs/archive/collisions-blooruniyonge",
+        output_dir = "../../docs/archive/collisions-bloorunidanyonge",
         output_file = "index", ...)
     })
 ---
@@ -151,7 +151,7 @@ For the verified bikeways:
 2. Calculate the final type and year for each verified bikeway, where improvements (when the same type occurs between upgrades) are not considered an upgrade
 3. Filter for cycle tracks only based on the final type
 
-For the centrelines, extract target streets Bloor Street, University Avenue, and Yonge Street, and merge all segments for each target street.
+For the centrelines, extract target streets Bloor Street, Danforth Street/Avenue, University Avenue, and Yonge Street, and merge all segments for each target street.
 
 ```{r}
 
@@ -176,9 +176,9 @@ colli <- colli %>%
 		)
 	)
 
-# Get cycle tracks only after all upgrades for yonge, bloor, uni
+# Get cycle tracks only after all upgrades
 bike <- bike_raw %>%
-	mutate( # create col for target streets bloor, uni, and yonge
+	mutate( # create col for target streets
 		target_street = case_when(
 			str_starts(street, "Bloor") ~
 				"Bloor Street",
@@ -186,6 +186,8 @@ bike <- bike_raw %>%
 				"University Avenue",
 			str_starts(street, "Yonge") ~
 				"Yonge Street",
+			str_starts(street, "Danforth") ~
+				"Danforth Street/Avenue",
 			.default = NA
 		)
 	) %>%
@@ -240,19 +242,29 @@ streets <- ctl_raw %>%
 		    "Local"
 		)
 	) %>%
-	mutate( # create col for target streets bloor, uni, and yonge
+	mutate( # create col for streets bloor, uni, and yonge
 		target_street = case_when(
-			str_starts(LINEAR_NAME_FULL_LEGAL, "Bloor Street") ~
-				"Bloor Street",
-			str_starts(LINEAR_NAME_FULL_LEGAL, "University Avenue") ~
-				"University Avenue",
-			str_starts(LINEAR_NAME_FULL_LEGAL, "Yonge Street") ~
-				"Yonge Street",
+			str_starts(
+				LINEAR_NAME_FULL_LEGAL,
+				"Bloor Street"
+			) ~ "Bloor Street",
+			str_starts(
+				LINEAR_NAME_FULL_LEGAL,
+				"University Avenue"
+			) ~ "University Avenue",
+			str_starts(
+				LINEAR_NAME_FULL_LEGAL,
+				"Yonge Street"
+			) ~ "Yonge Street",
+			str_starts( # Prince Edward Viaduct
+				LINEAR_NAME_FULL_LEGAL,
+				"Danforth Avenue|Danforth Street"
+			) ~ "Danforth Street/Avenue",
 			.default = NA
 		)
 	) %>%
 	filter(!is.na(target_street)) %>%
-	group_by(target_street) %>% # merge geoms based on target streets
+	group_by(target_street) %>% # merge geoms on streets
 	summarize(geometry = st_union(geometry))
 
 ```
@@ -325,6 +337,30 @@ colli_counts <- colli_bike %>%
 	arrange(quarter, street, user, ksi) %>%
 	ungroup
 
+# Add counts for Bloor and Danforth together
+colli_counts <- colli_counts %>%
+	add_row(
+		colli_counts %>%
+			filter(street %in% c(
+				"Bloor Street",
+				"Danforth Street/Avenue")
+			) %>%
+			mutate(street = "Bloor & Danforth") %>%
+			group_by(quarter, street, user, ksi) %>%
+			summarize(n = sum(n, na.rm = T))
+	)
+
+# Add bikeways for bloor and danforth together
+bike <- bike %>%
+	add_row(
+		bike %>%
+			filter(target_street %in% c(
+				"Bloor Street",
+				"Danforth Street/Avenue")
+			) %>%
+			mutate(target_street = "Bloor & Danforth")
+	)
+
 ```
 
 # Results {.tabset}
@@ -374,7 +410,7 @@ out <- colli_counts %>%
 # Show data table
 datatable(
 	out,
-	filename = glue("toronto-collisions-blooruniyonge-{today()}")
+	filename = glue("toronto-collisions-bloorunidanyonge-{today()}")
 )
 ```
 
@@ -382,7 +418,7 @@ datatable(
 
 These plots show the number of KSI collisions by road user for cycle tracks on Bloor Streeet, University Avenue, and Yonge Street. The dark gray dotted vertical lines show which year a cycle track is added to the street along with the amount of cycle track kilometers added.
 
-```{r fig.width = 18, fig.height = 9, message = F, warning = F}
+```{r fig.width = 22, fig.height = 9, message = F, warning = F}
 
 # Calc cycle track final year events by road segment length
 bike_events <- bike %>%
@@ -408,9 +444,16 @@ bike_events_y <- colli_counts %>%
 		len_km_label_y = max(n, na.rm = T) + 0.3 * (max(n, na.rm = T))
 	)
 
+# Create unique combo for events labels per street and road user
+bike_events <- expand_grid(
+	street = unique(colli_counts$street),
+	user = unique(colli_counts$user)
+) %>%
+	left_join(bike_events, by = "street") %>%
+	left_join(bike_events_y, by = "user")
+
 # Prep plot data
 plot_data <- colli_counts %>%
-	filter(!user %in% c("other")) %>%
 	rowwise %>%
 	mutate(
 		quarter = paste0(
@@ -421,14 +464,34 @@ plot_data <- colli_counts %>%
 			collapse = ""
 		) %>% as_date
 	) %>%
-	left_join(bike_events, by = c("quarter", "street")) %>%
-	left_join(bike_events_y, by = "user") %>%
+	bind_rows(bike_events) %>%
 	mutate(
 		user = str_to_title(user),
 		ksi = if_else(ksi == "non_ksi", "Non-KSI", "KSI")
+	) %>%
+	filter(user != "Other")
+
+# Calc total cycle track len for each street
+bike_len <- bike %>%
+	group_by(target_street) %>%
+	summarize(
+		final_len_km = sum(st_length(geometry), na.rm = T) / 1000 %>%
+			as.numeric
+	) %>%
+	as_tibble %>%
+	select(-geometry) %>%
+	rename(street = target_street)
+
+# Add total len for each street as labels
+plot_data <- plot_data %>%
+	left_join(bike_len, by = "street") %>%
+	mutate(
+		street = glue(
+			"{street} ({round(final_len_km, 2)} km)"
+		)
 	)
 
-# Generate plot
+# Generate static plot
 ggplot(
 	plot_data,
 	aes(x = quarter, y = n, fill = ksi, color = ksi)
@@ -436,7 +499,6 @@ ggplot(
 	geom_line() +
 	geom_point(show.legend = F) +
 	geom_vline(
-		data = bike_events,
 		aes(xintercept = len_km_quarter, color = len_km_legend),
 		linetype = "dashed"
 	) +
@@ -444,6 +506,12 @@ ggplot(
 		user ~ street,
 		scales = "free",
 		switch = "y"
+	) +
+	geom_text(
+		aes(label = n),
+		size = 2.25,
+		angle = 90,
+		hjust = -2
 	) +
 	geom_label(
 		aes(
@@ -457,15 +525,18 @@ ggplot(
 		angle = 90
 	) +
 	theme_minimal() +
-	scale_color_manual(values = c(
-		"Non-KSI" = "#00BFC4",
-		"KSI" = "#F8766D",
-		"Cycle Track Added" = "darkgray"
-	)) +
+	scale_color_manual(
+		values = c(
+			"Non-KSI" = "#00BFC4",
+			"KSI" = "#F8766D",
+			"Cycle Track Added" = "darkgray"
+		),
+		na.translate = FALSE
+	) +
 	scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
 	scale_y_continuous(expand = expansion(mult = c(0.1, 0.3))) +
 	labs(
-		x = "Quarter",
+		x = "Year",
 		y = "Collisions"
 	) +
 	theme(
@@ -473,6 +544,7 @@ ggplot(
 		legend.title = element_blank(),
 		legend.position = "top"
 	)
+
 ```
 
 ## Map
@@ -490,7 +562,9 @@ tmap_leaflet(
 		tm_lines(col = "#1d1d1d", popup.vars = T) +
 		tm_text("target_street", size = 1) +
 		tm_shape(
-			bike %>% select(-ends_with("_comment"))
+			bike %>%
+				select(-ends_with("_comment")) %>%
+				filter(target_street != "Bloor & Danforth")
 		) +
 		tm_lines(col = "red", lwd = 2, popup.vars = T)
 	) %>%

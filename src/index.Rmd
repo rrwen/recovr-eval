@@ -69,7 +69,6 @@ required_packages <- c(
 	"patchwork",
 	"DiagrammeR",
 	"DiagrammeRsvg",
-	"DT",
 	"webshot2",
 	"magick",
 	"rsvg",
@@ -2807,7 +2806,7 @@ bike_sjoin <- bike_adj %>%
 		matches("_\\d+m$"),
 		~ if_else(
 			get(str_replace(cur_column(), "_\\d+m$", "")) == 1 &
-			`_sjoin_meters` <= .x,
+			`_sjoin_meters` <= as.numeric(.x),
 			1,
 			0
 		)
@@ -3519,8 +3518,7 @@ cat(glue(
 ```{r}
 
 # Display model data
-model_data %>%
-	head
+model_data %>% head()
 
 ```
 
@@ -3748,7 +3746,7 @@ model_data_check <- model_data_check %>%
 			function(x) {
 			    sum(model_data[[glue("ksi_{x}m")]], na.rm = T) == (
 			        sjoin %>%
-			            filter(!is.na(id) & `_sjoin_meters` <= x) %>%
+			            filter(!is.na(id) & `_sjoin_meters` <= as.numeric(x)) %>%
 			            pull(ksi_id) %>%
 			            unique %>%
 			            length
@@ -3783,7 +3781,7 @@ model_data_check <- model_data_check %>%
 
 # Preview and save data check
 model_data_check
-model_data_check %>% write_csv("../data/recovr-eval-check-2024-11-12.csv", na = "")
+model_data_check %>% write_csv("../data/recovr-eval-check-2024-12-10.csv", na = "")
 
 ```
 

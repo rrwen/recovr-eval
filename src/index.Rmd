@@ -2996,7 +2996,7 @@ bike_ksi_agg %>%
 # Save table
 bike_ksi_agg %>%
 	select(-dist_min, -dist_max) %>%
-	write_csv("../data/recovr-eval-dist-2024-11-12.csv")
+	write_csv("../data/recovr-eval-dist-2024-12-10.csv")
 
 ```
 
@@ -3487,7 +3487,7 @@ model_data <- bike_ksi %>%
 	)
 
 # Export model data and time ids to folder
-model_data %>% write_csv("../data/recovr-eval-2024-11-12.csv", na = "")
+model_data %>% write_csv("../data/recovr-eval-2024-12-10.csv", na = "")
 ```
 
 ### Details
@@ -3781,7 +3781,7 @@ model_data_check <- model_data_check %>%
 
 # Preview and save data check
 model_data_check
-model_data_check %>% write_csv("../data/recovr-eval-check-2024-11-12.csv", na = "")
+model_data_check %>% write_csv("../data/recovr-eval-check-2024-12-10.csv", na = "")
 
 ```
 

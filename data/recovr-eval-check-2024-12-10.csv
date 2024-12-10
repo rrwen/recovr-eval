@@ -36,5 +36,5 @@ Post upgrade2 is 1 during second removal time,row,0,,TRUE
 Single dist road user KSI does not add up to all KSI,row,0,,TRUE
 Additive dist road user KSI does not add up to all KSI,row,0,,TRUE
 Sum of all KSIs is not equal to the total KSIs available,column,,,TRUE
-Sum of all single dist KSIs is not equal to the total KSIs available,column,,,FALSE
+Sum of all single dist KSIs is not equal to the total KSIs available,column,,,TRUE
 Sum of all additive dist KSIs is not equal to the total KSIs available,column,,,TRUE

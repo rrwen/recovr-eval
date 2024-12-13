@@ -1130,9 +1130,7 @@ plot_map("cyclist", ksi_type = "non_ksi", post = 2022, heatmap = F)
 
 ### Cyclist KSI (Post-2022)
 
-```{r}
-plot_map("cyclist", ksi_type = "ksi", post = 2022, heatmap = F)
-```
+No Data.
 
 ### Driver Non-KSI
 

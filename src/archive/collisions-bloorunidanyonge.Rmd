@@ -354,8 +354,13 @@ colli_bike <- colli %>%
 		) %>% as.numeric
 	)
 
-# Get df version of bike
-bike_df <- bike %>% as_tibble %>% select(-geometry)
+# Get df version of bike and calc lens
+bike_df <- bike %>%
+	mutate(
+		bike_len_km = as.numeric(st_length(geometry)) / 1000
+	) %>%
+	as_tibble %>%
+	select(-geometry)
 
 # Add bike columns to collisions
 colli_bike <- colli_bike %>%
@@ -372,27 +377,70 @@ colli_bike <- colli_bike %>%
 	filter(near_bike_meters <= 25)
 ```
 
-Then, count the injuries by the collision quarter, KSI/Non-KSI, and road user.
-
-Also add installs/upgrades of painted lane and cycle track infrastructure, if they are present in the collision quarter.
+Count the injuries by the collision quarter, KSI/Non-KSI, and road user.
 
 ```{r}
 
-# Count by injuries quarter
-colli_counts <- colli_bike %>%
-	as_tibble %>%
-	select(-geometry) %>%
+# Expand into bike events
+colli_bike_proc <- colli_bike %>%
+	pivot_longer(
+		c(
+			verify_install_type,
+			verify_upgrade1_type,
+			verify_upgrade2_type
+		),
+		names_to = "event",
+		values_to = "type"
+	) %>%
 	mutate( # add time units
 		year = year(colli_date),
 		quarter = quarter(colli_date),
 	) %>%
+	mutate( # correct years and types
+		event_year = case_when(
+			str_starts(event, "verify_install_type") ~ verify_install_year,
+			str_starts(event, "verify_upgrade1_type") ~ verify_upgrade1_year,
+			str_starts(event, "verify_upgrade2_type") ~ verify_upgrade2_year
+		),
+		type = if_else(
+			is.na(type) & event == "verify_install_type",
+			"none",
+			type
+		),
+		type = case_when(
+			type %in% c("PL", "BUF") ~ "painted lane",
+			type == "PBL" ~ "cycle track",
+			.default = type
+		)
+	) %>%
+	filter( # remove na types
+		!is.na(type) &
+		year >= event_year
+	)
+
+# Count by quarterly individuals
+colli_counts <- colli_bike_proc %>%
+	as_tibble %>%
+	select(-geometry) %>%
 	rename(
 		orig_street = street,
 		street = target_street
 	) %>%
-	group_by(year, quarter, street, user, ksi) %>%
-	count %>%
-	arrange(year, quarter, street, user, ksi) %>%
+	group_by(year, quarter, street, type, user, ksi) %>%
+	group_map(~ {
+		head(.x, 1) %>%
+			mutate(
+				n = nrow(.x),
+				n_segments = length(unique(.x$bike_id)),
+				n_len_km = .x %>% # calc lens of unique bikeways
+					distinct(bike_id, .keep_all = T) %>%
+					pull(bike_len_km) %>%
+					sum(na.rm = T)
+			) %>%
+			select(colnames(.y), n, n_segments, n_len_km)
+	}, .keep = T) %>%
+	bind_rows %>%
+	arrange(street, year, quarter, type, user, ksi) %>%
 	ungroup
 
 # Add counts for Bloor and Danforth together
@@ -404,9 +452,46 @@ colli_counts <- colli_counts %>%
 				"Danforth Street/Avenue")
 			) %>%
 			mutate(street = "Bloor & Danforth") %>%
-			group_by(year, quarter, street, user, ksi) %>%
-			summarize(n = sum(n, na.rm = T))
+			group_by(year, quarter, street, type, user, ksi) %>%
+			summarize(
+				n = sum(n, na.rm = T),
+				n_segments = sum(n_segments, na.rm = T),
+				n_len_km = sum(n_len_km, na.rm = T)
+			)
 	)
+
+# Create all combos of colli
+colli_counts <- expand.grid(
+	year = min(colli_counts$year):max(colli_counts$year),
+	quarter = 1:4,
+	street = unique(colli_counts$street),
+	type = unique(colli_counts$type),
+	user = unique(colli_counts$user),
+	ksi = unique(colli_counts$ksi)
+) %>%
+	left_join(
+		colli_counts,
+		by = c(
+			"year",
+			"quarter",
+			"street",
+			"type",
+			"user",
+			"ksi"
+		)
+	) %>%
+	mutate(
+		n = replace_na(n, 0),
+		n_segments = replace_na(n_segments, 0),
+		n_len_km = replace_na(n_len_km, 0)
+	) %>%
+	arrange(street, year, quarter, type, user, ksi)
+
+```
+
+Add installs/upgrades of painted lane and cycle track infrastructure, if they are present in the collision quarter.
+
+```{r}
 
 # Add bikeways for bloor and danforth together
 bike_proc <- bike %>%
@@ -417,27 +502,6 @@ bike_proc <- bike %>%
 				"Danforth Street/Avenue"
 			)) %>%
 			mutate(target_street = "Bloor & Danforth")
-	)
-
-# Ensure all combinations are available
-min_year <- min(year(colli_bike$colli_date), na.rm = T)
-max_year <- max(year(colli_bike$colli_date), na.rm = T)
-colli_counts <- expand_grid(
-	year = min_year:max_year,
-	quarter = 1:4,
-	street = unique(colli_counts$street),
-	user = unique(colli_counts$user),
-	ksi = unique(colli_counts$ksi)
-) %>%
-	left_join(
-		colli_counts,
-		by = c(
-			"year",
-			"quarter",
-			"street",
-			"user",
-			"ksi"
-		)
 	)
 
 # Calc cycle track events with segment length and counts
@@ -455,6 +519,13 @@ bike_events <- data.frame(
     street = rep(bike_proc$target_street, 3),
     geometry = rep(bike_proc$geometry, 3)
 ) %>%
+	mutate(
+		add_type = case_when(
+			add_type %in% c("PL", "BUF") ~ "painted lane",
+			add_type == "PBL" ~ "cycle track",
+			.default = add_type
+		)
+	) %>%
     filter(!is.na(year) & !is.na(add_type)) %>%
     st_as_sf %>%
 	group_by(street, year, add_type) %>%
@@ -478,9 +549,12 @@ bike_events <- data.frame(
 bike_events_fill <- bike_events %>%
     group_by(street) %>%
     group_map(~{
-        expand.grid(year = min(.x$year):max(.x$year)) %>%
+        expand.grid(
+        	year = min(colli_counts$year, na.rm = T):max(colli_counts$year, na.rm = T)
+        ) %>%
             left_join(.x, by = "year") %>%
-            fill(everything())
+            fill(everything()) %>%
+    		fill(street, .direction = "up")
     }, .keep = T) %>%
 	bind_rows
 
@@ -510,10 +584,10 @@ colli_counts <- colli_counts %>%
 		
 		# Calculate first ct and pl if exists
 		pl_ymin <- colli_counts %>%
-			filter(add_type %in% c("PL", "BUF")) %>%
+			filter(add_type == "painted lane") %>%
 			pull(year)
 		ct_ymin <- colli_counts %>%
-			filter(add_type == "PBL") %>%
+			filter(add_type == "cycle track") %>%
 			pull(year)
 		
 		# Post pl col
@@ -521,7 +595,7 @@ colli_counts <- colli_counts %>%
 			out <- out %>%
 				mutate(
 					post_1st_pl = if_else(
-						.x$add_type %in% c("PL", "BUF") &
+						.x$add_type == "painted lane" &
 						.x$year >= min(pl_ymin, na.rm = T),
 						T,
 						F
@@ -534,7 +608,7 @@ colli_counts <- colli_counts %>%
 			out <- out %>%
 				mutate(
 					post_1st_ct = if_else(
-						.x$add_type == "PBL" &
+						.x$add_type == "cycle track" &
 						.x$year >= min(ct_ymin, na.rm = T),
 						T,
 						F
@@ -567,16 +641,21 @@ The resulting data consists of the following columns:
 * `year` the year of the collisions
 * `quarter`: the quarter of the collisions
 * `street`: the street, one of Yonge Street, University Avenue, or Bloor Street
+* `type`: the type of infrastructure
+* `segments`: the number of segments
+* `len_km`: the total length of the segments in km
 * `add_year`: the year that the infrastructure was added
 * `add_type`: the type of infrastructure added
-* `add_len_km`: the length of the infrastructure added
 * `add_segments`: the number of segments of the infrastructure added
+* `add_len_km`: the length of the infrastructure added
 * `post_1st_ct`: whether the year is on or after the first cycle track implementation
 * `post_1st_pl`: whether the year is on or after the first painted or buffered lane implementation
-* `ksi`: the number of Killed or Seriously Injured (KSI) collisions
-* `non_ksi`: the number of non-KSI collisions
+* `ksi`: the total number of Killed or Seriously Injured (KSI) collisions
+* `non_ksi`: the total number of non-KSI collisions
 * `<USER>_ksi`: the number of KSI individuals for a road user group indicated by `<USER>`
 * `<USER>_non_ksi`: the number of non-KSI individuals for a road user group indicated by `<USER>`
+* `<USER>_ksi_mean`: the average number of KSI individuals for a road user group indicated by `<USER>` per segment
+* `<USER>_non_ksi_mean`: the average number of non-KSI individuals for a road user group indicated by `<USER>` per segment
 
 ```{r fig.height = 8, fig.width = 8}
 
@@ -590,47 +669,57 @@ out <- colli_counts %>%
 		names_from = group
 	) %>%
 	select(-user, -ksi) %>%
-	group_by(year, quarter, street, add_type) %>%
+	group_by(year, quarter, street, type) %>%
 	summarize(
 		across(
 			ends_with("_ksi"),
 			~ sum(., na.rm = T)
 		),
 		across(
-			starts_with(c("add_", "post_")),
+			c("add_year", "add_type"),
 			~ paste0(unique(.), collapse = ",")
 		),
-		add_segments = as.numeric(unique(add_segments))
+		across(
+			starts_with("post_"),
+			~ any(.)
+		),
+		n_segments = sum(as.numeric(unique(n_segments)), na.rm = T),
+		n_len_km = sum(as.numeric(unique(n_len_km)), na.rm = T),
+		add_type = unique(add_type),
+		add_segments = sum(as.numeric(unique(add_segments)), na.rm = T),
+		add_len_km = sum(as.numeric(unique(add_len_km)), na.rm = T)
 	) %>%
 	ungroup %>%
 	mutate( # calc total ksi
 		ksi = select(., !ends_with ("_non_ksi") & ends_with("_ksi")) %>%
 			rowSums(na.rm = T),
 		non_ksi = select(., ends_with("_non_ksi")) %>%
-			rowSums(na.rm = T)
+			rowSums(na.rm = T),
+		across(starts_with("post_"), ~ if_else(is.na(.), F, .)),
+		across(ends_with("_ksi"), ~ . / n_segments, .names = "{.col}_mean")
 	) %>%
-	mutate( # turn labels into full desc
-		add_type = case_when(
-			add_type %in% c("PL", "BUF") ~ "Painted Lane",
-			add_type == "PBL" ~ "Cycle Track",
-			.default = "None"
-		)
-	) %>%
+	mutate(across( # set nan to na
+		everything(),
+		~ ifelse(is.nan(.), NA, .)
+	)) %>%
 	select(order(colnames(.))) %>%
 	select(
 		year,
 		quarter,
 		street,
+		type,
+		segments = n_segments,
+		len_km = n_len_km,
 		add_year,
 		add_type,
-		add_len_km,
 		add_segments,
+		add_len_km,
 		starts_with("post_"),
 		ksi,
 		non_ksi,
 		everything()
 	) %>%
-	arrange(street, year, quarter, add_type)
+	arrange(street, year, quarter, type)
 
 # Show data table
 datatable(
@@ -645,21 +734,81 @@ The rates data consists of quarterly rates by road user per year.
 
 * `year` the year of the collisions
 * `street`: the street, one of Yonge Street, University Avenue, or Bloor Street
+* `type`: the type of infrastructure
+* `segments`: the number of segments
+* `len_km`: the total length of the segments in km
+* `add_year`: the year that the infrastructure was added
 * `add_type`: the type of infrastructure added
-* `<USER>_ksi_per_quarter`: the number of KSI individuals per quarter for a road user group indicated by `<USER>`
-* `<USER>_non_ksi_per_quarter`: the number of non-KSI collisions per quarter for a road user group indicated by `<USER>`
+* `add_segments`: the number of segments of the infrastructure added
+* `add_len_km`: the length of the infrastructure added
+* `post_1st_ct`: whether the year is on or after the first cycle track implementation
+* `post_1st_pl`: whether the year is on or after the first painted or buffered lane
+* `ksi`: the total number of Killed or Seriously Injured (KSI) collisions
+* `non_ksi`: the total number of non-KSI collisions
+* `<USER>_ksi`: the number of KSI individuals for a road user group indicated by `<USER>`
+* `<USER>_non_ksi`: the number of non-KSI individuals for a road user group indicated by `<USER>`
+* `<USER>_ksi_mean`: the average number of KSI individuals for a road user group indicated by `<USER>` per segment
+* `<USER>_non_ksi_mean`: the average number of non-KSI individuals for a road user group indicated by `<USER>` per segment
+* `<USER>_ksi_mean_quarter`: the average number of KSI individuals for a road user group indicated by `<USER>` per quarter
+* `<USER>_non_ksi_mean_quarter`: the average number of non-KSI collisions for a road user group indicated by `<USER>` per quarter
 
 ```{r}
 
 # Calc rates for output
 out_rates <- out %>%
-	filter(add_type != "None") %>%
-	group_by(street, year, add_type) %>%
-	summarize(across(
+	group_by(street, year, type) %>%
+	summarize(
+		across( # means
+			ends_with("ksi"),
+			~ sum(., na.rm = T) / sum(segments, na.rm = T),
+			.names = "{.col}_mean"
+		),
+		across( # quarterly means
+			ends_with("ksi_mean"),
+			~ . / 4,
+			.names = "{.col}_quarter"
+		),
+		across( # sums
+			ends_with("ksi"),
+			~ sum(., na.rm = T)
+		),
+		across( # sum other vars
+			c(segments, len_km),
+			~ sum(., na.rm = T)
+		),
+		across( # unique other vars
+			starts_with("add_") | starts_with("post_"),
+			~ paste0(unique(.), collapse = ",")
+		)
+	) %>%
+	mutate(across( # set nan to na
+		everything(),
+		~ ifelse(is.nan(.), NA, .)
+	)) %>%
+	select(order(colnames(.))) %>%
+	select(
+		year,
+		street,
+		type,
+		segments,
+		len_km,
+		add_year,
+		add_type,
+		add_segments,
+		add_len_km,
+		starts_with("post_"),
+		ksi,
+		non_ksi,
 		ends_with("_ksi"),
-		~ (sum(.) / unique(add_segments)) / 4,
-		.names = "{.col}_per_quarter"
-	))
+		ksi_mean,
+		non_ksi_mean,
+		ends_with("_mean"),
+		ksi_mean_quarter,
+		non_ksi_mean_quarter,
+		ends_with("_mean_quarter"),
+		everything()
+	) %>%
+	arrange(street, year, type)
 
 # Show data table
 datatable(
@@ -669,78 +818,53 @@ datatable(
 
 ```
 
-## Plot {.tabset .tabset-pills}
+## Plots {.tabset .tabset-pills}
 
-These plots show the number of KSI collisions by road user for cycle tracks on Bloor Streeet, University Avenue, and Yonge Street. The dark gray dotted vertical lines show which year a cycle track is added to the street along with the amount of cycle track kilometers added.
+These plots show the number of KSI collisions by road user for cycle tracks on Bloor Street, Danforth Street/Avenue, University Avenue, and Yonge Street. The dark gray dotted vertical lines show which year a cycle track is added to the street along with the amount of cycle track kilometers added.
 
 ```{r}
 
-plot_bike <- bike_events %>%
-	mutate(
-		len_km_label = glue("+{round(add_len_km, 2)} km"),
-		len_km_legend = case_when(
-			add_type %in% c("PL", "BUF") ~ "Painted Lane Added",
-			add_type %in% "PBL" ~ "Cycle Track Added",
-			.default = NA
-		),
-		len_km_date = as_date(glue("{add_year}-01-01")),
-		quarter_date = if_else(
-			year >= min(colli_counts$year) & year <= max(colli_counts$year),
-			glue("{year}-01-01") %>% as_date,
-			NA
-		)
-	)
-
-# Calc label position for ct events
-plot_bike_y <- colli_counts %>%
-	group_by(user) %>%
-	summarize(
-		len_km_label_y = max(n, na.rm = T) + 0.3 * (max(n, na.rm = T))
-	)
-
 # Prep plot data
-plot_data <- colli_counts %>%
-	rowwise %>%
+plot_data <- colli_bike %>%
+	as_tibble %>%
+	select(-geometry) %>%
 	mutate(
-		quarter_date = glue("{year}-{quarter * 3}-01") %>% as_date
-	) %>%
-	mutate(
+		year = year(colli_date),
+		quarter = quarter(colli_date),
 		user = str_to_title(user),
 		ksi = if_else(ksi == "non_ksi", "Non-KSI", "KSI")
 	) %>%
-	filter(user != "Other")
-
-# Calc total cycle track len for each street
-bike_len <- bike_proc %>%
-	group_by(target_street) %>%
-	summarize(
-		final_len_km = sum(st_length(geometry), na.rm = T) / 1000 %>%
-			as.numeric
+	filter(user != "Other") %>%
+	rename(
+		street_orig = street,
+		street = target_street
 	) %>%
-	as_tibble %>%
-	select(-geometry) %>%
-	rename(street = target_street)
+	group_by(street, year, quarter, user, ksi) %>%
+	count
 
-# Add total len for each street as labels
+# Add bike events to plot data
 plot_data <- plot_data %>%
-	left_join(bike_len, by = "street") %>%
-	mutate(
-		street = glue(
-			"{street} ({round(final_len_km, 2)} km)"
-		)
+	left_join(
+		bike_events_fill,
+		by = c("street", "year")
 	)
 
 # Add cumulative sums for ct len
 plot_data <- plot_data %>%
     group_by(street, user, ksi) %>%
     mutate(
-        ct_len_km_csum = if_else(
-            add_type == "PBL" & year == add_year & quarter == 1,
+        csum_km_ct = if_else(
+            add_type == "cycle track" & year == add_year & quarter == 1,
             add_len_km,
             0
         ) %>% replace_na(0),
-        ct_len_km_csum = cumsum(ct_len_km_csum)
-    )
+        csum_km_ct = cumsum(csum_km_ct)
+    ) %>%
+	arrange(street, year, quarter, user, ksi) %>%
+	mutate(
+		quarter_date = as_date(glue("{year}-0{quarter * 3}-01"))
+	)
+	
 ```
 
 ### Non-KSI
@@ -754,9 +878,8 @@ ggplot(
 	aes(x = quarter_date, y = n)
 ) +
 	geom_line(
-		aes(color = ct_len_km_csum)
+		aes(color = csum_km_ct)
 	) +
-	#geom_point(show.legend = F) +
 	facet_grid(
 		user ~ street,
 		scales = "free",
@@ -799,9 +922,8 @@ ggplot(
 	aes(x = quarter_date, y = n)
 ) +
 	geom_line(
-		aes(color = ct_len_km_csum)
+		aes(color = csum_km_ct)
 	) +
-	#geom_point(show.legend = F) +
 	facet_grid(
 		user ~ street,
 		scales = "free",
@@ -833,16 +955,45 @@ ggplot(
 
 ```
 
-## Map
+## Maps {.tabset .tabset-dropdown}
 
-This map shows the location of cycle tracks on Bloor Streeet, University Avenue, and Yonge Street, along with the collision density within 25 meters of each cycle track.
+These map show the location of cycle tracks on Bloor Street, Danforth Street/Avenue, University Avenue, and Yonge Street, along with the collision density (determined by the number of individuals involved) within 25 meters of each cycle track.
+
+Pre means before the noted year, and post means on or after the noted year (e.g. Pre-2022 is before 2022 and Post-2022 is on or after 2022).
 
 ```{r}
 
-# Visualize results of target streets and cycle tracks
-tmap_mode("view")
-tmap_leaflet(
-	tm_shape(bounds) +
+# Function to produce a heatmap
+plot_map <- function(
+		user_type = NULL,
+		ksi_type = NULL,
+		pre = NULL,
+		post = NULL,
+		radius = 8,
+		heatmap = T
+	) {
+	
+	# Filter colli data
+	plot_colli <- colli_bike %>%
+		mutate(
+			year = year(colli_date)
+		)
+	if (!is.null(user_type)) {
+		plot_colli <- plot_colli %>% filter(user %in% user_type)
+	}
+	if (!is.null(ksi_type)) {
+		plot_colli <- plot_colli %>% filter(ksi %in% ksi_type)
+	}
+	if(!is.null(pre)) {
+		plot_colli <- plot_colli %>% filter(year < pre)
+	}
+	if(!is.null(post)) {
+		plot_colli <- plot_colli %>% filter(year >= post)
+	}
+	
+	# Plot map
+	tmap_mode("view")
+	p <- tm_shape(bounds) +
 		tm_polygons(alpha = 0, popup.vars = F, id = "") +
 		tm_shape(streets) +
 		tm_lines(col = "#1d1d1d", popup.vars = T) +
@@ -853,29 +1004,204 @@ tmap_leaflet(
 				filter(target_street != "Bloor & Danforth")
 		) +
 		tm_lines(col = "red", lwd = 2, popup.vars = T)
-	) %>%
-	addFullscreenControl%>%
-	addHeatmap(
-		data = colli_bike %>%
-			distinct(ACCNB, .keep_all = TRUE),
-		lat = ~LATITUDE,
-		lng = ~LONGITUDE,
-		radius = 8
-	) %>%
-	addLegend(
-		position = "topright",
-		colors = c("red", "#1d1d1d"),
-		labels = c("Cycle Track", "Street")
-	) %>%
-	addLegend(
-		position = "topright",
-		colors = colorNumeric(
-			c("blue", "green", "yellow", "orange"),
-			domain = NULL
-		)(seq(1, 100, length.out = 5)),
-		values = c(1, 10),
-		labels = c("Low", "", "", "", "High"),
-		title = "Collision<br/>Density"
-	)
+	
+	# If no heatmap, use points
+	if (!heatmap) {
+		p <- p +
+			tm_shape(plot_colli) +
+			tm_dots(clustering = T)
+	}
+	
+	# Convert to leaflet
+	p <- tmap_leaflet(p)
+	
+	# Add controls and legends
+	p <- p %>%
+		addFullscreenControl %>%
+		addLegend(
+			position = "topright",
+			colors = c("red", "#1d1d1d"),
+			labels = c("Cycle Track", "Street")
+		) %>%
+		addLegend(
+			position = "topright",
+			colors = colorNumeric(
+				c("blue", "green", "yellow", "orange"),
+				domain = NULL
+			)(seq(1, 100, length.out = 5)),
+			values = c(1, 10),
+			labels = c("Low", "", "", "", "High"),
+			title = "Collision<br/>Density"
+		)
+	
+	# Add heatmap
+	if (heatmap) {
+		p <- p %>% addHeatmap(
+			data = plot_colli,
+			lat = ~LATITUDE,
+			lng = ~LONGITUDE,
+			radius = radius
+		)
+	} else {
+		p <- p %>%
+			htmlwidgets::onRender("
+			    function(el, x) {
+					var css = '.marker-cluster span { color: black; font-size: 12px; }';
+					var style = document.createElement('style');
+					style.type = 'text/css';
+					if (style.styleSheet) {
+						style.styleSheet.cssText = css;
+					} else {
+						style.appendChild(document.createTextNode(css));
+					}
+					document.head.appendChild(style);
+			    }
+			")
+	}
+	return(p)
+}
 
+```
+
+### All Non-KSI
+
+```{r}
+plot_map(ksi_type = "non_ksi")
+```
+
+### All KSI
+
+```{r}
+plot_map(ksi_type = "ksi", heatmap = F)
+```
+### All Non-KSI (Pre-2022)
+
+```{r}
+plot_map(ksi_type = "non_ksi", pre = 2022)
+```
+
+### All KSI (Pre-2022)
+
+```{r}
+plot_map(ksi_type = "ksi", pre = 2022, heatmap = F)
+```
+
+### All Non-KSI (Post-2022)
+
+```{r}
+plot_map(ksi_type = "non_ksi", post = 2022)
+```
+
+### All KSI (Post-2022)
+
+```{r}
+plot_map(ksi_type = "ksi", post = 2022, heatmap = F)
+```
+
+### Cyclist Non-KSI
+
+```{r}
+plot_map("cyclist", "non_ksi", radius = 12)
+```
+
+### Cyclist KSI
+
+```{r}
+plot_map("cyclist", "ksi", heatmap = F)
+```
+
+### Cyclist Non-KSI (Pre-2022)
+
+```{r}
+plot_map("cyclist", ksi_type = "non_ksi", pre = 2022)
+```
+
+### Cyclist KSI (Pre-2022)
+
+```{r}
+plot_map("cyclist", ksi_type = "ksi", pre = 2022, heatmap = F)
+```
+
+### Cyclist Non-KSI (Post-2022)
+
+```{r}
+plot_map("cyclist", ksi_type = "non_ksi", post = 2022, heatmap = F)
+```
+
+### Cyclist KSI (Post-2022)
+
+```{r}
+plot_map("cyclist", ksi_type = "ksi", post = 2022, heatmap = F)
+```
+
+### Driver Non-KSI
+
+```{r}
+plot_map("driver", "non_ksi")
+```
+
+### Driver KSI
+
+```{r}
+plot_map("driver", "ksi", heatmap = F)
+```
+
+### Driver Non-KSI (Pre-2022)
+
+```{r}
+plot_map("driver", ksi_type = "non_ksi", pre = 2022)
+```
+
+### Driver KSI (Pre-2022)
+
+```{r}
+plot_map("driver", ksi_type = "ksi", pre = 2022, heatmap = F)
+```
+
+### Driver Non-KSI (Post-2022)
+
+```{r}
+plot_map("driver", ksi_type = "non_ksi", radius = 12, post = 2022)
+```
+
+### Driver KSI (Post-2022)
+
+```{r}
+plot_map("driver", ksi_type = "ksi", post = 2022, heatmap = F)
+```
+
+### Pedestrian Non-KSI
+
+```{r}
+plot_map("pedestrian", "non_ksi", radius = 15)
+```
+
+### Pedestrian KSI
+
+```{r}
+plot_map("pedestrian", "ksi", heatmap = F)
+```
+
+### Pedestrian Non-KSI (Pre-2022)
+
+```{r}
+plot_map("pedestrian", ksi_type = "non_ksi", radius = 12, pre = 2022)
+```
+
+### Pedestrian KSI (Pre-2022)
+
+```{r}
+plot_map("pedestrian", ksi_type = "ksi", pre = 2022, heatmap = F)
+```
+
+### Pedestrian Non-KSI (Post-2022)
+
+```{r}
+plot_map("pedestrian", ksi_type = "non_ksi", heatmap = F, post = 2022)
+```
+
+### Pedestrian KSI (Post-2022)
+
+```{r}
+plot_map("pedestrian", ksi_type = "ksi", post = 2022, heatmap = F)
 ```

@@ -192,6 +192,10 @@ bike <- bike_raw %>%
 		)
 	) %>%
 	filter(!is.na(target_street)) %>%
+	mutate(across( # make buf equal to pl as they are both painted lanes
+		c(verify_install_type, verify_upgrade1_type, verify_upgrade2_type),
+		~ ifelse(. == "BUF", "PL", .)
+	)) %>%
 	mutate(
 		final_type = case_when( # col for final type without improvements
 			!is.na(verify_upgrade2_year) &
@@ -205,7 +209,7 @@ bike <- bike_raw %>%
 			.default = NA
 		),
 		final_type = case_when( # remap infra types to actual names
-			final_type %in% c("PL", "BUF") ~ "Painted Lane",
+			final_type == "PL" ~ "Painted Lane",
 			final_type == "PBL" ~ "Cycle Track",
 			.default = NA
 		)
@@ -236,17 +240,17 @@ bike <- bike_raw %>%
 bike <- bike %>%
 	mutate(
 		verify_install_type = if_else(
-			verify_install_type %in% c("PL", "BUF", "PBL"),
+			verify_install_type %in% c("PL", "PBL"),
 			verify_install_type,
-			NA
+			"none"
 		),
 		verify_upgrade1_type = if_else(
-			verify_upgrade1_type %in% c("PL", "BUF", "PBL"),
+			verify_upgrade1_type %in% c("PL", "PBL"),
 			verify_upgrade1_type,
 			NA
 		),
 		verify_upgrade2_type = if_else(
-			verify_upgrade2_type %in% c("PL", "BUF", "PBL"),
+			verify_upgrade2_type %in% c("PL", "PBL"),
 			verify_upgrade2_type,
 			NA
 		)
@@ -381,41 +385,30 @@ Count the injuries by the collision quarter, KSI/Non-KSI, and road user.
 
 ```{r}
 
-# Expand into bike events
+# Add bike type based on year of collision
 colli_bike_proc <- colli_bike %>%
-	pivot_longer(
-		c(
-			verify_install_type,
-			verify_upgrade1_type,
-			verify_upgrade2_type
-		),
-		names_to = "event",
-		values_to = "type"
-	) %>%
 	mutate( # add time units
 		year = year(colli_date),
 		quarter = quarter(colli_date),
 	) %>%
-	mutate( # correct years and types
-		event_year = case_when(
-			str_starts(event, "verify_install_type") ~ verify_install_year,
-			str_starts(event, "verify_upgrade1_type") ~ verify_upgrade1_year,
-			str_starts(event, "verify_upgrade2_type") ~ verify_upgrade2_year
-		),
-		type = if_else(
-			is.na(type) & event == "verify_install_type",
-			"none",
-			type
+	mutate( # add bike type
+		type_year = case_when(
+			year >= verify_upgrade2_year ~ verify_upgrade2_year,
+			year >= verify_upgrade1_year ~ verify_upgrade1_year,
+			year >= verify_install_year ~ verify_install_year,
+			.default = year
 		),
 		type = case_when(
-			type %in% c("PL", "BUF") ~ "painted lane",
+			year >= verify_upgrade2_year ~ verify_upgrade2_type,
+			year >= verify_upgrade1_year ~ verify_upgrade1_type,
+			year >= verify_install_year ~ verify_install_type,
+			.default = "None"
+		),
+		type = case_when(
+			type == "PL" ~ "painted lane",
 			type == "PBL" ~ "cycle track",
 			.default = type
 		)
-	) %>%
-	filter( # remove na types
-		!is.na(type) &
-		year >= event_year
 	)
 
 # Count by quarterly individuals
@@ -521,7 +514,7 @@ bike_events <- data.frame(
 ) %>%
 	mutate(
 		add_type = case_when(
-			add_type %in% c("PL", "BUF") ~ "painted lane",
+			add_type == "PL" ~ "painted lane",
 			add_type == "PBL" ~ "cycle track",
 			.default = add_type
 		)
@@ -540,9 +533,6 @@ bike_events <- data.frame(
 	) %>%
 	arrange(street, year) %>%
 	group_by(street) %>%
-	mutate(
-		add_segments = cumsum(add_segments)
-	) %>%
 	ungroup
 
 # Fill years in between infra events
@@ -661,64 +651,6 @@ The resulting data consists of the following columns:
 
 # Create output data
 out <- colli_counts %>%
-	mutate(
-		group = glue("{user}_{ksi}")
-	) %>%
-	pivot_wider(
-		values_from = n,
-		names_from = group
-	) %>%
-	select(-user, -ksi) %>%
-	group_by(year, quarter, street, type) %>%
-	summarize(
-		across(
-			ends_with("_ksi"),
-			~ sum(., na.rm = T)
-		),
-		across(
-			c("add_year", "add_type"),
-			~ paste0(unique(.), collapse = ",")
-		),
-		across(
-			starts_with("post_"),
-			~ any(.)
-		),
-		n_segments = sum(as.numeric(unique(n_segments)), na.rm = T),
-		n_len_km = sum(as.numeric(unique(n_len_km)), na.rm = T),
-		add_type = unique(add_type),
-		add_segments = sum(as.numeric(unique(add_segments)), na.rm = T),
-		add_len_km = sum(as.numeric(unique(add_len_km)), na.rm = T)
-	) %>%
-	ungroup %>%
-	mutate( # calc total ksi
-		ksi = select(., !ends_with ("_non_ksi") & ends_with("_ksi")) %>%
-			rowSums(na.rm = T),
-		non_ksi = select(., ends_with("_non_ksi")) %>%
-			rowSums(na.rm = T),
-		across(starts_with("post_"), ~ if_else(is.na(.), F, .)),
-		across(ends_with("_ksi"), ~ . / n_segments, .names = "{.col}_mean")
-	) %>%
-	mutate(across( # set nan to na
-		everything(),
-		~ ifelse(is.nan(.), NA, .)
-	)) %>%
-	select(order(colnames(.))) %>%
-	select(
-		year,
-		quarter,
-		street,
-		type,
-		segments = n_segments,
-		len_km = n_len_km,
-		add_year,
-		add_type,
-		add_segments,
-		add_len_km,
-		starts_with("post_"),
-		ksi,
-		non_ksi,
-		everything()
-	) %>%
 	arrange(street, year, quarter, type)
 
 # Show data table

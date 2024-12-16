@@ -442,6 +442,15 @@ bike_proc <- bike_proc %>%
             mutate(type = replace_na(type, "none"))
     }, .keep = T) %>%
     bind_rows %>%
+	left_join(
+		bike %>%
+			select(
+				segment_id = id,
+				segment_len_km = geometry_len_km
+			),
+		by = "segment_id"
+	) %>%
+	select(street, year, segment_id, segment_len_km, type) %>%
 	arrange(street, year, segment_id)
 
 # Show bike events
@@ -505,7 +514,7 @@ datatable(bike_counts)
 
 The results contain:
 
-1. Data of injury counts by infrastructure type and year
+1. Data of injury counts and rates by infrastructure type and year
 2. Plot showing injury counts by street and road user
 
 ## Data {.tabset .tabset-dropdown}
@@ -543,6 +552,7 @@ out <- bike_counts %>%
 		street,
 		type,
 		segment_id,
+		segment_len_km,
 		ksi,
 		non_ksi,
 		ends_with("_ksi"),
@@ -556,41 +566,34 @@ datatable(
 )
 ```
 
-### By Segment Quarters
+### By Kilometers
 
-The quarterly rates data consists of quarterly injured individuals per segment for each street and infrastructure type:
+The rates data consists of injured individuals per km-year for each street and infrastructure type:
 
 * `street`: the street of interest
 * `type`: the type of infrastructure
 * `segments`: the number of segments for the infrastructure type
+* `mean_segments_per_year`: the average number of segments per year for the infrastructure year
 * `ksi`: the total number of Killed or Seriously Injured (KSI) collisions
 * `non_ksi`: the total number of non-KSI collisions
-* `ksi_per_segment`: the number of Killed or Seriously Injured (KSI) collisions per segment
-* `non_ksi_per_segment`: the number of non-KSI collisions per segment
-* `ksi_per_segment_quarter`: the number of Killed or Seriously Injured (KSI) collisions per segment quarter
-* `non_ksi_per_segment_quarter`: the number of non-KSI collisions per segment quarter
 * `<USER>_ksi`: the number of KSI individuals for a road user group indicated by `<USER>`
 * `<USER>_non_ksi`: the number of non-KSI individuals for a road user group indicated by `<USER>`
-* `<USER>_ksi_per_segment`: the number of KSI individuals for a road user group indicated by `<USER>` per segment
-* `<USER>_non_ksi_per_segment`: the number of non-KSI individuals for a road user group indicated by `<USER>` per segment
-* `<USER>_ksi_per_segment_quarter`: the number of KSI individuals for a road user group indicated by `<USER>` per segment quarter
-* `<USER>_non_ksi_per_segment_quarter`: the number of non-KSI individuals for a road user group indicated by `<USER>` per segment quarter
+* `<USER>_ksi_per_km`: the number of KSI individuals for a road user group indicated by `<USER>` per km-year
+* `<USER>_non_ksi_per_km`: the number of non-KSI individuals for a road user group indicated by `<USER>` per km-year
 
-Quarterly injury rates per segment for a street and infrastructure type are calculated using the following equation:
+Injury rates per segment-year for a street and infrastructure type are calculated using the following equation:
 
 $$
-f(s,i) = \frac{\sum_{t=min\ year}^{max\ year}x_{t,s,i}/N_{s,i}}{4}
+Rate_{street,type} = \frac{\sum_{i=1}^{n}\sum_{j=1}^{m}x_{i,j}}{l_{i,j}}
 $$
 
-* $s$ is the street
-* $i$ is the infrastructure type
-* $min\ year$ is the minimum year of the collision data range
-* $max\ year$ is the maximum year of the collision data range
-* $x_{t,s,i}$ is the number of injuries given the year $t$, street $s$, and infrastructure type $i$
-* $N_{s,i}$ is the total number of bikeway segments for street $s$ and infrastructure type $i$ across $min\ year$ and $max\ year$
-* $4$ is the number of quarters per year
-
-Given the street $s$ and infrastructure type $i$, this equation sums the number of injuries $x$ between the $min\ year$ and $max\ year$, divides them the number of segments $N$, and the number 4 (the number of quarters per year).
+* $Rate_{street,type}$ is the number of injuries per km-year for a street and infrastructure type
+* $n$ is the number of years in the collision data
+* $i$ is the year index of the collision data range (e.g. $i=1$ is the first year)
+* $m$ is the number of segments in the collision data
+* $j$ is the segment index of the collision data range (e.g. $j=1$ is the first segment)
+* $x_{i,j}$ is the number of injuries for year $i$ and segment $j$ for the given street and infrastructure type
+* $l_{i,j}$ is the length of segment $i$ for year $j$ for the given street and infrastructure type
 
 ```{r}
 
@@ -601,22 +604,33 @@ out_rates <- expand.grid(
 ) %>%
 	left_join(
 		out %>%
-			group_by(street, type) %>%
-		    summarize(
+			group_by(street, year, type) %>%
+			summarize( # yearly calcs
 		        segments = n(),
+		        len_km = sum(segment_len_km, na.rm = T),
 		        across(
 		            starts_with("ksi") | ends_with("_ksi"),
 		            ~ sum(., na.rm = T)
 		        ),
 		        across(
 		            starts_with("ksi") | ends_with("_ksi"),
-		            ~ . / segments,
-		            .names = "{.col}_per_segment"
+		            ~ . / len_km,
+		            .names = "{.col}_per_km"
+		        )
+		    ) %>%
+			group_by(street, type) %>%
+		    summarize( # total calcs
+		        mean_segments_per_year = mean(segments, na.rm = T),
+		        segments = sum(segments, na.rm = T),
+		        len_km = sum(len_km, na.rm = T),
+		        across(
+		            starts_with("ksi") | ends_with("_ksi"),
+		            ~ sum(., na.rm = T)
 		        ),
 		        across(
-		        	ends_with("_per_segment"),
-		        	~ . / 4,
-		        	.names = "{.col}_quarter"
+		            starts_with("ksi") | ends_with("_ksi"),
+		            ~ . / len_km,
+		            .names = "{.col}_per_km"
 		        )
 		    ),
 		by = c("street", "type")
@@ -626,6 +640,8 @@ out_rates <- expand.grid(
 		street,
 		type,
 		segments,
+		mean_segments_per_year,
+		len_km,
 		starts_with("ksi"),
 		starts_with("non_ksi"),
 		everything()
@@ -1038,4 +1054,39 @@ plot_map <- function(
 ### All Non-KSI
 
 plot_map(ksi_type = "non_ksi")
+
+# Graphviz
+digraph G {
+  
+  subgraph cluster1{
+    label = "Step 1: Data Cleaning"
+    
+    bike1[label="Bloor, University,\nDanforth, and Yonge\nCycle Tracks\n(n=16)" shape=rect]
+    colli1[label="Minimal, Minor\nMajor, and Fatal Injuries\nInside Toronto\n(n=170,462)" shape=rect]
+  }
+  
+  subgraph cluster2{
+      label = "Step 2: Spatial Data Processing"
+      colli2[label="Injuries within\n25 Meters of Cycle Track\n(n=5,504)" shape=rect]
+  }
+  
+  subgraph cluster3{
+      label = "Step 3: Injury Rate Calculations"
+      colli3d[label="Driver-related\nCollisions\n(n=3,257)" shape=rect]
+      colli3p[label="Pedestrian-related\nCollisions\n(n=879)" shape=rect]
+      colli3c[label="Cyclist-related\nInjuries\n(n=1,049)" shape=rect]
+      colli3o[label="Other\nInjuries\n(n=319)" shape=rect]
+  }
+  
+  bike[label="Verified Bikeways\n(n=1,323)" shape=cylinder]
+  colli[label="All Collisions\n(n=1,355,219)" shape=cylinder]
+  bounds[label="Toronto City Bounds\n(n=1)" shape=cylinder]
+  
+  bike -> bike1 -> colli2:w
+  colli,bounds -> colli1 -> colli2:e
+  colli2 -> colli3d:w
+  colli2 -> colli3p
+  colli2 -> colli3c:e
+  colli2 -> colli3o
+}
 ```

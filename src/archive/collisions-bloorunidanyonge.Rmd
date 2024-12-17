@@ -125,7 +125,7 @@ bounds_raw <- read_sf("../../data/toronto-boundary-2019-07-23/citygcs_regional_m
 ctl_raw <- read_sf("../../data/toronto-centrelines-2024-12-06.geojson")
 
 # Load toronto bikeways data
-bike_raw <- read_sf("../../data/toronto-bikeways-2024-10-27.geojson")
+bike_raw <- read_sf("../../data/toronto-bikeways-2024-12-16.geojson")
 
 # Load all toronto collisions from 2022 to 2024
 colli_raw <- read_sf(
@@ -510,20 +510,14 @@ bike_counts <- bike_proc %>%
 datatable(bike_counts)
 ```
 
-# Results {.tabset}
+# Results
 
 The results contain:
 
 1. Data of injury counts and rates by infrastructure type and year
 2. Plot showing injury counts by street and road user
 
-## Data {.tabset .tabset-dropdown}
-
-The resulting data consists of injury counts on verified bikeways by segments and by segment quarters.
-
-**Note: Use the dropdown to view different sets of data.**
-
-### By Segments
+## Data By Segments
 
 The resulting data consists of the following columns:
 
@@ -531,6 +525,7 @@ The resulting data consists of the following columns:
 * `street`: the street of interest
 * `type`: the type of infrastructure
 * `segment_id`: the segment identifier
+* `segment_len_km`: the segment length in kilometers
 * `ksi`: the total number of Killed or Seriously Injured (KSI) collisions
 * `non_ksi`: the total number of non-KSI collisions
 * `<USER>_ksi`: the number of KSI individuals for a road user group indicated by `<USER>`
@@ -566,20 +561,22 @@ datatable(
 )
 ```
 
-### By Kilometers
+## Data By Kilometers
 
 The rates data consists of injured individuals per km-year for each street and infrastructure type:
 
 * `street`: the street of interest
 * `type`: the type of infrastructure
 * `segments`: the number of segments for the infrastructure type
-* `mean_segments_per_year`: the average number of segments per year for the infrastructure year
+* `mean_segments_per_year`: the average number of segments per year for the infrastructure type
+* `len_km`: the total length of segments for the infrastructure type
+* `mean_len_km_per_year`: the average length of segments per year for the infrastructure type
 * `ksi`: the total number of Killed or Seriously Injured (KSI) collisions
 * `non_ksi`: the total number of non-KSI collisions
 * `<USER>_ksi`: the number of KSI individuals for a road user group indicated by `<USER>`
 * `<USER>_non_ksi`: the number of non-KSI individuals for a road user group indicated by `<USER>`
-* `<USER>_ksi_per_km`: the number of KSI individuals for a road user group indicated by `<USER>` per km-year
-* `<USER>_non_ksi_per_km`: the number of non-KSI individuals for a road user group indicated by `<USER>` per km-year
+* `<USER>_ksi_per_km_year`: the number of KSI individuals for a road user group indicated by `<USER>` per km-year
+* `<USER>_non_ksi_per_km_year`: the number of non-KSI individuals for a road user group indicated by `<USER>` per km-year
 
 Injury rates per segment-year for a street and infrastructure type are calculated using the following equation:
 
@@ -611,17 +608,13 @@ out_rates <- expand.grid(
 		        across(
 		            starts_with("ksi") | ends_with("_ksi"),
 		            ~ sum(., na.rm = T)
-		        ),
-		        across(
-		            starts_with("ksi") | ends_with("_ksi"),
-		            ~ . / len_km,
-		            .names = "{.col}_per_km"
 		        )
 		    ) %>%
 			group_by(street, type) %>%
 		    summarize( # total calcs
 		        mean_segments_per_year = mean(segments, na.rm = T),
 		        segments = sum(segments, na.rm = T),
+		        mean_len_km_per_year = mean(len_km, na.rm = T),
 		        len_km = sum(len_km, na.rm = T),
 		        across(
 		            starts_with("ksi") | ends_with("_ksi"),
@@ -630,7 +623,7 @@ out_rates <- expand.grid(
 		        across(
 		            starts_with("ksi") | ends_with("_ksi"),
 		            ~ . / len_km,
-		            .names = "{.col}_per_km"
+		            .names = "{.col}_per_km_year"
 		        )
 		    ),
 		by = c("street", "type")
@@ -642,6 +635,7 @@ out_rates <- expand.grid(
 		segments,
 		mean_segments_per_year,
 		len_km,
+		mean_len_km_per_year,
 		starts_with("ksi"),
 		starts_with("non_ksi"),
 		everything()

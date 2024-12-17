@@ -1,5 +1,5 @@
 ---
-title: "Quarterly Collisions in Bloor, University, Danforth, and Yonge"
+title: "Road Traffic Injuries on Bloor, University, Danforth, and Yonge in Toronto, Ontario, Canada"
 subtitle: "R Code"
 author:
 - "Richard Wen richard.wen@utoronto.ca"
@@ -575,10 +575,10 @@ The rates data consists of injured individuals per km-year for each street and i
 * `non_ksi`: the total number of non-KSI collisions
 * `<USER>_ksi`: the number of KSI individuals for a road user group indicated by `<USER>`
 * `<USER>_non_ksi`: the number of non-KSI individuals for a road user group indicated by `<USER>`
-* `<USER>_ksi_per_km_year`: the number of KSI individuals for a road user group indicated by `<USER>` per km-year
-* `<USER>_non_ksi_per_km_year`: the number of non-KSI individuals for a road user group indicated by `<USER>` per km-year
+* `<USER>_ksi_per_km_year`: KSI injuries for a road user group indicated by `<USER>` per km-year
+* `<USER>_non_ksi_per_km_year`: non-KSI injuries for a road user group indicated by `<USER>` per km-year
 
-Injury rates per segment-year for a street and infrastructure type are calculated using the following equation:
+Road user injuries per km-year (`<USER>_ksi_per_km_year` and `<USER>_non_ksi_per_km_year`) for a street and infrastructure type are calculated using the following equation:
 
 $$
 Rate_{street,type} = \frac{\sum_{i=1}^{n}\sum_{j=1}^{m}x_{i,j}}{l_{i,j}}

@@ -594,6 +594,9 @@ $$
 
 ```{r}
 
+# Calc number of years
+n_years <- (max(out$year, na.rm = T) - min(out$year, na.rm = T)) + 1
+
 # Calc rates for output
 out_rates <- expand.grid(
 	street = unique(out$street),
@@ -612,9 +615,9 @@ out_rates <- expand.grid(
 		    ) %>%
 			group_by(street, type) %>%
 		    summarize( # total calcs
-		        mean_segments_per_year = mean(segments, na.rm = T),
+		        mean_segments_per_year = sum(segments, na.rm = T) / n_years,
 		        segments = sum(segments, na.rm = T),
-		        mean_len_km_per_year = mean(len_km, na.rm = T),
+		        mean_len_km_per_year = sum(len_km, na.rm = T) / n_years,
 		        len_km = sum(len_km, na.rm = T),
 		        across(
 		            starts_with("ksi") | ends_with("_ksi"),

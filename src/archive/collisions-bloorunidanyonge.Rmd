@@ -581,7 +581,7 @@ The rates data consists of injured individuals per km-year for each street and i
 Road user injuries per km-year (`<USER>_ksi_per_km_year` and `<USER>_non_ksi_per_km_year`) for a street and infrastructure type are calculated using the following equation:
 
 $$
-Rate_{street,type} = \frac{\sum_{i=1}^{n}\sum_{j=1}^{m}x_{i,j}}{l_{i,j}}
+Rate_{street,type} = \sum_{i=1}^{n}\sum_{j=1}^{m}\frac{x_{i,j}}{l_{i,j}}
 $$
 
 * $Rate_{street,type}$ is the number of injuries per km-year for a street and infrastructure type

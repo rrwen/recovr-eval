@@ -44,6 +44,7 @@ library(glue)
 library(tidyverse)
 library(tmap)
 library(DT)
+library(writexl)
 
 ```
 
@@ -561,22 +562,21 @@ datatable(
 )
 ```
 
-## Data By Kilometers
+## Data By Kilometers {.tabset}
 
 The rates data consists of injured individuals per km-year for each street and infrastructure type:
 
-* `street`: the street of interest
-* `type`: the type of infrastructure
-* `segments`: the number of segments for the infrastructure type
-* `mean_segments_per_year`: the average number of segments per year for the infrastructure type
-* `len_km`: the total length of segments for the infrastructure type
-* `mean_len_km_per_year`: the average length of segments per year for the infrastructure type
-* `ksi`: the total number of Killed or Seriously Injured (KSI) collisions
-* `non_ksi`: the total number of non-KSI collisions
-* `<USER>_ksi`: the number of KSI individuals for a road user group indicated by `<USER>`
-* `<USER>_non_ksi`: the number of non-KSI individuals for a road user group indicated by `<USER>`
-* `<USER>_ksi_per_km_year`: KSI injuries for a road user group indicated by `<USER>` per km-year
-* `<USER>_non_ksi_per_km_year`: non-KSI injuries for a road user group indicated by `<USER>` per km-year
+* `Cycling Corridor`: the street of interest
+* `Infrastructure Type`: the type of infrastructure
+* `Total Segments-Year`: the number of segments-year
+* `Average # Segments Per Year`: the average number of segments-year
+* `Total Road km-Year`: the total length in road km-year
+* `KSI`: the total number of Killed or Seriously Injured (KSI) collisions
+* `Non-KSI`: the total number of non-KSI collisions
+* `<USER> KSI`: the number of KSI for a road user group indicated by `<USER>`
+* `<USER> Non-KSI`: the number of non-KSI for a road user group indicated by `<USER>`
+* `<USER> KSI Per km-Year`: KSI injuries for a road user group indicated by `<USER>` per km-year
+* `<USER> Non-KSI Per km-Year`: non-KSI injuries for a road user group indicated by `<USER>` per km-year
 
 Road user injuries per km-year (`<USER>_ksi_per_km_year` and `<USER>_non_ksi_per_km_year`) for a street and infrastructure type are calculated using the following equation:
 
@@ -591,6 +591,8 @@ $$
 * $j$ is the segment index of the collision data range (e.g. $j=1$ is the first segment)
 * $x_{i,j}$ is the number of injuries for year $i$ and segment $j$ for the given street and infrastructure type
 * $l_{i,j}$ is the length of segment $i$ for year $j$ for the given street and infrastructure type
+
+### Data
 
 ```{r}
 
@@ -617,7 +619,6 @@ out_rates <- expand.grid(
 		    summarize( # total calcs
 		        mean_segments_per_year = sum(segments, na.rm = T) / n_years,
 		        segments = sum(segments, na.rm = T),
-		        mean_len_km_per_year = sum(len_km, na.rm = T) / n_years,
 		        len_km = sum(len_km, na.rm = T),
 		        across(
 		            starts_with("ksi") | ends_with("_ksi"),
@@ -638,7 +639,6 @@ out_rates <- expand.grid(
 		segments,
 		mean_segments_per_year,
 		len_km,
-		mean_len_km_per_year,
 		starts_with("ksi"),
 		starts_with("non_ksi"),
 		everything()
@@ -653,12 +653,70 @@ out_rates <- expand.grid(
 			)
 		)
 	) %>%
-	arrange(street, type)
+	arrange(street, type) %>%
+	mutate(type = str_to_title(type)) %>%
+	rename(
+		"Cycling Corridor" = street,
+		"Infrastructure Type" = type,
+		"Average # Segments Per Year" = mean_segments_per_year,
+		"Total Segments-Year" = segments,
+		"Total Road km Year" = len_km
+	) %>%
+	rename_with(
+		~ str_replace_all(., "_", " ") %>%
+		    str_to_title %>%
+		    str_replace_all("Ksi", "KSI") %>%
+			str_replace_all("Km Year", "km-Year") %>%
+			str_replace_all("Non KSI", "Non-KSI"),
+		everything()
+	)
 
 # Show data table
 datatable(
 	out_rates,
-	filename = glue("toronto-collisions-bloorunidanyonge-rates-{today()}")
+	filename = glue("toronto-collisions-bloorunidanyonge-rates-all-{today()}")
+)
+
+```
+
+### Excel Sheets
+
+The excel sheet consists of the rates data in Excel format with sheets for each road user.
+
+* [collisions-bloorunidanyonge-rates-`r today()`.xlsx](https://github.com/rrwen/recovr-eval/blob/main/data/archive/collisions-bloorunidanyonge-rates-`r today()`.xlsx)
+
+```{r}
+
+# Set base excel columns for each sheet
+out_rates_cols <- c(
+	"Cycling Corridor",
+	"Infrastructure Type",
+	"Average # Segments Per Year",
+	"Total Segments-Year",
+	"Total Road km-Year"
+)
+
+# Create excel sheets
+out_rates_excel <- list(
+	"All" = out_rates,
+	"Cyclist" = out_rates %>% select(
+		out_rates_cols,
+		starts_with("Cyclist")
+	),
+	"Driver" = out_rates %>% select(
+		out_rates_cols,
+		starts_with("Driver")
+	),
+	"Pedestrian" = out_rates %>% select(
+		out_rates_cols,
+		starts_with("Pedestrian")
+	)
+)
+
+# Write data to excel file
+write_xlsx(
+	out_rates_excel,
+	path = glue("../../data/archive/collisions-bloorunidanyonge-rates-{today()}.xlsx")
 )
 
 ```

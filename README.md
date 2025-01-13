@@ -16,6 +16,7 @@ Cycling infrastructure experiments for the RECOVR initiative (Road-safety Evalua
 * `figures`: contains image files of generated figures
 * `slides`: contains presentation slides
 * `src`: code files for data processing and modelling
+	* The main file is [index.Rmd](src/index.Rmd)
 * `tmp`: folder for temporary and untracked files
 
 ## Contact

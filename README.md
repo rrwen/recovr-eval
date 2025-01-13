@@ -1,19 +1,22 @@
 # RECOVR Cycling Evaluation Experiments
 
-* [R Code for Figures and Tables](https://rrwen.github.io/recovr-eval/)
+* [R Code for Model Data](https://rrwen.github.io/recovr-eval/)
+* [R Code for Toronto Bikeway Checks](https://rrwen.github.io/recovr-eval/archive/check-toronto-bikeways)
+* [R Code for Vancouver KSI Checks](https://rrwen.github.io/recovr-eval/archive/check-vancouver-ksi)
+* [R Code for Bloor, University, Danforth, and Yonge Experiment](https://rrwen.github.io/recovr-eval/archive/collisions-bloorunidanyonge)
 
 Cycling infrastructure experiments for the RECOVR initiative (Road-safety Evaluation during COVID-19 among Vulnerable Road Users in Canada).  
   
-To reproduce the figures and tables in the study, follow the instructions in the [R Code for Figures and Tables](https://rrwen.github.io/recovr-eval/).
-
 ## Folder Structure
 
 * `data`: contains the raw and pre-processed data
 	* For a description of pre-processed data, see [data.csv](data/data.csv)
 	* Each data file ending in `-datadict` contains the data dictionary of column names and descriptions
+* `docs`: contains the resulting HTML files from running code in the `src` folder
 * `figures`: contains image files of generated figures
-* `docs`: contains the HTML files for [R Code for Figures and Tables](https://rrwen.github.io/recovr-eval/)
 * `slides`: contains presentation slides
+* `src`: code files for data processing and modelling
+* `tmp`: folder for temporary and untracked files
 
 ## Contact
 

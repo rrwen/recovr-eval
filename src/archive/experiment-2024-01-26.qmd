@@ -1,0 +1,411 @@
+---
+title: "Experiment: Detecting Effective Bikeways for Reducing Collisions"
+format: html
+execute: 
+  warning: false
+  message: false
+---
+
+```{r}
+#| echo: false
+
+# Get today's date
+today <- format(Sys.time(), "%A, %B %d, %Y")
+```
+
+Richard Wen\
+rrwen.dev\@gmail.com\
+`{r} today`
+
+# Libraries
+
+```{r}
+
+# Load libraries
+library(tidyverse)
+library(glue)
+library(broom)
+library(sf)
+library(ggplot2)
+library(dplyr)
+library(ggspatial)
+library(sf)
+library(DT)
+library(tmap)
+
+```
+
+# Data
+
+City boundaries downloaded from https://open.toronto.ca/dataset/regional-municipal-boundary/ (last updated December 7, 2019).
+
+All collisions data (2010-2022) was provided by David McElroy [David.McElroy\@toronto.ca](mailto:David.McElroy@toronto.ca){.email} from the City of Toronto on November 7, 2024.
+
+Verified bikeways data (2001 to 2022) originally downloaded by Konrad Samsel [konrad.samsel\@mail.utoronto.ca](mailto:konrad.samsel@mail.utoronto.ca){.email} in January 2023 based on Toronto Cycling Network data ([url](https://open.toronto.ca/dataset/cycling-network/)), and last updated by Konrad on March 25, 2024. This data was later modified by Richard Wen [richard.wen\@utoronto.ca](mailto:richard.wen@utoronto.ca){.email}, and was last updated October 27, 2024.
+
+```{r}
+
+# Load toronto city bounds
+bounds_raw <- read_sf("../../data/toronto-boundary-2019-07-23/citygcs_regional_mun_wgs84.shp")
+
+# Load toronto bikeways data
+bike_raw <- read_sf("../../data/toronto-bikeways-2024-12-16.geojson")
+
+# Load all toronto collisions from 2022 to 2024
+crash_raw <- read_sf(
+	"../../tmp/i0327_collisionsrep_acc_export.csv",
+	options = c(
+		"X_POSSIBLE_NAMES=LONGITUDE",
+		"Y_POSSIBLE_NAMES=LATITUDE"
+	),
+	crs = 4326
+)
+
+```
+
+## City Boundaries
+
+Preview city boundaries.
+
+```{r}
+ggplot() +
+	layer_spatial(bounds_raw)
+```
+
+## Bikeways
+
+Preview the first 50 rows of the bikeways data.
+
+```{r}
+bike_raw %>%
+	as_tibble %>%
+	select(-geometry) %>%
+	head(50) %>%
+	datatable
+```
+
+## Collisions
+
+Preview the first 50 rows of the collisions data.
+
+```{r}
+crash_raw %>%
+	as_tibble %>%
+	select(-geometry) %>%
+	head(50) %>%
+	datatable
+```
+
+# Preprocessing
+
+## Re-project and Crop
+
+Re-project coordinate reference systems to EPSG:26717 (NAD27, Zone 17N), and crop all datasets to the City of Toronto boundaries.
+
+```{r}
+
+# Reproject crs to 26717 NAD28 Zone 17N
+bounds <- bounds_raw %>% st_transform(26717)
+bike_reproj <- bike_raw %>% st_transform(26717)
+crash_reproj <- crash_raw %>% st_transform(26717)
+
+# Crop to city bounds
+bike_crop <- bike_reproj %>% st_intersection(bounds)
+crash_crop <- crash_reproj %>% st_intersection(bounds)
+
+```
+
+## Clean Bikeways
+
+For the bikeways, add lengths in kilometers, correct for same/none type events, and standardize infrastructure types.
+
+Filter for verified bikeways only.
+
+```{r}
+
+# Preprocess bikeways
+bike <- bike_crop %>%
+	mutate(across(c( # lower case before standardizing
+			verify_install_type,
+			verify_upgrade1_type,
+			verify_upgrade2_type
+		),
+		~ str_to_lower(.x)
+	)) %>%
+	mutate(across( # standardize infra types
+		c(
+			verify_install_type,
+			verify_upgrade1_type,
+			verify_upgrade2_type
+		),
+		~ case_when(
+        	.x == "pl" ~ "painted lane",
+        	.x == "buf" ~ "buffered lane",
+        	.x == "pbl" ~ "cycle track",
+        	.x == "sr" ~ "shared road",
+        	.x %in% c("none", "n") ~ "none",
+        	.default = NA
+        )
+	)) %>%
+	mutate( # add len and correct same and none types
+		len_km = as.numeric(st_length(geometry)) / 1000,
+		verify_install_type = if_else(
+			!verify_install_type %in% c("painted lane", "buffered lane", "cycle track"),
+			verify_upgrade1_type,
+			verify_install_type
+		),
+		verify_upgrade2_type = if_else(
+			verify_upgrade2_type == verify_upgrade1_type,
+			NA,
+			verify_upgrade2_type
+		),
+		verify_upgrade1_type = if_else(
+			verify_upgrade1_type == verify_install_type,
+			NA,
+			verify_upgrade1_type
+		)
+	) %>%
+	filter(!is.na(verify_install_type))
+
+```
+
+## Clean Collisions
+
+For collisions, create time columns, filter for individuals with injuries only, and standardize road user types.
+
+```{r}
+
+# Preprocess crashes
+crash <- crash_crop %>%
+	mutate( # create standard cols
+		date = as_date(ACCDATE),
+		month = floor_date(date, "month"),
+		injury = case_when(
+			INJURY == "0" ~ "none",
+			INJURY == "1" ~ "minimal",
+			INJURY == "2" ~ "minor",
+			INJURY == "3" ~ "major",
+			INJURY == "4" ~ "fatal"
+		),
+		user = case_when(
+			INVTYPE %in% c("01", "02") ~ "driver",
+			INVTYPE == "03" ~ "pedestrian",
+			INVTYPE %in% c("04", "05") ~ "cyclist",
+			.default = "other"
+		)
+	) %>%
+	filter(injury %in% c("minimal", "minor", "major", "fatal")) %>% # injuries 
+	filter(year(date) < 2020) # remove covid years
+	
+```
+
+## Model Data
+
+Spatially join injury points to each bikeway segment if within 25 meters, calculate monthy injuries for each segment, and add the infrastructure type for each year for each bikeway.
+
+```{r}
+
+# Create template of all combos of bike ids and crash years
+date_min <- min(crash$month, na.rm = T)
+date_max <- max(crash$month, na.rm = T)
+bike_model_temp <- expand.grid(
+	id = unique(bike$id),
+	month = seq(date_min, date_max, by = "1 month")
+)
+
+# Buffer bikeways by 25 meters
+bike_buff <- bike %>% st_buffer(25)
+
+# Spatially join injuries to each bikeway
+sjoin <- crash %>%
+	st_join(bike_buff)
+
+# Calc monthly injuries
+bike_crash <- sjoin %>%
+	as_tibble %>%
+	select(-geometry) %>%
+	group_by(id, month) %>%
+	count(name = "x")
+
+# Get infra type and month
+bike_type <- bike %>%
+    as_tibble %>%
+    select(-geometry) %>%
+    pivot_longer( # one row per event
+        cols = c(verify_install_type, verify_upgrade1_type, verify_upgrade2_type),
+        names_to = "event",
+        values_to = "type"
+    ) %>%
+    mutate( # extract infra year
+        event = str_split_i(event, "_", 2),
+        year = case_when(
+            event == "install" ~ verify_install_year,
+            event == "upgrade1" ~ verify_upgrade1_year,
+            event == "upgrade2" ~ verify_upgrade2_year,
+            .default = NA
+        ),
+        year = case_when(
+        	year < year(date_min) ~ year(date_min),
+        	year > year(date_max) ~ year(date_max),
+        	.default = year
+        ),
+        month = as_date(glue("{year}-01-01"))
+    ) %>%
+    select(id, month, type) %>%
+    filter(!is.na(type))
+
+# Add to template then fill in infra types and na
+bike_model_data <- bike_model_temp %>%
+	left_join(bike_crash, by = c("id", "month")) %>%
+	left_join(bike_type, by = c("id", "month")) %>%
+	arrange(id, month) %>%
+	group_by(id) %>%
+	fill( # fill in infra types
+		type,
+		.direction = "down"
+	) %>%
+	ungroup %>%
+	mutate( # fill in none types and na injuries
+		type = if_else(is.na(type), "none", type),
+		x = replace_na(x, 0)
+	)
+
+```
+
+# Modelling
+
+Run linear regression models per bikeway segment whenever there was a change in cycling infrastructure (e.g. one regression per bikeway segment and type).
+
+```{r}
+
+# Create a linear model for each segment and type combo
+bike_model <- bike_model_data %>%
+    group_by(id, type) %>%
+    group_map(~{
+        
+        # Apply linear regression
+        group_lm <- lm(x ~ month, .x) %>%
+            tidy %>%
+            filter(term == "month") %>%
+            select(estimate, p.value) %>%
+            rename(
+                m = estimate,
+                p = p.value
+            )
+        
+        # Add extra info
+        group_info <- data.frame(
+        	x_sum = sum(.x$x, na.rm = T),
+            n = nrow(.x),
+            month_min = min(.x$month, na.rm = T),
+            month_max = max(.x$month, na.rm = T)
+        ) %>%
+        	mutate(
+        		x_years = year(month_max) - year(month_min)
+        	)
+        
+        # Create output with coeff and trends
+        out <- cbind(.y, group_lm, group_info) %>%
+        	mutate(
+        		trend = case_when(
+        			m < 0 ~ "decreasing",
+        			m > 0 ~ "increasing",
+        			.default = "none"
+        		)
+        	)
+        return(out)
+        
+    }) %>%
+    bind_rows
+
+```
+
+# Results
+
+Examine the average number of years of increasing and decreasing trends for each infrastructure type.
+
+```{r}
+
+# Prepare summary table of avg years
+result_trends <- bike_model %>%
+	filter(trend != "none") %>%
+	group_by(type, trend) %>%
+	summarize(
+		n = n(),
+		n_sig = sum(p <= 0.05, na.rm = T),
+		min_m = min(m, na.rm = T),
+		max_m = max(m, na.rm = T),
+		std_m = sd(m, na.rm = T),
+		mean_m = mean(m, na.rm = T),
+		min_years = min(x_years, na.rm = T),
+		max_years = max(x_years, na.rm = T),
+		std_years = sd(x_years, na.rm = T),
+		mean_years = mean(x_years, na.rm = T),
+		min_year = min(year(month_min), na.rm = T),
+		max_year = max(year(month_max), na.rm = T)
+	)
+
+# Display summary table of trends and avg years
+result_trends %>% datatable
+
+```
+
+Where is cycling infrastructure safer?
+
+```{r}
+
+# Filter map data
+map_ct <- bike %>%
+	right_join(bike_model, by = "id") %>%
+	filter(trend == "decreasing" & type == "cycle track") %>%
+	rename(`Cycle Track (coef)` = m)
+map_pl <- bike %>%
+	right_join(bike_model, by = "id") %>%
+	filter(trend == "decreasing" & type == "painted lane") %>%
+	rename(`Painted Lane (coef)` = m)
+map_bl <- bike %>%
+	right_join(bike_model, by = "id") %>%
+	filter(trend == "decreasing" & type == "buffered lane") %>%
+	rename(`Buffered Lane (coef)` = m)
+
+# Create map
+tmap_mode("view")
+tm_shape(map_ct) +
+	tm_lines(col = "Cycle Track (coef)", palette = "Reds", lwd = 3) +
+	tm_shape(map_bl) + 
+	tm_lines(col = "Buffered Lane (coef)", palette = "Blues", lwd = 3) +
+	tm_shape(map_pl) +
+	tm_lines(col = "Painted Lane (coef)", palette = "Greens", lwd = 3)
+	
+
+```
+
+Where is cycling infrastructure less safe?
+
+```{r}
+
+# Filter map data
+map_ct <- bike %>%
+	right_join(bike_model, by = "id") %>%
+	filter(trend == "increasing" & type == "cycle track") %>%
+	rename(`Cycle Track (coef)` = m)
+map_pl <- bike %>%
+	right_join(bike_model, by = "id") %>%
+	filter(trend == "increasing" & type == "painted lane") %>%
+	rename(`Painted Lane (coef)` = m)
+map_bl <- bike %>%
+	right_join(bike_model, by = "id") %>%
+	filter(trend == "increasing" & type == "buffered lane") %>%
+	rename(`Buffered Lane (coef)` = m)
+
+# Create map
+tmap_mode("view")
+tm_shape(map_ct) +
+	tm_lines(col = "Cycle Track (coef)", palette = "Reds", lwd = 3) +
+	tm_shape(map_bl) + 
+	tm_lines(col = "Buffered Lane (coef)", palette = "Blues", lwd = 3) +
+	tm_shape(map_pl) +
+	tm_lines(col = "Painted Lane (coef)", palette = "Greens", lwd = 3)
+	
+
+```

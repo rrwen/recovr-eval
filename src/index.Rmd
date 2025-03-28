@@ -170,13 +170,13 @@ tm_shape(vancbike_raw %>% head(1000)) +
     )
 ```
 
-### Data
+### Preview
 
 * Columns: `r ncol(vancbike_raw)`
 * Rows: `r nrow(vancbike_raw)`
 
 ```{r}
-vancbike_raw %>% as_tibble
+vancbike_raw %>% as_tibble %>% head
 ```
 
 ### Dictionary
@@ -235,13 +235,13 @@ tm_shape(calgbike_raw %>% head(1000)) +
     )
 ```
 
-### Data
+### Preview
 
 * Columns: `r ncol(calgbike_raw)`
 * Rows: `r nrow(calgbike_raw)`
 
 ```{r}
-calgbike_raw %>% as_tibble
+calgbike_raw %>% as_tibble %>% head
 ```
 
 ### Dictionary
@@ -301,13 +301,13 @@ tm_shape(toronbike_raw %>% head(1000)) +
     )
 ```
 
-### Data
+### Preview
 
 * Columns: `r ncol(toronbike_raw)`
 * Rows: `r nrow(toronbike_raw)`
 
 ```{r}
-toronbike_raw %>% as_tibble
+toronbike_raw %>% as_tibble %>% head
 ```
 
 ### Dictionary
@@ -418,13 +418,13 @@ tm_shape(toronksi_raw %>% filter(year(DATE) == max(year(DATE)))) +
     )
 ```
 
-### Data
+### Preview
 
 * Columns: `r ncol(toronksi_raw)`
 * Rows: `r nrow(toronksi_raw)`
 
 ```{r}
-toronksi_raw %>% as_tibble()
+toronksi_raw %>% as_tibble() %>% head
 ```
 
 ### Dictionary
@@ -2621,8 +2621,8 @@ tm_shape(bike_adj %>% select(-ends_with("comment"))) +
 		lwd = 1.5,
 		popup.vars = T
 	) +
-	tm_shape(bike_adj %>% st_cast("POINT")) +
-	tm_dots(group = NULL, col = "red", size = 0.03)
+	tm_shape(bike_adj %>% suppressWarnings(st_cast("POINT"))) +
+	tm_dots(col = "red", size = 0.5)
 ```
 
 
@@ -2755,15 +2755,18 @@ bike_sjoin <- bike_adj %>%
 	mutate(
 		id = as.character(id)
 	) %>%
-	full_join( # add spatial joins
+	right_join( # add spatial joins
 		sjoin,
 		by = "id"
 	) %>%
-	full_join( # add ksi
+	left_join( # add ksi
 		ksi_tunits %>%
 			as_tibble %>%
 			select(-geometry, -ksi_city),
 		by = "ksi_id"
+	) %>%
+	filter( # ensure ksis join to bikeway by city
+		city == ksi_city
 	) %>%
 	mutate( # calc ksi user flags
 		ksi_user_driver = if_else(
@@ -4017,4 +4020,18 @@ fig_flowchart %>%
 # Display flowchart
 fig_flowchart
 
+```
+
+# Software and Package Versions
+
+R and R package versions:
+
+```{r echo = FALSE}
+sessionInfo()
+```
+
+RStudio version:
+
+```{r echo = FALSE}
+rstudioapi::versionInfo()
 ```

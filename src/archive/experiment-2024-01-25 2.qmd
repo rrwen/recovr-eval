@@ -1,0 +1,544 @@
+---
+title: "Experiment: Exploring Spatial Distribution of Traffic Collisions in Toronto, ON, Canada"
+format: html
+execute: 
+  warning: false
+  message: false
+---
+
+```{r}
+#| echo: false
+
+# Get today's date
+today <- format(Sys.time(), "%A, %B %d, %Y")
+```
+
+Richard Wen\
+rrwen.dev\@gmail.com\
+`{r} today`
+
+# Libraries
+
+```{r}
+
+# Load libraries
+library(tidyverse)
+library(sf)
+library(ggplot2)
+library(dplyr)
+library(ggspatial)
+library(sf)
+library(DT)
+library(scales)
+library(patchwork)
+
+```
+
+# Data
+
+City boundaries downloaded from https://open.toronto.ca/dataset/regional-municipal-boundary/ (last updated December 7, 2019).
+
+All collisions data (2010-2022) was provided by David McElroy [David.McElroy\@toronto.ca](mailto:David.McElroy@toronto.ca){.email} from the City of Toronto on November 7, 2024.
+
+Verified bikeways data (2001 to 2022) originally downloaded by Konrad Samsel [konrad.samsel\@mail.utoronto.ca](mailto:konrad.samsel@mail.utoronto.ca){.email} in January 2023 based on Toronto Cycling Network data ([url](https://open.toronto.ca/dataset/cycling-network/)), and last updated by Konrad on March 25, 2024. This data was later modified by Richard Wen [richard.wen\@utoronto.ca](mailto:richard.wen@utoronto.ca){.email}, and was last updated October 27, 2024.
+
+```{r}
+
+# Load toronto city bounds
+bounds_raw <- read_sf("../../data/toronto-boundary-2019-07-23/citygcs_regional_mun_wgs84.shp")
+
+# Load toronto bikeways data
+bike_raw <- read_sf("../../data/toronto-bikeways-2024-12-16.geojson")
+
+# Load all toronto collisions from 2022 to 2024
+crash_raw <- read_sf(
+	"../../tmp/i0327_collisionsrep_acc_export.csv",
+	options = c(
+		"X_POSSIBLE_NAMES=LONGITUDE",
+		"Y_POSSIBLE_NAMES=LATITUDE"
+	),
+	crs = 4326
+)
+
+```
+
+## City Boundaries
+
+Preview city boundaries.
+
+```{r}
+ggplot() +
+	layer_spatial(bounds_raw)
+```
+
+## Bikeways
+
+Preview the first 50 rows of the bikeways data.
+
+```{r}
+bike_raw %>%
+	as_tibble %>%
+	select(-geometry) %>%
+	head(50) %>%
+	datatable
+```
+
+## Collisions
+
+Preview the first 50 rows of the collisions data.
+
+```{r}
+crash_raw %>%
+	as_tibble %>%
+	select(-geometry) %>%
+	head(50) %>%
+	datatable
+```
+
+# Preprocessing
+
+Preprocess bikeways and collisions data, re-projecting coordinate reference systems to EPSG:26717 (NAD27, Zone 17N) and adding a cropped downtown version of each dataset.
+
+For the bikeways, create one row per event (install, upgrade 1, or upgrade 2), and calculate the length of each bikeway in kilometers.
+
+For collisions, filter for individuals with injuries only and within the boundaries of the City of Toronto.
+
+```{r}
+
+# Reproject crs to 4267
+bounds <- bounds_raw %>% st_transform(26717)
+bike <- bike_raw %>% st_transform(26717)
+crash <- crash_raw %>% st_transform(26717)
+
+# Preprocess bikeways
+bike <- bike %>%
+	st_intersection(bounds) %>%
+	mutate(across(c( # lower case before standardizing
+			verify_install_type,
+			verify_upgrade1_type,
+			verify_upgrade2_type
+		),
+		~ str_to_lower(.x)
+	)) %>%
+	mutate(across( # standardize infra types
+		c(
+			verify_install_type,
+			verify_upgrade1_type,
+			verify_upgrade2_type
+		),
+		~ case_when(
+        	.x == "pl" ~ "painted lane",
+        	.x == "buf" ~ "buffered lane",
+        	.x == "pbl" ~ "cycle track",
+        	.x == "sr" ~ "shared road",
+        	.x %in% c("none", "n") ~ "none",
+        	.default = NA
+        )
+	)) %>%
+	mutate( # cols to pivot
+		pivot_install_type = verify_install_type,
+		pivot_upgrade1_type = verify_upgrade1_type,
+		pivot_upgrade2_type = verify_upgrade2_type
+	) %>%
+	pivot_longer( # one row per event
+		cols = starts_with("pivot_"),
+		names_to = "event",
+		values_to = "event_type"
+	) %>%
+    mutate( # extract event, year, and len
+        event = str_split_i(event, "_", 2),
+        event_year = case_when(
+            event == "install" ~ verify_install_year,
+            event == "upgrade1" ~ verify_upgrade1_year,
+            event == "upgrade2" ~ verify_upgrade2_year,
+            .default = NA
+        ),
+        len_km = as.numeric(st_length(geometry)) / 1000
+    ) %>%
+	filter(
+		!is.na(event_type) & # only events that exist
+		!( # remove non-cycling infra installs
+			event == "install" &
+		  	!event_type %in% c("painted lane", "buffered lane", "cycle track")
+		)
+	)
+	
+# Preprocess crashes
+crash <- crash %>%
+	st_intersection(bounds) %>% # ensure coords are within toronto
+	mutate( # create standard cols
+		date = as_date(ACCDATE), # date col
+		longitude = st_coordinates(geometry)[, 1], # long col
+		latitude = st_coordinates(geometry)[, 2], # lat col
+		injury = case_when( # injury type col
+			INJURY == "0" ~ "none",
+			INJURY == "1" ~ "minimal",
+			INJURY == "2" ~ "minor",
+			INJURY == "3" ~ "major",
+			INJURY == "4" ~ "fatal"
+		),
+		user = case_when( # road user col
+			INVTYPE %in% c("01", "02") ~ "driver",
+			INVTYPE == "03" ~ "pedestrian",
+			INVTYPE %in% c("04", "05") ~ "cyclist",
+			.default = "other"
+		)
+	) %>%
+	filter(injury %in% c("minimal", "minor", "major", "fatal")) # injuries only
+
+# Downtown bounding box
+bbox_downtown <- st_as_sfc(
+	st_bbox(c(
+		xmin = -79.300395,
+		ymin = 43.636621,
+		xmax = -79.489565,
+		ymax = 43.698150
+	))
+)
+st_crs(bbox_downtown) <- 4326
+bbox_downtown <- bbox_downtown %>% st_transform(26717)
+
+# Downtown data
+bounds_downtown <- bounds %>% st_crop(bbox_downtown)
+bike_downtown <- bike %>% st_crop(bbox_downtown)
+crash_downtown <- crash %>% st_crop(bbox_downtown)
+	
+```
+
+# Exploration
+
+## Events
+
+Prior to 2013, cycle tracks were not installed or upgraded, while a large amount of painted lanes were installed in 2007 and 2009.
+
+```{r}
+
+# Stacked bar plot of infra types installed/upgraded per year
+ggplot(
+	bike,
+	aes(x = event_year, y = len_km, fill = event_type)
+) +
+	theme_minimal() +
+	geom_bar(
+		stat = "identity",
+		position = "stack"
+	) +
+	scale_x_continuous(
+		breaks = min(bike$event_year, na.rm = T):max(bike$event_year, na.rm = T)
+	) +
+	labs(
+		title = "Cycling Infrastructure Installed/Upgraded Per Year"
+	) +
+	theme(
+		axis.text.x = element_text(size = 6)
+	)
+	
+```
+
+## Collisions
+
+### Overall
+
+::: panel-tabset
+
+#### Users
+
+```{r}
+
+# Calc user counts
+crash_user_counts <- crash %>%
+	count(user, name = "injuries") %>%
+	arrange(desc(injuries)) %>%
+	mutate(
+		user = factor(user, levels = user),
+		injuries = injuries
+	)
+
+# Bar plot by road user
+ggplot(
+	crash_user_counts,
+	aes(x = user, y = injuries, fill = user, label = injuries)
+) +
+	theme_minimal() +
+	geom_bar(stat = "identity") +
+	geom_text(vjust = -.5) +
+	scale_y_continuous(labels = label_comma())
+
+```
+
+#### City
+
+```{r}
+
+# Heatmap of city
+ggplot(
+	crash,
+	aes(x = longitude, y = latitude)
+) +
+	theme_void() +
+	annotation_map_tile(
+		zoomin = 1,
+		type = "cartolight",
+		cachedir = "../../data/cache"
+	) +
+	annotation_north_arrow(
+		width = unit(0.2, "cm"),
+		height = unit(0.5, "cm"),
+		location = "tr"
+	) +
+	annotation_scale(
+		style = "ticks",
+		location = "br"
+	) +
+	stat_density_2d(
+		aes(fill = ..level..),
+		alpha = 0.5,
+		geom = "polygon"
+	) +
+	layer_spatial(
+		bounds,
+		alpha = 0,
+		color = "black"
+	) +
+	theme(
+		plot.title = element_text(hjust = 0.5)
+	) +
+	labs(
+		title = paste0(
+			"Injuries from Collisions in Toronto, Canada (",
+			min(year(crash$date), na.rm = T),
+			"-",
+			max(year(crash$date), na.rm = T),
+			")"
+		),
+		fill = "Density"
+	)
+
+```
+
+#### Downtown
+
+```{r fig.width = 8, fig.height = 5}
+
+# Heatmap of downtown
+ggplot(
+	crash_downtown,
+	aes(x = longitude, y = latitude)
+) +
+	theme_void() +
+	annotation_map_tile(
+		zoomin = 1,
+		type = "cartolight",
+		cachedir = "../../data/cache"
+	) +
+	annotation_north_arrow(
+		width = unit(0.2, "cm"),
+		height = unit(0.5, "cm"),
+		location = "tr"
+	) +
+	annotation_scale(
+		style = "ticks",
+		location = "br"
+	) +
+	stat_density_2d(
+		aes(fill = ..level..),
+		alpha = 0.5,
+		geom = "polygon"
+	) +
+	theme(
+		plot.title = element_text(hjust = 0.5)
+	) +
+	labs(
+		title = paste0(
+			"Injuries from Collisions in Downtown Toronto, Canada (",
+			min(year(crash$date), na.rm = T),
+			"-",
+			max(year(crash$date), na.rm = T),
+			")"
+		),
+		fill = "Density"
+	)
+
+```
+
+### By Year
+
+::: panel-tabset
+
+#### City
+
+```{r fig.width = 6, fig.height = 5}
+
+# Heatmap of city by year
+ggplot(
+	crash,
+	aes(x = longitude, y = latitude)
+) +
+	theme_minimal() +
+	geom_density_2d_filled(
+		contour_var = "density"
+	) +
+	layer_spatial(
+		bounds,
+		alpha = 0,
+		color = "lightgray"
+	) +
+	facet_wrap(
+		vars(year(date))
+	) +
+	theme(
+		axis.title.x = element_blank(),
+		axis.title.y = element_blank(),
+		axis.text.x = element_blank(),
+		axis.text.y = element_blank(),
+		axis.line = element_blank()
+	) +
+	labs(
+		title = "Injuries from Collisions in Toronto, Canada",
+		fill = "Density"
+	)
+
+```
+
+#### Downtown
+
+```{r fig.width = 6, fig.height = 5}
+
+# Heatmap of downtown by year
+ggplot(
+	crash_downtown,
+	aes(x = longitude, y = latitude)
+) +
+	theme_minimal() +
+	geom_density_2d_filled(
+		contour_var = "density"
+	) +
+	facet_wrap(
+		vars(year(date))
+	) +
+	theme(
+		axis.title.x = element_blank(),
+		axis.title.y = element_blank(),
+		axis.text.x = element_blank(),
+		axis.text.y = element_blank(),
+		axis.line = element_blank()
+	) +
+	labs(
+		title = "Injuries from Collisions in Downtown Toronto, Canada",
+		fill = "Density"
+	)
+
+```
+
+## Pre/Post
+
+We have collision data from 2010-2022, while our bikeways data covers 2011-2022.
+
+From 2010-2012 (3-year period), only painted lanes were implemented - we will use this as our pre-period.
+
+We then chose 2013-2015 (3 years later), to compare the heat maps.
+
+Thus we compare a pre-period (2010-2013) of mostly painted lanes to a post-period (2014-2017) with more cycle tracks.
+
+```{r fig.width = 8, fig.height = 4}
+
+# Pre map
+pre_min <- 2010
+pre_max <- 2012
+crash_pre_map <- ggplot(
+	crash %>% filter(year(date) >= pre_min & year(date) <= pre_max),
+	aes(x = longitude, y = latitude)
+) +
+	theme_void() +
+	annotation_map_tile(
+		zoomin = 1,
+		type = "cartolight",
+		cachedir = "../../data/cache"
+	) +
+	stat_density_2d(
+		aes(fill = ..level..),
+		alpha = 0.5,
+		geom = "polygon"
+	) +
+	layer_spatial(
+		bike %>% filter(event_year < pre_min),
+		color = "black"
+	) +
+	layer_spatial(
+		bounds,
+		alpha = 0,
+		color = "darkgray"
+	) +
+	scale_fill_gradient(low = "blue", high = "red") +
+	theme(
+		plot.title = element_text(hjust = 0.5)
+	) +
+	labs(
+		title = paste0(pre_min, "-", pre_max),
+		fill = "Density"
+	)
+
+# Post map
+post_min <- 2016
+post_max <- 2018
+crash_post_map <- ggplot(
+	crash %>% filter(year(date) >= post_min & year(date) <= post_max),
+	aes(x = longitude, y = latitude)
+) +
+	theme_void() +
+	annotation_map_tile(
+		zoomin = 1,
+		type = "cartolight",
+		cachedir = "../../data/cache"
+	) +
+	stat_density_2d(
+		aes(fill = ..level..),
+		alpha = 0.5,
+		geom = "polygon"
+	) +
+	layer_spatial(
+		bike %>% filter(event_year < post_min - 3),
+		color = "black"
+	) +
+	layer_spatial(
+		bike %>%
+			filter(
+				event_year >= post_min - 3 &
+				event_year <= post_max - 3 &
+				event_type %in% c("painted lane", "buffered lane")
+			),
+		color = "white"
+	) +
+	layer_spatial(
+		bike %>%
+			filter(
+				event_year >= post_min - 3 &
+				event_year <= post_max - 3 &
+				event_type == "cycle track"
+			),
+		color = "green"
+	) +
+	layer_spatial(
+		bounds,
+		alpha = 0,
+		color = "darkgray"
+	) +
+	scale_fill_gradient(low = "blue", high = "red") +
+	theme(
+		plot.title = element_text(hjust = 0.5)
+	) +
+	labs(
+		title = paste0(post_min, "-", post_max),
+		fill = "Density"
+	)
+
+# Compare maps
+crash_pre_map + crash_post_map + plot_annotation(
+	caption = paste0(
+		"Black Lines: Past Painted/Buffered Lanes\n",
+		"Purple Lines: Painted/Buffered Lanes (", post_min - 3, "-", post_max - 3, ")\n",
+		"Green Lines: Cycle Tracks (", post_min - 3, "-", post_max - 3, ")\n"
+	)
+)
+
+```
